@@ -37,7 +37,12 @@ Anthropic publicly positions Claude Code as an apprenticeship/learning surface a
 https://www.anthropic.com/education  
 https://code.claude.com/docs/en/hooks
 
-**Conclusion:** “show explanations while Claude works” is not a defensible wedge by itself.
+### Codex itself
+
+OpenAI now exposes deterministic Codex lifecycle hooks for `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Stop`, and related events, including project-local `.codex/hooks.json`. Non-managed command hooks require an explicit trust review in `/hooks`. That makes a first-class, non-proxy IdleProof adapter possible without intercepting prompts or model traffic.  
+https://developers.openai.com/codex/hooks
+
+**Conclusion:** “show explanations while Claude works” is not a defensible wedge by itself. The stronger opportunity is an agent-neutral assurance layer that consumes native lifecycle events when agents expose them.
 
 ## 3. Independent validation is becoming a valuable category
 

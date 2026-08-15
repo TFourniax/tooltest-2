@@ -74,7 +74,8 @@ function render(state) {
   const complete = session?.status === 'complete';
   document.body.classList.toggle('completed', complete);
   $('statusDot').classList.toggle('active', active);
-  $('status').textContent = active ? 'Agent working · learning window open' : complete ? 'Agent turn complete · handoff ready' : 'Waiting for an agent';
+  const agentName = session?.source === 'codex' ? 'Codex' : session?.source === 'claude' ? 'Claude Code' : 'Agent';
+  $('status').textContent = active ? `${agentName} working · learning window open` : complete ? `${agentName} turn complete · handoff ready` : 'Waiting for an agent';
   $('window').textContent = active ? `≈ ${session.estimatedWindow || 20} sec window` : complete ? 'window closed' : '0 sec window';
   $('currentTool').textContent = session?.currentTool || (complete ? 'Review the handoff' : 'No active tool');
   $('headline').innerHTML = active

@@ -33,7 +33,7 @@ Local-first also answers the strongest enterprise objection before the sales cal
 ### Community — free
 
 - local dashboard and ledger;
-- Claude Code native hooks;
+- Claude Code + Codex native lifecycle hooks;
 - generic process wrapper;
 - deterministic diff checks;
 - proof receipts;
@@ -108,8 +108,8 @@ There is a later monetization option close to the original idea: sponsor **usefu
 ## Launch sequence
 
 1. Open-source the local core and make install-to-first-window < 2 minutes.
-2. Ship first-class Claude Code support because hooks expose rich lifecycle events.
-3. Add Codex/Gemini/OpenCode adapters as their stable event surfaces permit.
+2. Ship first-class Claude Code and Codex support because both expose rich local lifecycle events.
+3. Add Gemini/OpenCode/native editor adapters as their stable event surfaces permit.
 4. Publish a public “knowledge debt benchmark” over synthetic agent tasks, not private user code.
 5. Add GitHub proof checks and shareable PR receipts.
 6. Validate Team willingness-to-pay around review routing and sensitive-domain policies.

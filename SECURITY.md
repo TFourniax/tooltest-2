@@ -10,6 +10,8 @@ IdleProof's free core is designed to minimize trust requirements.
 - Git diffs are processed in the local Node.js process.
 - State and receipts are written under `.idleproof/`.
 - `.claude/settings.local.json` is used for Claude integration so installation remains local to the project/machine.
+- `.codex/hooks.json` is used for Codex integration. Codex independently requires non-managed command hooks to be reviewed/trusted before execution.
+- When possible IdleProof adds its generated `.codex/hooks.json` to `.git/info/exclude`; this does not override an already-tracked file.
 
 ## What IdleProof is not
 
@@ -21,4 +23,4 @@ The installer preserves existing settings and hooks and is idempotent. Uninstall
 
 ## Reporting
 
-Please open a private security advisory on the GitHub repository for vulnerabilities that could expose source code, execute unintended commands, overwrite unrelated Claude settings, or accept remote connections unexpectedly.
+Please open a private security advisory on the GitHub repository for vulnerabilities that could expose source code, execute unintended commands, overwrite unrelated Claude or Codex settings, or accept remote connections unexpectedly.

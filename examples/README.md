@@ -11,15 +11,30 @@ idleproof serve
 
 IdleProof modifies `.claude/settings.local.json` only. Use `idleproof uninstall claude` to remove its entries.
 
+## Codex
+
+```bash
+idleproof install codex
+idleproof serve
+```
+
+IdleProof writes project-local lifecycle configuration to `.codex/hooks.json` while preserving unrelated hooks. Codex requires non-managed command hooks to be reviewed/trusted: open `/hooks` in Codex once after install.
+
+For a repository used with both:
+
+```bash
+idleproof on --agent all
+```
+
 ## Generic terminal agent
 
 ```bash
 idleproof serve
 # second terminal
-idleproof run -- codex
+idleproof run -- gemini
 ```
 
-The generic wrapper sees task start/finish and the final Git footprint. Native integrations provide richer per-tool learning windows.
+The generic wrapper sees task start/finish and the final Git footprint. Native Claude Code and Codex integrations provide richer per-tool learning windows.
 
 ## Policy gate
 

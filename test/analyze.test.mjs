@@ -24,6 +24,7 @@ test('detectConcepts maps agent activity to relevant cognitive concepts', () => 
 
 test('estimateWindow recognizes long-running validation commands', () => {
   assert.equal(estimateWindow({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'npm test' } }), 55);
+  assert.equal(estimateWindow({ hook_event_name: 'PreToolUse', tool_name: 'apply_patch', tool_input: {} }), 24);
   assert.equal(estimateWindow({ hook_event_name: 'Stop' }), 0);
 });
 
@@ -54,13 +55,15 @@ test('captureGitSnapshot excludes IdleProof runtime/config artifacts from its ow
   const dir = tempRepo();
   try {
     fs.mkdirSync(path.join(dir, '.idleproof'));
-    fs.writeFileSync(path.join(dir, '.idleproof', 'state.json'), '{"secret":"self"}\n');
+    fs.writeFileSync(path.join(dir, '.idleproof', 'state.json'), '{\"secret\":\"self\"}\n');
     fs.mkdirSync(path.join(dir, '.claude'));
-    fs.writeFileSync(path.join(dir, '.claude', 'settings.local.json'), '{"hooks":{}}\n');
+    fs.writeFileSync(path.join(dir, '.claude', 'settings.local.json'), '{\"hooks\":{}}\n');
+    fs.mkdirSync(path.join(dir, '.codex'));
+    fs.writeFileSync(path.join(dir, '.codex', 'hooks.json'), '{\"hooks\":{}}\n');
     fs.writeFileSync(path.join(dir, 'real.js'), 'export const real = true;\n');
     const snapshot = captureGitSnapshot(dir);
     assert.deepEqual(snapshot.files, ['real.js']);
-    assert.doesNotMatch(snapshot.diff, /idleproof|settings\.local/);
+    assert.doesNotMatch(snapshot.diff, /idleproof|settings\.local|\.codex\/hooks/);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

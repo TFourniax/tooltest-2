@@ -1,6 +1,6 @@
 {
   "name": "idleproof",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Human CI for agentic coding: turn agent wait-time into verified understanding.",
   "type": "module",
   "bin": {

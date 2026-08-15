@@ -49,7 +49,7 @@ export function estimateWindow(event = {}) {
     if (/deploy|migration|migrate/i.test(command)) return 60;
     return 28;
   }
-  if (/Write|Edit|MultiEdit/.test(tool)) return 24;
+  if (/Write|Edit|MultiEdit|apply_patch/.test(tool)) return 24;
   if (/Read|Grep|Glob/.test(tool)) return 18;
   if (name === 'UserPromptSubmit') return 32;
   return 22;
@@ -71,7 +71,7 @@ function git(cwd, args, maxBuffer = 1024 * 1024) {
 
 function isIdleProofInternal(relative) {
   const normalized = relative.replaceAll('\\', '/');
-  return normalized === '.idleproof' || normalized.startsWith('.idleproof/') || normalized === '.claude/settings.local.json';
+  return normalized === '.idleproof' || normalized.startsWith('.idleproof/') || normalized === '.claude/settings.local.json' || normalized === '.codex/hooks.json';
 }
 
 function safeUntrackedPatch(cwd, relative) {
@@ -229,6 +229,7 @@ export function publicSession(session) {
   if (!session) return null;
   return {
     id: session.id,
+    source: session.source || 'agent',
     status: session.status,
     startedAt: session.startedAt,
     lastEventAt: session.lastEventAt,

@@ -14,6 +14,7 @@ export function projectPaths(cwd = process.cwd()) {
     lock: path.join(dir, 'state.lock'),
     server: path.join(dir, 'server.json'),
     receipt: path.join(dir, 'receipt.json'),
-    claudeSettings: path.join(root, '.claude', 'settings.local.json')
+    claudeSettings: path.join(root, '.claude', 'settings.local.json'),
+    codexHooks: path.join(root, '.codex', 'hooks.json')
   };
 }
