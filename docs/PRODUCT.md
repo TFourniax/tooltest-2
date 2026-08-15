@@ -12,8 +12,8 @@ The product is deliberately framed around accountability rather than education. 
 
 The first ten-minute experience should be:
 
-1. `idleproof on`;
-2. start a normal agent task;
+1. `idleproof on` installs hooks, opens the local surface, and gives the terminal back;
+2. start a normal agent task in that same terminal;
 3. the browser changes instantly from idle to an estimated learning window;
 4. the user receives one concept relevant to the task, not a generic lesson;
 5. one-tap retrieval updates confidence;

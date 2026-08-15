@@ -22,7 +22,9 @@ function printHelp() {
 IdleProof — human CI for agentic coding
 
 Usage:
-  idleproof on [--agent NAME]  Install agent hooks + open live dashboard (claude|codex|all)
+  idleproof on [--agent NAME]  Install hooks + start dashboard in background (claude|codex|all)
+  idleproof start [--port N]   Start dashboard in background
+  idleproof stop               Stop the background dashboard
   idleproof install claude     Install project-local Claude Code hooks
   idleproof install codex      Install project-local Codex hooks
   idleproof install all        Install Claude Code + Codex hooks
@@ -65,28 +67,109 @@ function stateSummary(cwd) {
   return { state, metrics, session };
 }
 
+function readServerInfo(cwd) {
+  try {
+    return JSON.parse(fs.readFileSync(projectPaths(cwd).server, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function processAlive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function installAgentHooks(cwd, agent) {
+  if (!['claude', 'codex', 'all'].includes(agent)) throw new Error('Invalid --agent (use claude, codex, or all)');
+  if (agent === 'claude' || agent === 'all') {
+    const settings = installClaude({ cwd, binPath: BIN_PATH });
+    console.log(`✓ Claude Code hooks installed in ${path.relative(cwd, settings)}`);
+  }
+  if (agent === 'codex' || agent === 'all') {
+    const hooks = installCodex({ cwd, binPath: BIN_PATH });
+    console.log(`✓ Codex hooks installed in ${path.relative(cwd, hooks)}`);
+    console.log('  In Codex, run `/hooks` once to review and trust the project-local IdleProof hook.');
+  }
+}
+
+async function startBackground(args = []) {
+  const cwd = process.cwd();
+  const port = Number(argValue(args, '--port', DEFAULT_PORT));
+  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Invalid --port');
+  const shouldOpen = !args.includes('--no-open');
+  const current = readServerInfo(cwd);
+  if (current && processAlive(current.pid)) {
+    const url = `http://127.0.0.1:${current.port}`;
+    console.log(`✓ IdleProof already running: ${url}`);
+    if (shouldOpen) openBrowser(url);
+    return current;
+  }
+
+  try { fs.unlinkSync(projectPaths(cwd).server); } catch {}
+  const child = spawn(process.execPath, [BIN_PATH, 'serve', '--port', String(port), '--no-open'], {
+    cwd,
+    detached: true,
+    stdio: 'ignore'
+  });
+  child.unref();
+
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    const info = readServerInfo(cwd);
+    if (info && processAlive(info.pid) && info.port) {
+      const url = `http://127.0.0.1:${info.port}`;
+      console.log(`✓ IdleProof dashboard running in background: ${url}`);
+      if (shouldOpen) openBrowser(url);
+      return info;
+    }
+    if (child.exitCode != null) break;
+  }
+  throw new Error('IdleProof background server failed to start. Run `idleproof serve` for foreground diagnostics.');
+}
+
+function stopBackground(cwd = process.cwd()) {
+  const paths = projectPaths(cwd);
+  const info = readServerInfo(cwd);
+  if (!info || !processAlive(info.pid)) {
+    try { fs.unlinkSync(paths.server); } catch {}
+    console.log('IdleProof dashboard is not running.');
+    return false;
+  }
+  try {
+    process.kill(info.pid, 'SIGTERM');
+    console.log(`✓ Stopped IdleProof dashboard (pid ${info.pid}).`);
+  } catch (error) {
+    throw new Error(`Could not stop IdleProof dashboard: ${error.message}`);
+  } finally {
+    try { fs.unlinkSync(paths.server); } catch {}
+  }
+  return true;
+}
+
+async function turnOn(args) {
+  const cwd = process.cwd();
+  const agent = String(argValue(args, '--agent', 'claude')).toLowerCase();
+  installAgentHooks(cwd, agent);
+  await startBackground(args);
+  console.log('✓ Terminal is free — use your coding agent normally.');
+}
+
 async function serve(args, { demo = false, install = false } = {}) {
   const cwd = process.cwd();
   const port = Number(argValue(args, '--port', DEFAULT_PORT));
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Invalid --port');
-  if (install) {
-    const agent = String(argValue(args, '--agent', 'claude')).toLowerCase();
-    if (!['claude', 'codex', 'all'].includes(agent)) throw new Error('Invalid --agent (use claude, codex, or all)');
-    if (agent === 'claude' || agent === 'all') {
-      const settings = installClaude({ cwd, binPath: BIN_PATH });
-      console.log(`✓ Claude Code hooks installed in ${path.relative(cwd, settings)}`);
-    }
-    if (agent === 'codex' || agent === 'all') {
-      const hooks = installCodex({ cwd, binPath: BIN_PATH });
-      console.log(`✓ Codex hooks installed in ${path.relative(cwd, hooks)}`);
-      console.log('  In Codex, run `/hooks` once to review and trust the project-local IdleProof hook.');
-    }
-  }
+  if (install) installAgentHooks(cwd, String(argValue(args, '--agent', 'claude')).toLowerCase());
   if (demo) seedDemo(cwd);
   const { url } = await createServer({ cwd, port });
   console.log(`✓ IdleProof dashboard: ${url}`);
   console.log('  Keep this process running while your agent works. Ctrl+C stops the dashboard.');
-  openBrowser(url);
+  if (!args.includes('--no-open')) openBrowser(url);
 }
 
 async function runGeneric(args) {
@@ -142,7 +225,9 @@ export async function main(args) {
   const cwd = process.cwd();
 
   if (['help', '--help', '-h'].includes(command)) return printHelp();
-  if (command === 'on') return serve(args.slice(1), { install: true });
+  if (command === 'on') return turnOn(args.slice(1));
+  if (command === 'start') return startBackground(args.slice(1));
+  if (command === 'stop') return stopBackground(cwd);
   if (command === 'serve') return serve(args.slice(1));
   if (command === 'demo') return serve(args.slice(1), { demo: true });
 

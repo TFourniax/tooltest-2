@@ -8,7 +8,7 @@ IdleProof's free core is designed to minimize trust requirements.
 - The core makes no outbound network requests.
 - No model/API key is required.
 - Git diffs are processed in the local Node.js process.
-- State and receipts are written under `.idleproof/`.
+- State and receipts are written under `.idleproof/`. The detached dashboard stores only its localhost port and PID in `.idleproof/server.json`.
 - `.claude/settings.local.json` is used for Claude integration so installation remains local to the project/machine.
 - `.codex/hooks.json` is used for Codex integration. Codex independently requires non-managed command hooks to be reviewed/trusted before execution.
 - When possible IdleProof adds its generated `.codex/hooks.json` to `.git/info/exclude`; this does not override an already-tracked file.

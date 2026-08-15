@@ -63,7 +63,7 @@ idleproof on --agent codex
 idleproof on --agent all
 ```
 
-`idleproof on` starts the local dashboard on `127.0.0.1:4777` and installs only project-local lifecycle hooks, preserving existing agent configuration. Claude uses `.claude/settings.local.json`; Codex uses `.codex/hooks.json`. Codex requires project-hook trust, so open `/hooks` once in Codex to review and trust the IdleProof command before it can run.
+`idleproof on` installs the project-local lifecycle hooks, starts the dashboard as a detached localhost process on `127.0.0.1:4777`, opens it, and immediately returns your terminal for the coding agent. Claude uses `.claude/settings.local.json`; Codex uses `.codex/hooks.json`. Codex requires project-hook trust, so open `/hooks` once in Codex to review and trust the IdleProof command before it can run.
 
 For a zero-risk walkthrough:
 
@@ -74,7 +74,9 @@ idleproof demo
 ## Commands
 
 ```text
-idleproof on [--agent NAME]   Install hooks + dashboard (claude|codex|all)
+idleproof on [--agent NAME]   Install hooks + background dashboard
+idleproof start [--port N]    Start only the background dashboard
+idleproof stop                Stop the background dashboard
 idleproof install claude      Install project-local Claude Code hooks
 idleproof install codex       Install project-local Codex hooks
 idleproof install all         Install both native integrations
@@ -180,7 +182,7 @@ Core modules:
 - `src/server.mjs` — dependency-free localhost dashboard/API
 - `public/` — adaptive wait-window UI
 
-## What is deliberately not in v0.2
+## What is deliberately not in v0.3
 
 - no cloud account or telemetry;
 - no paid API dependency;
@@ -198,7 +200,7 @@ npm pack --dry-run
 node ./bin/idleproof.mjs doctor
 ```
 
-The test suite covers concept detection, wait-window estimation, untracked-file diff capture, deterministic trust findings, hook lifecycle, proof receipts, Claude/Codex hook install/uninstall preservation, and the live dashboard API.
+The test suite covers concept detection, wait-window estimation, untracked-file diff capture, deterministic trust findings, hook lifecycle, proof receipts, Claude/Codex hook install/uninstall preservation, detached dashboard lifecycle, and the live dashboard API.
 
 ## Product and market
 
