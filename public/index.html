@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <title>IdleProof — Human CI for agentic coding</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="IdleProof home"><span class="mark">IP</span><span>IdleProof</span><sup>alpha</sup></a>
+      <div class="top-meta"><span id="project">project</span><span class="privacy">local-first · no code leaves your machine</span></div>
+    </header>
+
+    <section class="hero-grid">
+      <article class="agent-panel panel">
+        <div class="eyebrow-row">
+          <div class="status-wrap"><span id="statusDot" class="status-dot"></span><span id="status">Waiting for an agent</span></div>
+          <span id="window" class="window-chip">0 sec window</span>
+        </div>
+        <h1 id="headline">Your agent writes.<br><em>You keep the mental model.</em></h1>
+        <p id="task" class="task">Run <code>idleproof on</code>, then use Claude Code normally. This surface adapts to what the agent actually touches.</p>
+        <div class="live-line"><span>NOW</span><strong id="currentTool">No active tool</strong><div class="pulse-track"><i id="pulse"></i></div></div>
+      </article>
+
+      <aside class="score-panel panel">
+        <div class="score-label">KNOWLEDGE DEBT</div>
+        <div class="score-number" id="debt">0</div>
+        <div class="coverage-line"><span>Cognitive coverage</span><strong id="coverage">100%</strong></div>
+        <div class="meter"><i id="coverageBar"></i></div>
+        <p id="scoreHint">Nothing to repay yet. Debt appears when agents introduce concepts you have not verified.</p>
+      </aside>
+    </section>
+
+    <section class="workspace">
+      <article id="learningCard" class="learning-card panel">
+        <div class="card-topline"><span id="cardRisk" class="risk-badge">CORE</span><span id="cardTime">≈ 30 sec</span></div>
+        <h2 id="cardTitle">Testing strategy</h2>
+        <p id="cardWhy" class="why"></p>
+        <p id="cardLesson" class="lesson"></p>
+        <div class="challenge">
+          <div class="challenge-kicker">PROVE IT · ONE TAP</div>
+          <h3 id="question"></h3>
+          <div id="answers" class="answers"></div>
+          <p id="feedback" class="feedback" aria-live="polite"></p>
+        </div>
+      </article>
+
+      <aside class="side-stack">
+        <article class="panel compact-panel">
+          <div class="section-head"><h3>Agent footprint</h3><span id="linesChanged">+0 −0</span></div>
+          <div id="files" class="file-list"><p class="empty">No files observed yet.</p></div>
+        </article>
+
+        <article class="panel compact-panel">
+          <div class="section-head"><h3>Trust checks</h3><span id="findingCount">0</span></div>
+          <div id="proofStrip" class="proof-strip"><span>CHANGE PROOF</span><code id="proofId">waiting for completed diff</code><button id="copyProof" type="button">copy receipt</button></div>
+          <div id="findings" class="finding-list"><p class="empty">Diff checks appear when the agent finishes a turn.</p></div>
+        </article>
+      </aside>
+    </section>
+
+    <section class="bottom-grid">
+      <article class="panel ledger-panel">
+        <div class="section-head"><h3>Your cognitive ledger</h3><span>risk × exposure × uncertainty</span></div>
+        <div id="ledger" class="ledger"></div>
+      </article>
+      <article class="panel philosophy-panel">
+        <span class="mini-label">THE NEW CI</span>
+        <h3>Tests tell you whether code works.<br>IdleProof tells you whether <em>you can own it.</em></h3>
+        <p>Agent throughput is rising faster than human review capacity. IdleProof converts the latency those agents create into the missing human verification layer.</p>
+        <div class="mode-switch" role="group" aria-label="IdleProof mode">
+          <button data-mode="learn" class="active">Learn</button>
+          <button data-mode="review">Review</button>
+        </div>
+      </article>
+    </section>
+
+    <footer><span>IdleProof 0.1 · open local core</span><span>Human CI for the agentic software era</span></footer>
+  </main>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

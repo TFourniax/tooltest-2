@@ -1,0 +1,46 @@
+{
+  "name": "idleproof",
+  "version": "0.1.0",
+  "description": "Human CI for agentic coding: turn agent wait-time into verified understanding.",
+  "type": "module",
+  "bin": {
+    "idleproof": "./bin/idleproof.mjs"
+  },
+  "scripts": {
+    "start": "node ./bin/idleproof.mjs serve",
+    "demo": "node ./bin/idleproof.mjs demo",
+    "test": "node --test",
+    "check": "node ./bin/idleproof.mjs doctor"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "claude-code",
+    "codex",
+    "coding-agent",
+    "vibe-coding",
+    "developer-education",
+    "human-in-the-loop",
+    "knowledge-debt"
+  ],
+  "license": "MIT",
+  "files": [
+    "bin",
+    "src",
+    "public",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TFourniax/tooltest-2.git"
+  },
+  "homepage": "https://github.com/TFourniax/tooltest-2#readme",
+  "bugs": {
+    "url": "https://github.com/TFourniax/tooltest-2/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
