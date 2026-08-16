@@ -1,7 +1,7 @@
 {
   "name": "idleproof",
-  "version": "0.9.0",
-  "description": "Agentic software control plane: runtime policy, tamper-evident provenance, signed attestations and human assurance.",
+  "version": "0.10.0",
+  "description": "Free local learning layer for coding agents: learn the task while Claude Code or Codex builds it.",
   "type": "module",
   "bin": { "idleproof": "./bin/idleproof.mjs" },
   "scripts": {
@@ -12,8 +12,8 @@
   },
   "engines": { "node": ">=20" },
   "keywords": [
-    "coding-agent", "agentic", "claude-code", "codex", "ai-security", "devsecops",
-    "provenance", "in-toto", "dsse", "policy-as-code", "human-in-the-loop", "knowledge-debt"
+    "coding-agent", "vibe-coding", "claude-code", "codex", "developer-learning",
+    "contextual-learning", "microlearning", "knowledge-debt", "human-in-the-loop", "ai-coding"
   ],
   "license": "MIT",
   "files": ["bin", "src", "public", "docs", "spec", "examples", "action.yml", "README.md", "SECURITY.md", "LICENSE"],

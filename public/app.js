@@ -1,7 +1,7 @@
 let feedbackLock = null;
 
 const $ = (id) => document.getElementById(id);
-const escapeHtml = (value = '') => String(value).replace(/[&<>'"]/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[ch]));
+const escapeHtml = (value = '') => String(value).replace(/[&<>'"]/g, (ch) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#039;', '"':'&quot;' }[ch]));
 const shortHash = (value, size = 12) => value ? `${String(value).slice(0, size)}…` : 'waiting';
 
 async function api(path, options = {}) {
@@ -13,7 +13,7 @@ async function api(path, options = {}) {
   return res.json();
 }
 
-function riskLabel(card) {
+function riskLabel(card = {}) {
   if (card.risk >= 5) return 'HIGH RISK';
   if (card.risk >= 4) return 'RISK';
   return card.level?.toUpperCase() || 'CORE';
@@ -37,27 +37,28 @@ function renderFindings(session) {
 }
 
 function renderLedger(ledger) {
-  const rows = Object.values(ledger || {}).sort((a,b) => (b.risk * b.exposures * (100-b.confidence)) - (a.risk * a.exposures * (100-a.confidence)));
+  const rows = Object.values(ledger || {}).sort((a,b) => (b.risk * b.exposures * (100 - b.confidence)) - (a.risk * a.exposures * (100 - a.confidence)));
   $('ledger').innerHTML = rows.length
-    ? rows.slice(0,8).map((entry) => `<div class="ledger-row"><span class="ledger-title">${escapeHtml(entry.title)}</span><span class="ledger-risk">×${entry.exposures} · r${entry.risk}</span><span class="ledger-meter" title="${entry.confidence}% confidence"><i style="width:${entry.confidence}%"></i></span></div>`).join('')
-    : '<p class="empty">No human-assurance trace yet. Concepts appear as agents touch the codebase.</p>';
+    ? rows.slice(0, 8).map((entry) => `<div class="ledger-row"><span class="ledger-title">${escapeHtml(entry.title)}</span><span class="ledger-risk">×${entry.exposures} · r${entry.risk}</span><span class="ledger-meter" title="${entry.confidence}% confidence"><i style="width:${entry.confidence}%"></i></span></div>`).join('')
+    : '<p class="empty">Concepts appear as the coding agent touches your codebase.</p>';
 }
 
-function renderCard(state) {
-  const card = state.card;
+function renderLearning(state) {
+  const card = state.card || {};
+  const learning = state.learning || {};
   const handoff = state.session?.status === 'complete';
-  const reviewMode = handoff || state.preferences.mode === 'review';
+  const recap = learning.recap || {};
   $('cardRisk').textContent = handoff ? 'HANDOFF' : riskLabel(card);
   $('cardTime').textContent = `≈ ${Math.min(card.seconds || 30, Math.max(12, state.session?.estimatedWindow || card.seconds || 30))} sec`;
-  $('cardConfidence').textContent = `${card.confidence || 0}% verified confidence`;
-  $('cardTitle').textContent = card.title;
-  $('cardWhy').textContent = reviewMode ? `Review boundary: ${card.review}` : card.why;
-  $('cardLesson').textContent = reviewMode
-    ? `IdleProof has ${card.exposures} exposure${card.exposures === 1 ? '' : 's'} for this concept. Treat this as evidence of recall, not proof of engineering competence.`
-    : card.lesson;
-  $('question').textContent = card.question;
+  $('cardConfidence').textContent = handoff
+    ? `${recap.review || 0} concept${recap.review === 1 ? '' : 's'} still to review`
+    : `${card.confidence || 0}% mastery · ${learning.phase || 'live'}`;
+  $('cardTitle').textContent = card.title || 'Current task';
+  $('cardWhy').textContent = card.why || 'IdleProof will connect a useful concept to the task as soon as the agent starts working.';
+  $('cardLesson').textContent = card.lesson || '';
+  $('question').textContent = card.question || 'What should you understand before accepting this change?';
   if (!feedbackLock || feedbackLock !== card.id) $('feedback').textContent = '';
-  $('answers').innerHTML = card.options.map((option, index) => `<button class="answer" data-choice="${index}">${escapeHtml(option)}</button>`).join('');
+  $('answers').innerHTML = (card.options || []).map((option, index) => `<button class="answer" data-choice="${index}">${escapeHtml(option)}</button>`).join('');
   document.querySelectorAll('.answer').forEach((button) => button.addEventListener('click', () => submitAnswer(card.id, Number(button.dataset.choice))));
 }
 
@@ -81,7 +82,7 @@ function renderTimeline(control) {
           <div class="trace-side">${p ? `<span class="decision ${escapeHtml(p.originalDecision || p.decision)}">${escapeHtml((p.originalDecision || p.decision || 'allow').toUpperCase())}</span><small>risk ${p.risk || 0}</small>` : '<small>observed</small>'}</div>
         </div>`;
       }).join('')
-    : '<p class="empty">Agent lifecycle events will appear here. The recorder stores metadata and payload digests, not raw prompts.</p>';
+    : '<p class="empty">Agent activity appears here so each lesson can be grounded in what is actually happening.</p>';
 }
 
 function renderDecision(control) {
@@ -95,7 +96,7 @@ function renderDecision(control) {
   const decision = latest.originalDecision || latest.decision;
   banner.className = `decision-banner ${decision}`;
   const canApprove = ['ask', 'deny'].includes(decision) && latest.approvalFingerprint;
-  banner.innerHTML = `<div><strong>${escapeHtml(decision.toUpperCase())} · risk ${latest.risk || 0}</strong><span>${escapeHtml(latest.reason || 'Runtime policy intervened before execution.')}</span></div>${canApprove ? `<button id="approveAction" data-fingerprint="${escapeHtml(latest.approvalFingerprint)}">approve once</button>` : ''}`;
+  banner.innerHTML = `<div><strong>${escapeHtml(decision.toUpperCase())} · risk ${latest.risk || 0}</strong><span>${escapeHtml(latest.reason || 'IdleProof paused a risky agent action.')}</span></div>${canApprove ? `<button id="approveAction" data-fingerprint="${escapeHtml(latest.approvalFingerprint)}">approve once</button>` : ''}`;
   const button = $('approveAction');
   if (button) button.addEventListener('click', async () => {
     button.disabled = true;
@@ -106,33 +107,21 @@ function renderDecision(control) {
   });
 }
 
-function render(state) {
+function renderControlPlane(state) {
   const control = state.controlPlane || {};
-  const session = state.session;
-  const active = session?.status === 'active';
-  const complete = session?.status === 'complete';
-  const agentName = session?.source === 'codex' ? 'Codex' : session?.source === 'claude' ? 'Claude Code' : session?.source ? session.source : 'Agent';
-
-  $('project').textContent = state.project;
   $('runtimeRisk').textContent = control.runtimeRisk || 0;
   $('traceEvents').textContent = control.provenance?.events || 0;
-  $('debt').textContent = state.metrics.debt;
-  $('coverage').textContent = `${state.metrics.coverage}%`;
-  $('integrityChip').textContent = control.provenance?.valid ? 'trace verified' : 'trace invalid';
+  $('integrityChip').textContent = control.provenance?.valid ? 'local trace verified' : 'trace invalid';
   $('integrityChip').className = `chip ${control.provenance?.valid ? 'chip-ok' : 'chip-bad'}`;
-  $('traceHint').textContent = control.provenance?.valid ? 'hash-chain valid' : 'integrity failure';
+  $('traceHint').textContent = control.provenance?.valid ? 'agent context observed' : 'integrity failure';
   $('chainHead').textContent = `head: ${shortHash(control.provenance?.headHash, 14)}`;
   $('traceHash').textContent = shortHash(control.provenance?.headHash, 20);
 
   const policy = control.policy || {};
   $('policyProfile').textContent = policy.profile || 'balanced';
-  $('policySource').textContent = policy.source === 'project' ? 'project policy' : 'built-in policy';
+  $('policySource').textContent = policy.source === 'project' ? 'project policy' : 'built-in safety';
   $('policyHash').textContent = shortHash(policy.sha256, 20);
-  $('policyText').textContent = policy.profile === 'strict'
-    ? 'Strict mode fails closed if high-risk execution cannot be traced.'
-    : policy.profile === 'observe'
-      ? 'Observe mode records decisions without blocking matched actions.'
-      : 'Balanced mode blocks catastrophic actions and requests review for high-risk mutations.';
+  $('policyText').textContent = 'Safety hooks stay under the hood while IdleProof teaches from the same live agent context.';
 
   const bom = control.agentBom || { tools:[], mcpServers:[], sources:[] };
   $('agentCount').textContent = `${bom.capabilities?.length || 0} capabilit${bom.capabilities?.length === 1 ? 'y' : 'ies'}`;
@@ -148,24 +137,39 @@ function render(state) {
   $('ownerCoverage').textContent = `${responsibility.ownerCoverage || 0}% owners mapped`;
   $('responsibilityText').textContent = responsibility.obligations?.length
     ? `${responsibility.obligations.length} high-risk ownership obligation${responsibility.obligations.length === 1 ? '' : 's'} remain.`
-    : session?.status === 'complete' ? 'No uncovered high-risk ownership obligation.' : 'A completed change creates maintenance-owner obligations.';
-  $('acceptResponsibility').disabled = session?.status !== 'complete';
-
-  document.body.classList.toggle('completed', complete);
-  $('statusDot').classList.toggle('active', active);
-  $('status').textContent = active ? `${agentName} working · control plane live` : complete ? `${agentName} turn complete · evidence sealed` : 'Waiting for an agent';
-  $('window').textContent = active ? `≈ ${session.estimatedWindow || 20} sec window` : complete ? 'turn sealed' : '0 sec window';
-  $('currentTool').textContent = session?.currentTool || (complete ? 'Evidence + handoff ready' : 'No active tool');
-  $('headline').innerHTML = active
-    ? 'The agent is moving.<br><em>The guardrails move with it.</em>'
-    : complete
-      ? 'The code changed.<br><em>The evidence changed with it.</em>'
-      : 'Every agent action.<br><em>Governed. Traceable. Ownable.</em>';
-  $('task').textContent = session?.prompt || 'Run `idleproof on`, then use Claude Code or Codex normally. IdleProof sits around the agent, not inside it.';
+    : state.session?.status === 'complete' ? 'No uncovered high-risk ownership obligation.' : 'Ownership evidence becomes available after a completed change.';
+  $('acceptResponsibility').disabled = state.session?.status !== 'complete';
 
   renderDecision(control);
   renderTimeline(control);
-  renderCard(state);
+}
+
+function render(state) {
+  const session = state.session;
+  const active = session?.status === 'active';
+  const complete = session?.status === 'complete';
+  const agentName = session?.source === 'codex' ? 'Codex' : session?.source === 'claude' ? 'Claude Code' : session?.source ? session.source : 'Agent';
+  const learning = state.learning || {};
+
+  $('project').textContent = state.project;
+  $('debt').textContent = state.metrics.debt;
+  $('coverage').textContent = `${state.metrics.coverage}%`;
+  document.body.classList.toggle('completed', complete);
+  $('statusDot').classList.toggle('active', active);
+  $('status').textContent = active ? `${agentName} working · live lesson ready` : complete ? `${agentName} turn complete · recap ready` : 'Waiting for a coding agent';
+  $('window').textContent = active ? `≈ ${session.estimatedWindow || 20} sec learning window` : complete ? 'handoff review' : '0 sec window';
+  $('currentTool').textContent = session?.currentTool || (complete ? 'Task complete · review what changed' : 'No active tool');
+  $('headline').innerHTML = active
+    ? 'Your agent is building.<br><em>Learn this task while it works.</em>'
+    : complete
+      ? 'The code is ready.<br><em>Make sure the understanding is too.</em>'
+      : 'Vibe code fast.<br><em>Stay fluent in your own product.</em>';
+  $('task').textContent = session?.prompt || 'Run `idleproof on`, then use Claude Code or Codex normally. IdleProof turns the agent’s live work into short, contextual lessons.';
+
+  if (active && learning.file) $('currentTool').textContent = `${session.currentTool || 'Working'} · ${learning.file}`;
+
+  renderControlPlane(state);
+  renderLearning(state);
   renderFiles(session);
   renderFindings(session);
   renderLedger(state.ledger);
@@ -194,7 +198,7 @@ async function poll() {
     const state = await api('/api/state');
     if (!feedbackLock) render(state);
   } catch {
-    $('status').textContent = 'Control plane disconnected';
+    $('status').textContent = 'IdleProof disconnected';
     $('integrityChip').textContent = 'offline';
     $('integrityChip').className = 'chip chip-bad';
   }
@@ -205,7 +209,7 @@ $('copyEvidence').addEventListener('click', async () => {
   const before = button.textContent;
   try {
     button.disabled = true;
-    button.textContent = 'sealing evidence…';
+    button.textContent = 'preparing local evidence…';
     const evidence = await api('/api/evidence');
     await navigator.clipboard.writeText(JSON.stringify(evidence, null, 2));
     button.textContent = 'evidence copied';
@@ -215,9 +219,6 @@ $('copyEvidence').addEventListener('click', async () => {
     setTimeout(() => { button.disabled = false; button.textContent = before; }, 1500);
   }
 });
-
-poll();
-setInterval(poll, 1000);
 
 $('acceptResponsibility').addEventListener('click', async () => {
   const button = $('acceptResponsibility');
@@ -234,3 +235,6 @@ $('acceptResponsibility').addEventListener('click', async () => {
     setTimeout(() => { button.disabled = false; button.textContent = before; }, 1800);
   }
 });
+
+poll();
+setInterval(poll, 1000);

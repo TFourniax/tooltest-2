@@ -1,280 +1,203 @@
 # IdleProof
 
-**The local accountability kernel and control plane for agentic software delivery.**
+**Your coding agent should make you faster — not make you a stranger to your own product.**
 
-Coding agents are becoming execution engines. IdleProof sits around them and adds the independent layer a multi-agent software organization needs: **pre-execution policy, tamper-evident execution provenance, change-bound signed evidence, maintenance responsibility, and human assurance.**
-
-The community core is local-first: no model proxy, no account, no API key, no runtime dependency and no outbound network requirement.
+IdleProof is a free, local learning layer for Claude Code, Codex and terminal-based coding agents. It watches the task the agent is performing and turns natural wait windows into short lessons and one-tap questions about **the code being changed right now**.
 
 ```text
-intent
-  │
-  ▼
-agent runtime ─► semantic capability ─► runtime policy ─► allow / ask / deny
-  │                                      │
-  ├──────────────────────────────────────┴─► Flight Recorder (hash chain)
-  │                                             │
-  │                                             ├─ Agent BOM
-  │                                             ├─ policy replay
-  │                                             └─ signed checkpoint
-  │
-  ├─ wait window ─► Human Assurance / knowledge-debt repayment
-  │
-  └─ code change ─► exact Git diff proof ─► CODEOWNERS/responsibility
-                                              │
-                                              ▼
-                                  DSSE + in-toto attestation
-                                              │
-                                              ▼
-                                      Evidence Bundle
+Claude Code is editing src/auth/session.ts
+
+LIVE TASK LESSON · Authentication & sessions
+≈ 24 sec
+
+The task is “Add Google OAuth login and protect the admin route…”
+The latest observed file is src/auth/session.ts.
+
+While the agent changes the code in src/auth/session.ts:
+Which check must still happen after a user is successfully authenticated?
+
+[ Authorization for the requested action ]
+[ CSS validation ]
+[ Client-side route rendering ]
 ```
 
-## Why this is bigger than “learn while the agent works”
+The goal is not to slow vibe coding down. The goal is to let people keep the speed of coding agents **without progressively losing the mental model of the software they own**.
 
-Wait-time learning is still a strong individual activation loop: the agent works while the developer receives a short concept/review intervention relevant to the task. But the enterprise problem is larger. As code generation accelerates, the bottleneck moves toward **control, validation, provenance and accountability**.
+## The product loop
 
-IdleProof therefore treats learning as one signal in a broader assurance system rather than the product boundary. The core question becomes:
+```text
+agent receives a task
+        ↓
+IdleProof observes prompt + lifecycle + touched files
+        ↓
+detects the concepts that matter now
+        ↓
+selects the highest-value learning opportunity
+        ↓
+turns the current wait window into a contextual lesson
+        ↓
+one-tap understanding check
+        ↓
+updates the user's project knowledge map
+        ↓
+next task adapts to what the user already understands
+```
 
-> **What autonomous system changed this software, what capabilities did it exercise, which policy allowed it, what exact artifact resulted, and which human/team is accountable for maintaining it?**
+IdleProof currently distinguishes the agent's working phase — planning, inspection, implementation, verification, recovery and handoff — so the same concept can be taught differently depending on what is happening.
 
-See [`docs/MARKET_2026.md`](docs/MARKET_2026.md) and [`docs/THESIS.md`](docs/THESIS.md).
+At handoff, the lesson changes from “here is a useful idea” to “before you accept this change, verify that you understand this boundary.”
 
-## Quick start
+## Why this is different from a coding course
+
+IdleProof does not ask generic questions simply because you happen to use JavaScript.
+
+It derives learning context from:
+
+- the current user task;
+- the coding agent and lifecycle event;
+- tools currently being used;
+- files actually touched;
+- the real Git change at handoff;
+- concepts previously encountered in this project;
+- the user's demonstrated confidence on those concepts;
+- risk, so auth, secrets, migrations and production changes matter more than trivia.
+
+The built-in catalog currently covers authentication, SQL/transactions, migrations, async JavaScript, React state/effects, TypeScript boundaries, testing, secrets, HTTP/API contracts, dependencies, Git, CI/CD, concurrency, accessibility and caching.
+
+The contextual layer is deterministic and local. **IdleProof does not require a paid LLM API to produce its core learning experience.**
+
+## Install
 
 Requires Node.js 20+ and Git.
 
+During development:
+
 ```bash
+npm install
 npm link
+```
 
-# Claude Code
+Then, inside a project you work on with Claude Code or Codex:
+
+```bash
 idleproof on
-
-# Codex
-idleproof on --agent codex
-
-# both
-idleproof on --agent all
 ```
 
-`idleproof on` installs project-local hooks, starts the localhost cockpit in the background, opens it, then immediately returns the terminal. Codex requires a one-time `/hooks` trust review.
+IdleProof installs the requested project-local hooks, starts its localhost learning cockpit and returns your terminal immediately. Continue using your coding agent normally.
 
-## 1. Runtime firewall
+The UI is served on `127.0.0.1`; source code does not need to be sent to an IdleProof service.
 
-IdleProof intercepts observable `PreToolUse` events before execution. Policies use semantic software capabilities rather than only vendor-specific tool names or command strings.
+## What a live card knows
 
-Examples:
+For every active turn IdleProof can build a context object such as:
 
-- `scm.history_rewrite`
-- `database.destructive`
-- `deploy.production`
-- `secrets.write`
-- `ci.modify`
-- `database.migration`
-- `dependency.install`
-- `mcp.invoke`
-
-Built-in `balanced` policy blocks narrow catastrophic actions and escalates high-risk mutations. `strict` further escalates high-risk observations and fails closed for mutating actions when the Flight Recorder cannot persist evidence.
-
-```bash
-idleproof policy show
-idleproof policy init balanced
-idleproof policy init strict
+```json
+{
+  "task": "Add Google OAuth login and protect the admin route",
+  "phase": "implement",
+  "file": "src/auth/session.ts",
+  "tool": "Write",
+  "source": "claude"
+}
 ```
 
-Project policy is reviewable/versionable as `idleproof.policy.json` and may match event, source, tool, path, command or semantic capability.
+That context is attached to the selected concept and used to produce the lesson, question and review action.
 
-Claude can surface a native `ask` decision. Codex does not currently expose hook-level `ask`, so IdleProof fails closed and provides a short-lived approval fingerprint:
-
-```bash
-idleproof approve 7c1b0f99ab21d3e2
-```
-
-For agents without native hooks, `idleproof run -- <agent>` applies the same preflight policy before the wrapped process starts.
-
-## 2. Privacy-preserving Policy Replay
-
-The Flight Recorder stores semantic capability/path/tool/source facts but not raw commands. That allows a security team to test a future policy against historical execution without retaining prompts/commands:
-
-```bash
-idleproof policy replay strict
-idleproof policy replay strict --json
-```
-
-Rules depending on raw `command` fields are explicitly reported as non-replayable rather than silently pretending to have complete historical coverage.
-
-## 3. Flight Recorder
-
-Each normalized lifecycle event is appended to `.idleproof/events.jsonl` and chained to the previous event with SHA-256. Verification detects mutation, deletion/reordering relative to the chain state, or a mismatched head.
-
-```bash
-idleproof trace
-idleproof verify
-```
-
-By default the recorder stores:
-
-- lifecycle event / agent source / session;
-- tool and relative target;
-- semantic capabilities;
-- MCP server/tool metadata;
-- command executable, not full command;
-- payload digest/size, not raw prompt/tool payload;
-- policy decision/risk/rule IDs;
-- failure state.
-
-## 4. Agent Bill of Materials
-
-```bash
-idleproof bom
-```
-
-The Agent BOM inventories observed agent sources, tools, MCP servers, permission modes, capabilities, sessions, failures and policy interventions, anchored to the recorder chain head.
-
-It is observational evidence from the local recorder, not proof that an agent vendor/model identity is genuine.
-
-## 5. Responsibility Layer
-
-Attribution alone does not answer who owns the software in production. After a completed change, IdleProof maps touched files through `CODEOWNERS`, applies risk weighting to sensitive domains, and creates explicit maintenance obligations.
-
-```bash
-idleproof responsibility
-idleproof accept
-idleproof accept --as alice@example.com
-```
-
-Acceptance is bound to the exact diff SHA-256 and recorder-signed. **Local acceptance is self-asserted.** An enterprise control plane must federate identity/authority through GitHub/SSO/SCIM/WebAuthn or equivalent before treating it as strong organizational approval.
-
-## 6. Signed Agentic Development Provenance
-
-When a turn completes, IdleProof links:
-
-- exact Git diff SHA-256 + source `HEAD`;
-- agent execution chain;
-- effective policy SHA-256 (including built-ins);
-- semantic Agent BOM;
-- deterministic findings;
-- human-assurance context;
-- maintenance responsibility state.
-
-It emits an in-toto Statement wrapped in DSSE and signed with a local Ed25519 recorder identity:
-
-```bash
-idleproof attest
-idleproof identity export --out .idleproof-trust/recorder.pub.pem
-idleproof verify .idleproof/attestation.dsse.json --key .idleproof-trust/recorder.pub.pem
-```
-
-The public key embedded in an attestation proves cryptographic integrity only. **A real trust decision must pin/provision the expected public key independently.** The included GitHub Action therefore requires `public-key`.
-
-## 7. Evidence Bundle
-
-```bash
-idleproof evidence
-```
-
-The portable `idleproof.evidence-bundle.v1` combines:
-
-- diff-bound receipt;
-- Agent BOM;
-- effective policy digest;
-- responsibility report;
-- signed Flight Recorder checkpoint;
-- DSSE/in-toto attestation.
-
-No source code or raw prompt is required in the portable bundle.
-
-## 8. Human Assurance
-
-Real agent latency is converted into contextual micro-learning/review. A persistent ledger models:
+The current task also gets a learning journey:
 
 ```text
-knowledge debt = Σ(risk × bounded exposure × uncertainty)
+Authentication & sessions    learn-now   20%
+HTTP & API contracts         building    52%
+Testing strategy             mastered    84%
 ```
 
-This is evidence of interaction/recall, **not** proof of engineering competence or code safety.
+This is deliberately not a certification system. It is a memory of exposure and demonstrated recall designed to help the user decide what deserves attention.
 
-## Assurance gates
+## Knowledge Debt
 
-```bash
-idleproof check --max 20 --fail-on high
-idleproof check --max 20 --fail-on high --require-attestation --require-owner
-```
+IdleProof maintains a local cognitive ledger.
 
-A gate can fail on excessive cognitive debt, deterministic findings, broken provenance, missing/invalid attestation, or uncovered high-risk ownership obligations.
-
-## GitHub Action
-
-```yaml
-- uses: TFourniax/tooltest-2@main
-  with:
-    attestation: .idleproof/attestation.dsse.json
-    public-key: .idleproof-trust/team-recorder.pub.pem
-```
-
-The trusted public key must be provisioned independently of the evidence being verified.
-
-## Open protocol strategy
-
-The goal is not to own a proprietary dashboard format. IdleProof exposes protocol material under [`spec/`](spec/):
-
-- `idleproof.policy.v1`
-- semantic software capability vocabulary
-- `idleproof.event.v1` Flight Recorder records
-- `idleproof.agent-bom.v1`
-- `idleproof.agentic-development-provenance.v1`
-- `idleproof.evidence-bundle.v1`
-
-DSSE/in-toto are reused for signed evidence. OpenTelemetry's evolving GenAI/agent semantic conventions should be consumed for telemetry interoperability. AI authorship formats such as Agent Trace/Git AI are complementary inputs; IdleProof should not reinvent AI `git blame`.
-
-## Commercial expansion
-
-The free local kernel should maximize distribution. Enterprise value sits above it:
-
-- organization-managed policy distribution/inheritance;
-- KMS/HSM/workload-identity trust roots and key rotation;
-- SSO/RBAC/SCIM + verified responsibility acceptance;
-- evidence ingestion, retention, search and incident replay;
-- GitHub/GitLab merge/deploy gates;
-- cross-repository agent/MCP/capability inventory;
-- organization responsibility/ownership graph;
-- policy shadow rollout and fleet-wide replay;
-- correlations between agent behavior, policy, ownership, review latency, rework, incidents and rollbacks;
-- self-hosting, residency and audit integrations.
-
-The long-term moat is the cross-vendor graph:
+A simplified version of the current metric is:
 
 ```text
-intent → agent capability → policy decision → exact change → accountable owner → outcome
+Knowledge Debt = Σ(risk × bounded exposure × uncertainty)
 ```
 
-A model vendor can copy a quiz or a local hook. A multi-vendor longitudinal accountability graph, protocol ecosystem and organizational policy dependency are harder to replace.
+If your agent repeatedly modifies a high-risk domain that you never successfully review, the debt rises. If you demonstrate understanding over time, cognitive coverage rises.
 
-## Commands
+The metric is a learning signal — **not proof that a person is competent and not proof that the code is correct**.
+
+## Task-aware handoff
+
+When the agent completes a turn, IdleProof captures the real Git change and can surface:
+
+- concepts touched by the task;
+- which ones are already mastered vs still weak;
+- the files behind the lesson;
+- a short review action tied to the actual file;
+- deterministic findings worth noticing;
+- the diff digest for the completed change.
+
+The intended final interaction is simple:
 
 ```text
-idleproof on / start / stop / serve / demo
-idleproof install|uninstall claude|codex|all
-idleproof run -- <command>
-idleproof policy show|init|replay
-idleproof approve <fingerprint>
-idleproof trace / bom / responsibility / accept
-idleproof receipt / attest / evidence / verify
-idleproof identity show|export
-idleproof status / check / doctor / reset
+TASK COMPLETE
+
+4 important concepts encountered
+1 mastered
+1 building
+2 still worth reviewing
+
+Next best review: Authentication & sessions
 ```
 
-## Security and privacy
+## Under the hood
 
-The community core binds to `127.0.0.1`, makes no required outbound request, has zero runtime dependencies, stores private recorder material locally and ships a restrictive CSP with no third-party UI assets. Read [`SECURITY.md`](SECURITY.md) before treating IdleProof evidence as a security control.
+IdleProof already contains more infrastructure than the learning UI needs because reliable context matters. These primitives stay secondary to the free learning experience:
+
+- Claude Code and Codex lifecycle adapters;
+- semantic capability normalization;
+- local runtime policy with allow / observe / ask / deny;
+- a privacy-conscious append-only Flight Recorder;
+- hash-chain integrity checks;
+- local signed change evidence;
+- Agent Bill of Materials;
+- CODEOWNERS-aware responsibility mapping;
+- policy replay.
+
+Those systems help IdleProof know *what the agent is actually doing* and protect high-risk boundaries. They are not the primary product promise.
+
+## Privacy
+
+The learning cockpit is local-only by default.
+
+The provenance recorder intentionally avoids storing raw prompt/tool payloads in its portable trace. It retains narrow metadata and digests instead. The local learning state may retain a compact task prompt because that context is what makes the lesson useful; it remains in the project's local `.idleproof` state.
+
+See `SECURITY.md` for the exact trust boundaries.
+
+## Free by design
+
+IdleProof is MIT-licensed and designed to work without a hosted model bill. The distribution goal is simple: it should be easy enough that a vibecoder can install it once and then forget about the plumbing.
+
+Future code-quality or verification products may integrate with IdleProof, but they should remain separate tools. IdleProof's own job is narrow:
+
+> **Learn what your coding agent is building while it builds it.**
+
+## Current limits
+
+IdleProof can only observe lifecycle surfaces exposed by the underlying coding agent. It is not a sandbox, SAST replacement, formal verifier, malware detector, or proof that generated code is safe.
+
+Its concept detection is currently heuristic and curated. The roadmap is to improve task decomposition, context selection, spaced recall and project-specific question generation while preserving a zero-cost local path.
 
 ## Development
 
 ```bash
 npm test
 npm pack --dry-run
-node ./bin/idleproof.mjs --help
 ```
+
+CI validates Node.js 20 and 22.
 
 ## License
 
-MIT for the local core. Distribution is the strategy; organization-scale trust, policy operation, evidence intelligence and governance are the commercial layer.
+MIT.

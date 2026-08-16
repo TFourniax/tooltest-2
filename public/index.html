@@ -4,117 +4,117 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="dark" />
-  <meta name="description" content="IdleProof — local runtime policy, provenance and human assurance for coding agents." />
-  <title>IdleProof — Agentic Software Control Plane</title>
+  <meta name="description" content="IdleProof turns coding-agent work into short, contextual lessons about the task you are building." />
+  <title>IdleProof — Learn what your coding agent is building</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
   <main class="shell">
     <header class="topbar">
       <a class="brand" href="#" aria-label="IdleProof home">
-        <span class="mark">IP</span><span>IdleProof</span><sup>control plane</sup>
+        <span class="mark">IP</span><span>IdleProof</span><sup>learn while it builds</sup>
       </a>
       <div class="top-meta">
         <span id="project">project</span>
         <span class="privacy">127.0.0.1 · source stays local</span>
-        <span id="integrityChip" class="chip chip-ok">trace verified</span>
+        <span id="integrityChip" class="chip chip-ok">local trace verified</span>
       </div>
     </header>
 
     <section class="hero-grid">
       <article class="execution panel">
         <div class="eyebrow-row">
-          <div class="status-wrap"><span id="statusDot" class="status-dot"></span><span id="status">Waiting for an agent</span></div>
+          <div class="status-wrap"><span id="statusDot" class="status-dot"></span><span id="status">Waiting for a coding agent</span></div>
           <span id="window" class="chip">0 sec window</span>
         </div>
-        <h1 id="headline">Every agent action.<br><em>Governed. Traceable. Ownable.</em></h1>
-        <p id="task" class="task">Run <code>idleproof on</code>, then use Claude Code or Codex normally. IdleProof sits around the agent, not inside it.</p>
+        <h1 id="headline">Vibe code fast.<br><em>Stay fluent in your own product.</em></h1>
+        <p id="task" class="task">Run <code>idleproof on</code>, then use Claude Code or Codex normally. IdleProof turns the agent’s live work into short, contextual lessons.</p>
         <div class="live-line">
-          <span>EXECUTION</span><strong id="currentTool">No active tool</strong>
+          <span>AGENT NOW</span><strong id="currentTool">No active tool</strong>
           <div class="pulse-track"><i id="pulse"></i></div>
         </div>
         <div id="decisionBanner" class="decision-banner hidden"></div>
       </article>
 
       <aside class="metric-grid">
-        <article class="metric panel"><span>RUNTIME RISK</span><strong id="runtimeRisk">0</strong><small>/100 · latest window</small></article>
-        <article class="metric panel"><span>TRACE EVENTS</span><strong id="traceEvents">0</strong><small id="traceHint">hash-chained</small></article>
-        <article class="metric panel"><span>KNOWLEDGE DEBT</span><strong id="debt">0</strong><small>human ownership signal</small></article>
+        <article class="metric panel"><span>TASK RISK</span><strong id="runtimeRisk">0</strong><small>/100 · observed activity</small></article>
+        <article class="metric panel"><span>AGENT EVENTS</span><strong id="traceEvents">0</strong><small id="traceHint">context observed</small></article>
+        <article class="metric panel"><span>KNOWLEDGE DEBT</span><strong id="debt">0</strong><small>what the project knows that you may not</small></article>
         <article class="metric panel"><span>COGNITIVE COVERAGE</span><strong id="coverage">100%</strong><small>demonstrated recall</small></article>
       </aside>
     </section>
 
-    <section class="control-strip">
-      <article class="control-card panel">
-        <span class="mini-label">RUNTIME FIREWALL</span>
-        <div><strong id="policyProfile">balanced</strong><span id="policySource">built-in policy</span></div>
-        <p id="policyText">Dangerous actions are evaluated before execution.</p>
-      </article>
-      <article class="control-card panel">
-        <span class="mini-label">AGENT BOM</span>
-        <div><strong id="agentCount">0 tools</strong><span id="mcpCount">0 MCP servers</span></div>
-        <p id="agentSources">No agent execution observed yet.</p>
-      </article>
-      <article class="control-card panel">
-        <span class="mini-label">SIGNED EVIDENCE</span>
-        <div><strong id="attestationState">waiting</strong><span id="attestationSigner">no completed turn</span></div>
-        <button id="copyEvidence" class="text-button" type="button">copy evidence bundle</button>
-      </article>
-      <article class="control-card panel">
-        <span class="mini-label">RESPONSIBILITY</span>
-        <div><strong id="responsibilityCoverage">0%</strong><span id="ownerCoverage">0% owners mapped</span></div>
-        <p id="responsibilityText">A completed change creates maintenance-owner obligations.</p>
-        <button id="acceptResponsibility" class="text-button" type="button">accept current change</button>
-      </article>
-    </section>
-
     <section class="workspace">
-      <article class="panel recorder-panel">
-        <div class="section-head">
-          <div><span class="mini-label">FLIGHT RECORDER</span><h2>Agent execution trace</h2></div>
-          <span id="chainHead" class="mono dim">head: 00000000…</span>
-        </div>
-        <div id="timeline" class="timeline"><p class="empty">Agent lifecycle events will appear here.</p></div>
-      </article>
-
       <article id="learningCard" class="learning-card panel">
         <div class="section-head">
-          <div><span class="mini-label">HUMAN ASSURANCE</span><h2 id="cardTitle">Testing strategy</h2></div>
+          <div><span class="mini-label">LIVE TASK LESSON</span><h2 id="cardTitle">Testing strategy</h2></div>
           <span id="cardRisk" class="risk-badge">CORE</span>
         </div>
-        <div class="learning-meta"><span id="cardTime">≈ 30 sec</span><span id="cardConfidence">0% verified confidence</span></div>
+        <div class="learning-meta"><span id="cardTime">≈ 30 sec</span><span id="cardConfidence">0% mastery</span></div>
         <p id="cardWhy" class="why"></p>
         <p id="cardLesson" class="lesson"></p>
         <div class="challenge">
-          <span class="challenge-kicker">PROVE IT · ONE TAP</span>
+          <span class="challenge-kicker">CHECK YOUR UNDERSTANDING · ONE TAP</span>
           <h3 id="question"></h3>
           <div id="answers" class="answers"></div>
           <p id="feedback" class="feedback" aria-live="polite"></p>
         </div>
       </article>
+
+      <article class="panel recorder-panel">
+        <div class="section-head">
+          <div><span class="mini-label">WHAT THE AGENT IS DOING</span><h2>Live task context</h2></div>
+          <span id="chainHead" class="mono dim">head: 00000000…</span>
+        </div>
+        <div id="timeline" class="timeline"><p class="empty">Agent activity will appear here.</p></div>
+      </article>
     </section>
 
     <section class="bottom-grid">
       <article class="panel">
-        <div class="section-head"><h3>Change footprint</h3><span id="linesChanged">+0 −0</span></div>
+        <div class="section-head"><h3>Files behind this lesson</h3><span id="linesChanged">+0 −0</span></div>
         <div id="files" class="file-list"><p class="empty">No files observed yet.</p></div>
       </article>
 
       <article class="panel">
-        <div class="section-head"><h3>Deterministic trust checks</h3><span id="findingCount">0</span></div>
+        <div class="section-head"><h3>Things worth noticing</h3><span id="findingCount">0</span></div>
         <div id="findings" class="finding-list"><p class="empty">Checks appear when the agent completes a turn.</p></div>
       </article>
 
       <article class="panel ledger-panel">
-        <div class="section-head"><h3>Cognitive ledger</h3><span>risk × exposure × uncertainty</span></div>
+        <div class="section-head"><h3>Your project knowledge map</h3><span>risk × exposure × uncertainty</span></div>
         <div id="ledger" class="ledger"></div>
+      </article>
+    </section>
+
+    <section class="control-strip">
+      <article class="control-card panel">
+        <span class="mini-label">UNDER THE HOOD · SAFETY</span>
+        <div><strong id="policyProfile">balanced</strong><span id="policySource">built-in safety</span></div>
+        <p id="policyText">Safety hooks use the same live context that powers learning.</p>
+      </article>
+      <article class="control-card panel">
+        <span class="mini-label">AGENT CONTEXT</span>
+        <div><strong id="agentCount">0 capabilities</strong><span id="mcpCount">0 MCP servers</span></div>
+        <p id="agentSources">No agent execution observed yet.</p>
+      </article>
+      <article class="control-card panel">
+        <span class="mini-label">LOCAL EVIDENCE</span>
+        <div><strong id="attestationState">waiting</strong><span id="attestationSigner">no completed turn</span></div>
+        <button id="copyEvidence" class="text-button" type="button">copy evidence bundle</button>
+      </article>
+      <article class="control-card panel">
+        <span class="mini-label">OWNERSHIP</span>
+        <div><strong id="responsibilityCoverage">0%</strong><span id="ownerCoverage">0% owners mapped</span></div>
+        <p id="responsibilityText">Ownership evidence becomes available after a completed change.</p>
+        <button id="acceptResponsibility" class="text-button" type="button">accept current change</button>
       </article>
     </section>
 
     <section class="evidence panel">
       <div>
-        <span class="mini-label">AGENTIC DEVELOPMENT PROVENANCE</span>
-        <h2>The deliverable is no longer just code.<br><em>It is code + execution evidence + accountable human context.</em></h2>
+        <span class="mini-label">FREE · LOCAL · NO MODEL BILL REQUIRED</span>
+        <h2>The agent writes the code.<br><em>IdleProof keeps you in the loop.</em></h2>
       </div>
       <div class="evidence-grid">
         <div><span>DIFF PROOF</span><code id="proofId">waiting</code></div>
@@ -123,7 +123,7 @@
       </div>
     </section>
 
-    <footer><span>IdleProof · local open core</span><span>Runtime policy · provenance · human assurance</span></footer>
+    <footer><span>IdleProof · free local learning layer for coding agents</span><span>Claude Code · Codex · task-aware micro-learning</span></footer>
   </main>
   <script type="module" src="/app.js"></script>
 </body>
