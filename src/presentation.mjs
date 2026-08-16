@@ -29,12 +29,56 @@ function naturalizeQuestion(question = '', target = '') {
     .replace(`While the agent recovers from a failure in ${target}:`, `While the agent recovers around ${target}:`);
 }
 
+function subjectFrom(signals = {}) {
+  return signals.symbol || signals.route || signals.table || null;
+}
+
+function specializedQuestion(card, fallback) {
+  const signals = card.context?.signals || {};
+  const phase = card.context?.phase || 'work';
+  const subject = subjectFrom(signals);
+  const route = signals.route || null;
+  const table = signals.table || null;
+  const technologies = new Set(signals.technologies || []);
+
+  if (card.id === 'http' && (technologies.has('Stripe') || /webhooks?/i.test(route || ''))) {
+    const webhook = route || subject || 'this webhook';
+    const handler = signals.symbol ? ` in ${signals.symbol}` : '';
+    if (phase === 'implement') return `If Stripe retries ${webhook}${handler}, what property must this handler preserve?`;
+    if (phase === 'verify') return `For ${webhook}${handler}, which behavior most needs an explicit retry or duplicate-delivery test?`;
+    if (phase === 'handoff') return `Before accepting ${webhook}${handler}, what part of the API contract must still cover duplicate delivery and failure semantics?`;
+  }
+
+  if (card.id === 'auth' && (technologies.has('OAuth') || technologies.has('OpenID Connect'))) {
+    const target = subject ? ` in ${subject}` : '';
+    if (phase === 'implement') return `After OAuth identifies the user${target}, where must the permission check for the protected action still happen?`;
+    if (phase === 'verify') return `For this OAuth flow${target}, which test best proves authentication did not accidentally become authorization?`;
+    if (phase === 'handoff') return `Before accepting this OAuth change${target}, what should happen to a logged-in user who lacks the required role?`;
+  }
+
+  if (card.id === 'migration' && table) {
+    if (phase === 'implement') return `For the migration touching ${table}, what makes deployment safer while old and new application versions may overlap?`;
+    if (phase === 'verify') return `Before trusting the migration touching ${table}, which rollback or compatibility failure is most worth simulating?`;
+    if (phase === 'handoff') return `Before accepting the schema change on ${table}, what must still be true if deploy or rollback fails halfway through?`;
+  }
+
+  if (card.id === 'secrets' && technologies.size) {
+    const stack = [...technologies].slice(0, 2).join(' / ');
+    if (phase === 'implement') return `For the ${stack} credential used by this task, where may the secret safely exist?`;
+    if (phase === 'verify') return `After this ${stack} configuration change, where should you check for accidental secret exposure?`;
+  }
+
+  return fallback;
+}
+
 export function presentLearningCard(card, session = {}) {
   if (!card) return null;
   const depth = learningDepth(session);
   const budget = Number(session.estimatedWindow || card.seconds || 20);
   const target = card.context?.target || '';
-  const question = naturalizeQuestion(card.question, target);
+  const naturalQuestion = naturalizeQuestion(card.question, target);
+  const question = specializedQuestion(card, naturalQuestion);
+  const specialized = question !== naturalQuestion;
 
   if (depth === 'glance') {
     return {
@@ -43,7 +87,7 @@ export function presentLearningCard(card, session = {}) {
       why: compact(card.why, 145),
       lesson: firstSentence(card.lesson),
       seconds: Math.max(5, Math.min(12, budget || 10)),
-      presentation: { depth, budgetSeconds: budget, label: 'quick glance' }
+      presentation: { depth, budgetSeconds: budget, label: 'quick glance', specialized }
     };
   }
 
@@ -54,7 +98,7 @@ export function presentLearningCard(card, session = {}) {
       question,
       lesson: `${card.lesson}${review}`.trim(),
       seconds: Math.max(Number(card.seconds || 20), Math.min(60, budget || 40)),
-      presentation: { depth, budgetSeconds: budget, label: 'deeper pass' }
+      presentation: { depth, budgetSeconds: budget, label: 'deeper pass', specialized }
     };
   }
 
@@ -63,7 +107,7 @@ export function presentLearningCard(card, session = {}) {
       ...card,
       question,
       seconds: Math.max(15, Number(card.seconds || 20)),
-      presentation: { depth, budgetSeconds: budget, label: 'handoff check' }
+      presentation: { depth, budgetSeconds: budget, label: 'handoff check', specialized }
     };
   }
 
@@ -71,6 +115,6 @@ export function presentLearningCard(card, session = {}) {
     ...card,
     question,
     seconds: Math.max(10, Math.min(Number(card.seconds || 25), budget || Number(card.seconds || 25))),
-    presentation: { depth, budgetSeconds: budget, label: 'quick lesson' }
+    presentation: { depth, budgetSeconds: budget, label: 'quick lesson', specialized }
   };
 }
