@@ -4,6 +4,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { CONCEPT_BY_ID } from './catalog.mjs';
 import { rankCard, publicSession } from './analyze.mjs';
+import { buildLearningExperience } from './learning.mjs';
 import { computeMetrics, loadState, mutateState } from './state.mjs';
 import { buildReceipt } from './hook.mjs';
 import { PACKAGE_ROOT, DEFAULT_PORT, projectPaths } from './paths.mjs';
@@ -65,8 +66,8 @@ function presentState(cwd) {
   const session = latestSession(state);
   const cardId = rankCard(state, session);
   const concept = CONCEPT_BY_ID[cardId];
-  const ledger = state.ledger[cardId] || {};
-  const { answer, patterns, ...publicConcept } = concept;
+  const learning = buildLearningExperience(state, session || {}, cardId);
+  const { answer, patterns, ...publicConcept } = learning.card || concept;
   const policy = loadPolicy(cwd);
   const chain = verifyProvenanceChain(cwd);
   const bom = buildAgentBom(cwd, { write: false });
@@ -87,10 +88,13 @@ function presentState(cwd) {
     preferences: state.preferences,
     metrics: computeMetrics(state),
     session: publicSession(session),
-    card: {
-      ...publicConcept,
-      confidence: Math.round((ledger.confidence || 0) * 100),
-      exposures: ledger.exposures || 0
+    card: publicConcept,
+    learning: {
+      phase: learning.phase,
+      task: learning.task,
+      file: learning.file,
+      concepts: learning.concepts,
+      recap: learning.recap
     },
     ledger: Object.fromEntries(Object.entries(state.ledger)
       .filter(([, entry]) => entry.exposures > 0)
@@ -157,6 +161,8 @@ export function createServer({ cwd = process.cwd(), port = DEFAULT_PORT } = {}) 
         const body = await readBody(req);
         const concept = CONCEPT_BY_ID[body.conceptId];
         if (!concept || !Number.isInteger(body.choice)) return json(res, 400, { error: 'Invalid answer' });
+        const before = presentState(cwd);
+        const contextualReview = before.card?.id === concept.id ? before.card.review : concept.review;
         const correct = body.choice === concept.answer;
         mutateState(cwd, (state) => {
           const entry = state.ledger[concept.id];
@@ -171,7 +177,7 @@ export function createServer({ cwd = process.cwd(), port = DEFAULT_PORT } = {}) 
           return state;
         });
         buildReceipt(cwd);
-        return json(res, 200, { correct, answer: concept.answer, review: concept.review, state: presentState(cwd) });
+        return json(res, 200, { correct, answer: concept.answer, review: contextualReview, state: presentState(cwd) });
       }
 
       if (url.pathname === '/api/preferences' && req.method === 'POST') {
