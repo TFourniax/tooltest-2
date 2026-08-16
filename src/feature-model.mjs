@@ -12,12 +12,13 @@ const RESOLVE_EXTENSIONS = ['', ...SOURCE_EXTENSIONS, '.json'];
 const INDEX_CANDIDATES = SOURCE_EXTENSIONS.map((ext) => `/index${ext}`);
 
 const TECHNOLOGIES = [
-  ['Stripe', /\bstripe\b/i], ['Supabase', /\bsupabase\b/i], ['PostgreSQL', /\bpostgres(?:ql)?\b/i],
+  ['Stripe', /\bstripe\b/i], ['Supabase', /\bsupabase\b/i], ['PostgreSQL', /\bpostgres(?:ql)?\b|\bpsycopg\b/i],
   ['OAuth', /\boauth\b/i], ['OpenID Connect', /\boidc\b|open\s?id/i], ['JWT', /\bjwt\b/i],
   ['React', /\breact\b/i], ['Next.js', /\bnext(?:\.js|js)?\b/i], ['Prisma', /\bprisma\b/i],
   ['Drizzle', /\bdrizzle\b/i], ['Redis', /\bredis\b/i], ['Playwright', /\bplaywright\b/i],
   ['Vitest', /\bvitest\b/i], ['Jest', /\bjest\b/i], ['Pytest', /\bpytest\b/i],
-  ['FastAPI', /\bfastapi\b/i], ['Django', /\bdjango\b/i], ['S3', /\b(?:aws\s*)?s3\b/i],
+  ['FastAPI', /\bfastapi\b/i], ['Django', /\bdjango\b/i], ['SQLAlchemy', /\bsqlalchemy\b/i],
+  ['Celery', /\bcelery\b/i], ['S3', /\b(?:aws\s*)?s3\b|\bboto3\b/i],
   ['OpenAI', /\bopenai\b/i], ['Anthropic', /\banthropic\b|\bclaude\b/i]
 ];
 
@@ -37,7 +38,7 @@ function insideProject(cwd, candidate) {
 
 function ignored(relative = '') {
   const value = normalize(relative);
-  return !value || value.startsWith('.git/') || value.startsWith('.idleproof/') || value.startsWith('node_modules/') || value.startsWith('dist/') || value.startsWith('build/') || value.startsWith('.next/') || value.startsWith('coverage/');
+  return !value || value.startsWith('.git/') || value.startsWith('.idleproof/') || value.startsWith('node_modules/') || value.startsWith('dist/') || value.startsWith('build/') || value.startsWith('.next/') || value.startsWith('coverage/') || value.startsWith('.venv/') || value.startsWith('venv/') || value.startsWith('__pycache__/');
 }
 
 function safeRead(cwd, relative) {
@@ -55,23 +56,71 @@ function safeRead(cwd, relative) {
   }
 }
 
-function resolveLocalImport(cwd, importer, specifier) {
-  if (!specifier || !specifier.startsWith('.')) return null;
-  const base = path.resolve(cwd, path.dirname(importer), specifier);
+function firstExistingFile(cwd, candidates) {
   const root = path.resolve(cwd);
-  if (!(base === root || base.startsWith(`${root}${path.sep}`))) return null;
-  const candidates = [
-    ...RESOLVE_EXTENSIONS.map((ext) => `${base}${ext}`),
-    ...INDEX_CANDIDATES.map((suffix) => `${base}${suffix}`)
-  ];
   for (const candidate of candidates) {
+    const absolute = path.resolve(candidate);
+    if (!(absolute === root || absolute.startsWith(`${root}${path.sep}`))) continue;
     try {
-      const stat = fs.statSync(candidate);
+      const stat = fs.statSync(absolute);
       if (!stat.isFile() || stat.size > MAX_FILE_BYTES) continue;
-      return normalize(path.relative(root, candidate));
+      return normalize(path.relative(root, absolute));
     } catch {}
   }
   return null;
+}
+
+function resolveLocalImport(cwd, importer, specifier) {
+  if (!specifier || !specifier.startsWith('.')) return null;
+  const base = path.resolve(cwd, path.dirname(importer), specifier);
+  return firstExistingFile(cwd, [
+    ...RESOLVE_EXTENSIONS.map((ext) => `${base}${ext}`),
+    ...INDEX_CANDIDATES.map((suffix) => `${base}${suffix}`)
+  ]);
+}
+
+function pythonModuleCandidates(base) {
+  return [`${base}.py`, path.join(base, '__init__.py')];
+}
+
+function resolvePythonImport(cwd, importer, moduleName) {
+  if (!moduleName) return null;
+  const root = path.resolve(cwd);
+  const dots = moduleName.match(/^\.+/)?.[0].length || 0;
+  const bare = moduleName.slice(dots);
+  let baseDir = root;
+  if (dots) {
+    baseDir = path.resolve(root, path.dirname(importer));
+    for (let level = 1; level < dots; level += 1) baseDir = path.dirname(baseDir);
+  }
+  const modulePath = bare ? bare.split('.').filter(Boolean).join(path.sep) : '';
+  const base = modulePath ? path.resolve(baseDir, modulePath) : baseDir;
+  return firstExistingFile(cwd, pythonModuleCandidates(base));
+}
+
+function pythonImportsFromText(cwd, relative, text) {
+  if (!relative.endsWith('.py')) return [];
+  const resolved = [];
+  const fromPattern = /^\s*from\s+([.A-Za-z_][\w.]*)\s+import\s+([^#\n]+)/gm;
+  for (const match of text.matchAll(fromPattern)) {
+    const moduleName = match[1];
+    const direct = resolvePythonImport(cwd, relative, moduleName);
+    if (direct) resolved.push(direct);
+    const names = String(match[2]).replace(/[()]/g, '').split(',').map((part) => part.trim().split(/\s+as\s+/i)[0]).filter((name) => /^[A-Za-z_]\w*$/.test(name));
+    for (const name of names) {
+      const child = resolvePythonImport(cwd, relative, `${moduleName}.${name}`);
+      if (child) resolved.push(child);
+    }
+  }
+  const importPattern = /^\s*import\s+([^#\n]+)/gm;
+  for (const match of text.matchAll(importPattern)) {
+    const modules = String(match[1]).split(',').map((part) => part.trim().split(/\s+as\s+/i)[0]).filter(Boolean);
+    for (const moduleName of modules) {
+      const resolvedModule = resolvePythonImport(cwd, relative, moduleName);
+      if (resolvedModule) resolved.push(resolvedModule);
+    }
+  }
+  return unique(resolved);
 }
 
 function importsFromText(cwd, relative, text) {
@@ -81,18 +130,32 @@ function importsFromText(cwd, relative, text) {
     /\brequire\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/g,
     /\bimport\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/g
   ];
-  for (const pattern of patterns) {
-    for (const match of text.matchAll(pattern)) specs.push(match[1]);
-  }
-  return unique(specs.map((specifier) => resolveLocalImport(cwd, relative, specifier))).slice(0, 20);
+  for (const pattern of patterns) for (const match of text.matchAll(pattern)) specs.push(match[1]);
+  const js = specs.map((specifier) => resolveLocalImport(cwd, relative, specifier));
+  return unique([...js, ...pythonImportsFromText(cwd, relative, text)]).slice(0, 20);
 }
 
-function routesFromText(text) {
+function fileDerivedRoutes(relative) {
+  const value = normalize(relative);
   const routes = [];
+  let match = value.match(/(?:^|\/)app\/(api\/.*?)\/route\.(?:js|mjs|cjs|ts|tsx)$/i);
+  if (match) routes.push(`/${match[1].replace(/\/(?:\([^/]+\)|@[^/]+)/g, '').replace(/\[\.\.\.([^\]]+)\]/g, ':$1*').replace(/\[([^\]]+)\]/g, ':$1')}`);
+  match = value.match(/(?:^|\/)pages\/(api\/.*?)\.(?:js|mjs|cjs|ts|tsx)$/i);
+  if (match) routes.push(`/${match[1].replace(/\/index$/i, '').replace(/\[\.\.\.([^\]]+)\]/g, ':$1*').replace(/\[([^\]]+)\]/g, ':$1')}`);
+  return routes;
+}
+
+function routesFromText(text, relative = '') {
+  const routes = [...fileDerivedRoutes(relative)];
   const literal = /["'`]((?:\/api\/|\/auth\/|\/webhooks?\/|\/admin(?:\/|$)|\/v\d+\/)[^"'`\s)]*)["'`]/g;
   for (const match of text.matchAll(literal)) routes.push(match[1]);
   const framework = /\b(?:app|router)\.(?:get|post|put|patch|delete|use)\s*\(\s*["'`]([^"'`]+)["'`]/g;
   for (const match of text.matchAll(framework)) routes.push(match[1]);
+  const django = /\b(?:path|re_path)\s*\(\s*[rRuU]?["']([^"']+)["']/g;
+  for (const match of text.matchAll(django)) {
+    const raw = String(match[1]).replace(/^\^/, '').replace(/\$$/, '');
+    routes.push(raw.startsWith('/') ? raw : `/${raw}`);
+  }
   return unique(routes).slice(0, 12);
 }
 
@@ -101,7 +164,8 @@ function tablesFromText(text) {
   const patterns = [
     /\b(?:CREATE|ALTER|DROP)\s+TABLE\s+(?:IF\s+(?:NOT\s+)?EXISTS\s+)?["`]?([A-Za-z_][\w.]*)/gi,
     /\b(?:FROM|JOIN|INTO|UPDATE)\s+["`]?([A-Za-z_][\w.]*)/gi,
-    /\.(?:from|table)\s*\(\s*["'`]([A-Za-z_][\w.-]*)["'`]\s*\)/gi
+    /\.(?:from|table)\s*\(\s*["'`]([A-Za-z_][\w.-]*)["'`]\s*\)/gi,
+    /\b__tablename__\s*=\s*["']([A-Za-z_][\w.-]*)["']/gi
   ];
   for (const pattern of patterns) for (const match of text.matchAll(pattern)) tables.push(match[1]);
   return unique(tables).slice(0, 16);
@@ -113,12 +177,12 @@ function technologiesFromText(text) {
 
 function roleForFile(relative, text, routes, tables, technologies) {
   const p = normalize(relative).toLowerCase();
-  if (/(^|\/)(test|tests|__tests__|spec|specs)(\/|$)|\.(?:test|spec)\.[^.]+$/.test(p)) return 'test';
-  if (/\.github\/workflows|(?:^|\/)(?:config|configs)(?:\/|$)|(?:^|\/)[^/]*config\.[^.]+$/.test(p)) return 'config';
+  if (/(^|\/)(test|tests|__tests__|spec|specs)(\/|$)|\.(?:test|spec)\.[^.]+$|(?:^|\/)test_[^/]+\.py$|_test\.py$/.test(p)) return 'test';
+  if (/\.github\/workflows|(?:^|\/)(?:config|configs|settings)(?:\/|$)|(?:^|\/)[^/]*(?:config|settings)\.[^.]+$/.test(p)) return 'config';
   if (/migration|migrations|schema|repository|repositories|models?|database|\/db\//.test(p) || tables.length) return 'data';
-  if (/\/api\/|routes?|controllers?|handlers?|endpoint/.test(p) || routes.length) return 'api';
+  if (/\/api\/|routes?|controllers?|handlers?|endpoint|views\.py$/.test(p) || routes.length) return 'api';
   if (/components?|pages?|views?|screens?|\.tsx$|\.jsx$/.test(p) && /react|jsx|tsx|useState|useEffect|return\s*\(/i.test(text)) return 'ui';
-  if (/services?|clients?|integrations?|webhooks?/.test(p) || technologies.length) return 'service';
+  if (/services?|clients?|integrations?|webhooks?|tasks\.py$/.test(p) || technologies.length) return 'service';
   return 'core';
 }
 
@@ -201,60 +265,22 @@ function buildChallenge(files, refs, story) {
   const table = refs.tables[0];
   const route = refs.routes[0];
   const test = story.find((step) => step.role === 'test');
-
-  if (external && serviceStep) {
-    return {
-      kind: 'feature-boundary',
-      question: `In this feature map, where does the ${external} boundary appear?`,
-      options: [`${serviceStep.label} references ${external}`, `${external} is a local database table`, `${external} is only a CSS dependency`],
-      answer: 0,
-      explanation: `IdleProof observed ${external} in the related code around ${serviceStep.label}. That makes it an external dependency boundary worth understanding.`
-    };
-  }
-  if (table) {
-    return {
-      kind: 'feature-persistence',
-      question: 'Which observed part of this feature is the clearest persistence boundary?',
-      options: [table, route || 'The public route', test?.label || 'The test file'],
-      answer: 0,
-      explanation: `The related code references ${table} as a data surface. That is the strongest observed persistence signal in this feature map.`
-    };
-  }
-  if (route) {
-    return {
-      kind: 'feature-entry',
-      question: 'Which observed route is part of this feature surface?',
-      options: [route, '/idleproof/unrelated', '/assets/styles.css'],
-      answer: 0,
-      explanation: `${route} was found in the bounded set of files connected to the current task.`
-    };
-  }
-  if (test) {
-    return {
-      kind: 'feature-test',
-      question: 'Which related file gives the clearest place to verify this feature behavior?',
-      options: [test.label, 'package-lock.json', '.git/config'],
-      answer: 0,
-      explanation: `${test.label} is classified as a related test file in the current feature map.`
-    };
-  }
+  if (external && serviceStep) return { kind:'feature-boundary', question:`In this feature map, where does the ${external} boundary appear?`, options:[`${serviceStep.label} references ${external}`, `${external} is a local database table`, `${external} is only a CSS dependency`], answer:0, explanation:`IdleProof observed ${external} in the related code around ${serviceStep.label}. That makes it an external dependency boundary worth understanding.` };
+  if (table) return { kind:'feature-persistence', question:'Which observed part of this feature is the clearest persistence boundary?', options:[table, route || 'The public route', test?.label || 'The test file'], answer:0, explanation:`The related code references ${table} as a data surface. That is the strongest observed persistence signal in this feature map.` };
+  if (route) return { kind:'feature-entry', question:'Which observed route is part of this feature surface?', options:[route, '/idleproof/unrelated', '/assets/styles.css'], answer:0, explanation:`${route} was found in the bounded set of files connected to the current task.` };
+  if (test) return { kind:'feature-test', question:'Which related file gives the clearest place to verify this feature behavior?', options:[test.label, 'package-lock.json', '.git/config'], answer:0, explanation:`${test.label} is classified as a related test file in the current feature map.` };
   return null;
 }
 
 function explainBackPrompt(story) {
   if (story.length < 2) return null;
-  const labels = story.slice(0, 5).map((step) => step.label);
-  return `Explain this feature back in one sentence: ${labels.join(' → ')}. Focus on responsibility, not syntax.`;
+  return `Explain this feature back in one sentence: ${story.slice(0, 5).map((step) => step.label).join(' → ')}. Focus on responsibility, not syntax.`;
 }
 
 export function buildFeatureModel(cwd = process.cwd(), session = {}) {
-  const seeds = unique([
-    session.currentResource,
-    session.taskSignals?.file,
-    ...(session.touchedFiles || []).slice(-8)
-  ].map(normalize)).filter((file) => !ignored(file));
+  const seeds = unique([session.currentResource, session.taskSignals?.file, ...(session.touchedFiles || []).slice(-8)].map(normalize)).filter((file) => !ignored(file));
   const seedSet = new Set(seeds);
-  const queue = seeds.map((file) => ({ file, depth: 0 }));
+  const queue = seeds.map((file) => ({ file, depth:0 }));
   const visited = new Set();
   const files = [];
   const edges = [];
@@ -270,39 +296,23 @@ export function buildFeatureModel(cwd = process.cwd(), session = {}) {
     const read = safeRead(cwd, file);
     if (!read || totalBytes + read.size > MAX_TOTAL_BYTES) continue;
     totalBytes += read.size;
-
     const imports = importsFromText(cwd, read.relative, read.text);
-    const fileRoutes = routesFromText(read.text);
+    const fileRoutes = routesFromText(read.text, read.relative);
     const fileTables = tablesFromText(read.text);
     const fileTechnologies = technologiesFromText(read.text);
     const role = roleForFile(read.relative, read.text, fileRoutes, fileTables, fileTechnologies);
-    const record = { path: read.relative, role, imports, routes: fileRoutes, tables: fileTables, technologies: fileTechnologies };
-    files.push(record);
-
+    files.push({ path:read.relative, role, imports, routes:fileRoutes, tables:fileTables, technologies:fileTechnologies });
     const from = nodeId('file', read.relative);
     for (const imported of imports) {
-      edges.push({ from, to: nodeId('file', imported), kind: 'imports' });
-      if (depth < MAX_DEPTH && !visited.has(imported)) queue.push({ file: imported, depth: depth + 1 });
+      edges.push({ from, to:nodeId('file', imported), kind:'imports' });
+      if (depth < MAX_DEPTH && !visited.has(imported)) queue.push({ file:imported, depth:depth + 1 });
     }
-    for (const route of fileRoutes) {
-      routes.add(route);
-      edges.push({ from, to: nodeId('route', route), kind: 'references-route' });
-    }
-    for (const table of fileTables) {
-      tables.add(table);
-      edges.push({ from, to: nodeId('table', table), kind: 'references-data' });
-    }
-    for (const technology of fileTechnologies) {
-      technologies.add(technology);
-      edges.push({ from, to: nodeId('technology', technology), kind: 'references-technology' });
-    }
+    for (const route of fileRoutes) { routes.add(route); edges.push({ from, to:nodeId('route', route), kind:'references-route' }); }
+    for (const table of fileTables) { tables.add(table); edges.push({ from, to:nodeId('table', table), kind:'references-data' }); }
+    for (const technology of fileTechnologies) { technologies.add(technology); edges.push({ from, to:nodeId('technology', technology), kind:'references-technology' }); }
   }
 
-  const refs = {
-    routes: [...routes].sort(),
-    tables: [...tables].sort(),
-    technologies: [...technologies].sort()
-  };
+  const refs = { routes:[...routes].sort(), tables:[...tables].sort(), technologies:[...technologies].sort() };
   const story = featureStory(files, edges, session.prompt || '', seedSet, refs);
   const challenge = buildChallenge(files, refs, story);
   const testFiles = files.filter((file) => file.role === 'test');
@@ -310,38 +320,13 @@ export function buildFeatureModel(cwd = process.cwd(), session = {}) {
   if (files.length && !testFiles.length) riskNotes.push('No related test file was observed in the bounded local feature map.');
   if (refs.technologies.length) riskNotes.push(`External boundary observed: ${refs.technologies.join(', ')}.`);
   if (refs.tables.length) riskNotes.push(`Persistence surface observed: ${refs.tables.join(', ')}.`);
-
-  const fingerprintMaterial = JSON.stringify({
-    seeds: [...seedSet].sort(),
-    files: files.map((file) => ({ path: file.path, role: file.role })).sort((a, b) => a.path.localeCompare(b.path)),
-    refs,
-    prompt: compact(session.prompt || '', 180)
-  });
+  const fingerprintMaterial = JSON.stringify({ seeds:[...seedSet].sort(), files:files.map((file) => ({ path:file.path, role:file.role })).sort((a,b) => a.path.localeCompare(b.path)), refs, prompt:compact(session.prompt || '', 180) });
   const fingerprint = createHash('sha256').update(fingerprintMaterial).digest('hex').slice(0, 24);
-
   return {
-    schema: 'idleproof.feature-model.v1',
-    fingerprint,
-    confidence: 'bounded-static',
-    generatedFrom: {
-      seedFiles: seeds,
-      filesInspected: files.length,
-      bytesInspected: totalBytes,
-      maxDepth: MAX_DEPTH
-    },
-    nodes: [
-      ...files.map((file) => ({ id: nodeId('file', file.path), type: 'file', label: file.path, role: file.role })),
-      ...refs.routes.map((route) => ({ id: nodeId('route', route), type: 'route', label: route, role: 'entry' })),
-      ...refs.tables.map((table) => ({ id: nodeId('table', table), type: 'table', label: table, role: 'data' })),
-      ...refs.technologies.map((technology) => ({ id: nodeId('technology', technology), type: 'technology', label: technology, role: 'external' }))
-    ],
-    edges,
-    story,
-    surfaces: refs,
-    tests: testFiles.map((file) => file.path),
-    riskNotes,
-    challenge,
-    explainBack: explainBackPrompt(story),
-    disclaimer: 'This is a bounded static mental model built from observed project-local files and references. It is not a proven runtime call graph.'
+    schema:'idleproof.feature-model.v1', fingerprint, confidence:'bounded-static',
+    generatedFrom:{ seedFiles:seeds, filesInspected:files.length, bytesInspected:totalBytes, maxDepth:MAX_DEPTH },
+    nodes:[...files.map((file) => ({ id:nodeId('file', file.path), type:'file', label:file.path, role:file.role })), ...refs.routes.map((route) => ({ id:nodeId('route',route), type:'route', label:route, role:'entry' })), ...refs.tables.map((table) => ({ id:nodeId('table',table), type:'table', label:table, role:'data' })), ...refs.technologies.map((technology) => ({ id:nodeId('technology',technology), type:'technology', label:technology, role:'external' }))],
+    edges, story, surfaces:refs, tests:testFiles.map((file) => file.path), riskNotes, challenge, explainBack:explainBackPrompt(story),
+    disclaimer:'This is a bounded static mental model built from observed project-local files and references. It is not a proven runtime call graph.'
   };
 }
