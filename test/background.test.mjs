@@ -20,14 +20,14 @@ async function freePort() {
   return port;
 }
 
-test('background dashboard starts, serves health, and stops without occupying the terminal', async () => {
+test('background control plane starts, serves health, and stops without occupying the terminal', async () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'idleproof-background-'));
   execFileSync('git', ['init', '-q'], { cwd });
   const port = await freePort();
   let pid = null;
   try {
     const output = execFileSync(process.execPath, [BIN, 'start', '--port', String(port), '--no-open'], { cwd, encoding: 'utf8', timeout: 5000 });
-    assert.match(output, /running in background/);
+    assert.match(output, /IdleProof control plane:/);
     const info = JSON.parse(fs.readFileSync(path.join(cwd, '.idleproof', 'server.json'), 'utf8'));
     pid = info.pid;
     assert.equal(info.port, port);
@@ -35,7 +35,7 @@ test('background dashboard starts, serves health, and stops without occupying th
     assert.equal(health.ok, true);
 
     const stop = execFileSync(process.execPath, [BIN, 'stop'], { cwd, encoding: 'utf8', timeout: 5000 });
-    assert.match(stop, /Stopped IdleProof dashboard/);
+    assert.match(stop, /Stopped IdleProof/);
     pid = null;
     assert.equal(fs.existsSync(path.join(cwd, '.idleproof', 'server.json')), false);
   } finally {
