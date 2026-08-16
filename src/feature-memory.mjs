@@ -25,7 +25,7 @@ function featureAnchor(model = {}) {
   return {
     entry: entry?.label || null,
     route,
-    technology: route ? null : technology
+    technology: !entry && !route ? technology : null
   };
 }
 
@@ -123,6 +123,13 @@ export function findFeatureMemory(state = {}, model = {}) {
   return null;
 }
 
+export function previewFeatureDrift(state = {}, model = {}) {
+  const memory = findFeatureMemory(state, model);
+  if (!memory?.snapshot || !model?.generatedFrom?.filesInspected) return null;
+  const drift = compareFeatureSnapshots(memory.snapshot, featureSnapshot(model));
+  return drift.changed ? drift : null;
+}
+
 function baseMemory(model, session) {
   return {
     featureKey: model.featureKey || featureKey(model),
@@ -176,7 +183,7 @@ export function rememberFeature(state, session, model, { exposure = true } = {})
 }
 
 export function scoreFeatureAnswer(state, session, model, correct) {
-  const entry = rememberFeature(state, session, model, { exposure: false }) || baseMemory(model, session);
+  const entry = rememberFeature(state, session, model, { exposure: true }) || baseMemory(model, session);
   entry.checks = (entry.checks || 0) + 1;
   if (correct) {
     entry.correct = (entry.correct || 0) + 1;
