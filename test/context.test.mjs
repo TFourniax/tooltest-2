@@ -28,6 +28,23 @@ export function unrelatedHelper() { return true; }
   assert.equal(Object.hasOwn(result, 'source'), false);
 });
 
+test('read activity prefers the resource being inspected over the last edited file', () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'idleproof-context-read-'));
+  fs.mkdirSync(path.join(cwd, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(cwd, 'src', 'old.ts'), 'export function oldThing() { return true; }\n');
+  fs.writeFileSync(path.join(cwd, 'src', 'live.ts'), 'export function inspectMe() { return false; }\n');
+
+  const result = extractTaskSignals(cwd, {
+    prompt: 'Inspect inspectMe before changing the flow.',
+    touchedFiles: ['src/old.ts'],
+    currentResource: 'src/live.ts',
+    currentCapabilities: ['code.read']
+  });
+
+  assert.equal(result.file, 'src/live.ts');
+  assert.equal(result.symbol, 'inspectMe');
+});
+
 test('task signal extraction refuses paths outside the project root', () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'idleproof-context-safe-'));
   const result = extractTaskSignals(cwd, { prompt: 'read secrets', touchedFiles: ['../outside.txt'] });
