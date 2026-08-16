@@ -20,14 +20,14 @@ async function freePort() {
   return port;
 }
 
-test('background control plane starts, serves health, and stops without occupying the terminal', async () => {
+test('background learning cockpit starts, serves health, and stops without occupying the terminal', async () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'idleproof-background-'));
   execFileSync('git', ['init', '-q'], { cwd });
   const port = await freePort();
   let pid = null;
   try {
     const output = execFileSync(process.execPath, [BIN, 'start', '--port', String(port), '--no-open'], { cwd, encoding: 'utf8', timeout: 5000 });
-    assert.match(output, /IdleProof control plane:/);
+    assert.match(output, /IdleProof learning cockpit:/);
     const info = JSON.parse(fs.readFileSync(path.join(cwd, '.idleproof', 'server.json'), 'utf8'));
     pid = info.pid;
     assert.equal(info.port, port);
