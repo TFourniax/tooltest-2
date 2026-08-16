@@ -35,3 +35,32 @@ test('deep mode uses a long wait to add a concrete review move', () => {
   assert.ok(result.seconds >= 30);
   assert.match(result.lesson, /authenticated-but-unauthorized users are rejected/i);
 });
+
+test('Stripe webhook signals specialize the question without an LLM call', () => {
+  const stripe = {
+    id: 'http',
+    seconds: 25,
+    question: 'While the agent changes handleStripeWebhook in src/stripe.ts: what property matters if this write request can be retried?',
+    why: 'HTTP requests can be retried.',
+    lesson: 'Retries make idempotency important.',
+    review: 'Check duplicate delivery behavior.',
+    options: ['Idempotency', 'Font weight', 'Source-map size'],
+    answer: 0,
+    context: {
+      phase: 'implement',
+      target: 'handleStripeWebhook in src/stripe.ts',
+      signals: {
+        symbol: 'handleStripeWebhook',
+        route: '/api/webhooks/stripe',
+        technologies: ['Stripe']
+      }
+    }
+  };
+
+  const result = presentLearningCard(stripe, { status: 'active', estimatedWindow: 24 });
+  assert.equal(result.presentation.specialized, true);
+  assert.match(result.question, /Stripe retries \/api\/webhooks\/stripe/);
+  assert.match(result.question, /handleStripeWebhook/);
+  assert.equal(result.options[0], 'Idempotency');
+  assert.equal(result.answer, 0);
+});
