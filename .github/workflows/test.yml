@@ -11,6 +11,7 @@ permissions:
 jobs:
   test:
     strategy:
+      fail-fast: false
       matrix:
         node: [20, 22]
     runs-on: ubuntu-latest
@@ -19,5 +20,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
+      - name: Syntax check critical entrypoints
+        run: |
+          node --check ./src/cli.mjs
+          node --check ./src/hook.mjs
+          node --check ./src/policy.mjs
+          node --check ./src/provenance.mjs
+          node --check ./src/attest.mjs
+          node --check ./public/app.js
+      - name: Validate JSON examples and schemas
+        run: |
+          node -e "for (const f of ['examples/idleproof.policy.json','spec/idleproof-policy.schema.json','spec/agentic-development-provenance.schema.json']) JSON.parse(require('fs').readFileSync(f,'utf8'))"
+      - run: node ./bin/idleproof.mjs --help
       - run: npm test
       - run: npm pack --dry-run

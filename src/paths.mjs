@@ -14,6 +14,17 @@ export function projectPaths(cwd = process.cwd()) {
     lock: path.join(dir, 'state.lock'),
     server: path.join(dir, 'server.json'),
     receipt: path.join(dir, 'receipt.json'),
+    events: path.join(dir, 'events.jsonl'),
+    chain: path.join(dir, 'chain.json'),
+    provenanceLock: path.join(dir, 'provenance.lock'),
+    identity: path.join(dir, 'identity.json'),
+    identityKey: path.join(dir, 'identity.key'),
+    identityPublic: path.join(dir, 'recorder.pub.pem'),
+    attestation: path.join(dir, 'attestation.dsse.json'),
+    evidence: path.join(dir, 'evidence-bundle.json'),
+    agentBom: path.join(dir, 'agent-bom.json'),
+    approvals: path.join(dir, 'approvals.json'),
+    policy: path.join(root, 'idleproof.policy.json'),
     claudeSettings: path.join(root, '.claude', 'settings.local.json'),
     codexHooks: path.join(root, '.codex', 'hooks.json')
   };

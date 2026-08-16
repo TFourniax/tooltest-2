@@ -1,46 +1,24 @@
 {
   "name": "idleproof",
-  "version": "0.3.0",
-  "description": "Human CI for agentic coding: turn agent wait-time into verified understanding.",
+  "version": "0.9.0",
+  "description": "Agentic software control plane: runtime policy, tamper-evident provenance, signed attestations and human assurance.",
   "type": "module",
-  "bin": {
-    "idleproof": "./bin/idleproof.mjs"
-  },
+  "bin": { "idleproof": "./bin/idleproof.mjs" },
   "scripts": {
     "start": "node ./bin/idleproof.mjs serve",
     "demo": "node ./bin/idleproof.mjs demo",
     "test": "node --test",
     "check": "node ./bin/idleproof.mjs doctor"
   },
-  "engines": {
-    "node": ">=20"
-  },
+  "engines": { "node": ">=20" },
   "keywords": [
-    "claude-code",
-    "codex",
-    "coding-agent",
-    "vibe-coding",
-    "developer-education",
-    "human-in-the-loop",
-    "knowledge-debt"
+    "coding-agent", "agentic", "claude-code", "codex", "ai-security", "devsecops",
+    "provenance", "in-toto", "dsse", "policy-as-code", "human-in-the-loop", "knowledge-debt"
   ],
   "license": "MIT",
-  "files": [
-    "bin",
-    "src",
-    "public",
-    "README.md",
-    "LICENSE"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/TFourniax/tooltest-2.git"
-  },
+  "files": ["bin", "src", "public", "docs", "spec", "examples", "action.yml", "README.md", "SECURITY.md", "LICENSE"],
+  "repository": { "type": "git", "url": "git+https://github.com/TFourniax/tooltest-2.git" },
   "homepage": "https://github.com/TFourniax/tooltest-2#readme",
-  "bugs": {
-    "url": "https://github.com/TFourniax/tooltest-2/issues"
-  },
-  "publishConfig": {
-    "access": "public"
-  }
+  "bugs": { "url": "https://github.com/TFourniax/tooltest-2/issues" },
+  "publishConfig": { "access": "public" }
 }

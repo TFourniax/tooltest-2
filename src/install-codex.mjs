@@ -2,19 +2,22 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { projectPaths } from './paths.mjs';
 
+const TOOL_MATCHER = '^(?:Bash|apply_patch|Edit|Write|Read|WebSearch|WebFetch|mcp__.*|.+)$';
 const EVENTS = [
   ['SessionStart', null, 3],
   ['UserPromptSubmit', null, 5],
-  ['PreToolUse', 'Bash|apply_patch|Edit|Write|mcp__.*', 5],
-  ['PostToolUse', 'Bash|apply_patch|Edit|Write|mcp__.*', 5],
+  ['PreToolUse', TOOL_MATCHER, 5],
+  ['PermissionRequest', TOOL_MATCHER, 5],
+  ['PostToolUse', TOOL_MATCHER, 5],
+  ['SubagentStart', null, 3],
+  ['SubagentStop', null, 5],
   ['Stop', null, 5],
   ['SessionEnd', null, 3]
 ];
 
 function readJson(file) {
-  try {
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch (error) {
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
+  catch (error) {
     if (error.code === 'ENOENT') return {};
     throw new Error(`Cannot parse ${file}: ${error.message}`);
   }
@@ -50,9 +53,7 @@ export function installCodex({ cwd = process.cwd(), binPath }) {
   for (const [event, matcher, timeout] of EVENTS) {
     config.hooks[event] ||= [];
     config.hooks[event] = config.hooks[event].filter((entry) => !isIdleProofHook(entry));
-    const entry = {
-      hooks: [{ type: 'command', command, timeout, statusMessage: 'IdleProof · human CI' }]
-    };
+    const entry = { hooks: [{ type: 'command', command, timeout, statusMessage: 'IdleProof · agentic control plane' }] };
     if (matcher) entry.matcher = matcher;
     config.hooks[event].push(entry);
   }

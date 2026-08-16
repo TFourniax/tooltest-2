@@ -10,6 +10,9 @@ import {
   eventText,
   touchedFileFromEvent
 } from './analyze.mjs';
+import { evaluatePolicy, loadPolicy, policyDecisionOutput } from './policy.mjs';
+import { appendProvenanceEvent, buildAgentBom, sha256, verifyProvenanceChain } from './provenance.mjs';
+import { createAttestation } from './attest.mjs';
 
 function now() {
   return new Date().toISOString();
@@ -50,25 +53,63 @@ function exposeConcept(state, session, id) {
   session.concepts[id].events += 1;
 }
 
-function recordEvent(session, event) {
+function recordEvent(session, event, policyDecision, provenanceRecord, provenanceError) {
   session.events.push({
     at: now(),
     type: event.hook_event_name || event.type || 'event',
     tool: event.tool_name || null,
-    failed: event.hook_event_name === 'PostToolUseFailure' || Boolean(event.error)
+    failed: event.hook_event_name === 'PostToolUseFailure' || Boolean(event.error),
+    policyDecision: policyDecision?.decision || null,
+    policyOriginalDecision: policyDecision?.originalDecision || null,
+    policyRisk: policyDecision?.risk || 0,
+    approvalFingerprint: policyDecision?.approvalFingerprint || null,
+    provenanceHash: provenanceRecord?.hash || null,
+    provenanceError: provenanceError || null
   });
-  if (session.events.length > 100) session.events = session.events.slice(-100);
+  if (session.events.length > 160) session.events = session.events.slice(-160);
 }
 
-export function processHookEvent(event = {}) {
+function strictRecorderFailClosed(event, policyDecision, provenanceError, cwd) {
+  if (!provenanceError || (event.hook_event_name || event.type) !== 'PreToolUse') return policyDecision;
+  if (loadPolicy(cwd).profile !== 'strict') return policyDecision;
+  const tool = String(event.tool_name || '');
+  const mutating = /Bash|Write|Edit|MultiEdit|NotebookEdit|apply_patch|mcp__/i.test(tool);
+  if (!mutating) return policyDecision;
+  return {
+    ...(policyDecision || {}),
+    schema: 'idleproof.policy-decision.v1',
+    profile: 'strict',
+    decision: 'deny',
+    originalDecision: policyDecision?.originalDecision || 'allow',
+    risk: Math.max(90, policyDecision?.risk || 0),
+    reason: `Strict policy requires an auditable execution trace, but the Flight Recorder failed: ${provenanceError}`,
+    approvalFingerprint: policyDecision?.approvalFingerprint || 'recorder-failure',
+    matches: policyDecision?.matches || []
+  };
+}
+
+export function processHookLifecycle(event = {}) {
   const cwd = event.cwd || process.cwd();
-  const eventNameForReceipt = event.hook_event_name || event.type || 'event';
+  const eventName = event.hook_event_name || event.type || 'event';
+  let policyDecision = eventName === 'PreToolUse'
+    ? evaluatePolicy(event, { cwd, consumeApproval: true })
+    : null;
+
+  let provenanceRecord = null;
+  let provenanceError = null;
+  try {
+    provenanceRecord = appendProvenanceEvent(event, policyDecision, cwd);
+  } catch (error) {
+    provenanceError = error.message;
+  }
+
+  policyDecision = strictRecorderFailClosed(event, policyDecision, provenanceError, cwd);
+
   const state = mutateState(cwd, (state) => {
     const session = ensureSession(state, event);
-    const eventName = event.hook_event_name || event.type || 'event';
-
+    session.source = event.source || session.source || 'agent';
     session.lastEventAt = now();
-    recordEvent(session, event);
+    recordEvent(session, event, policyDecision, provenanceRecord, provenanceError);
 
     if (eventName === 'SessionStart') {
       session.status = 'idle';
@@ -86,6 +127,14 @@ export function processHookEvent(event = {}) {
       session.status = 'active';
       session.currentTool = event.tool_name || 'Tool';
       session.estimatedWindow = estimateWindow(event);
+      session.lastPolicyDecision = policyDecision ? {
+        decision: policyDecision.decision,
+        originalDecision: policyDecision.originalDecision,
+        risk: policyDecision.risk,
+        reason: policyDecision.reason,
+        approvalFingerprint: policyDecision.approvalFingerprint,
+        matches: policyDecision.matches
+      } : null;
     }
 
     if (eventName === 'PostToolUse' || eventName === 'PostToolUseFailure') {
@@ -123,11 +172,31 @@ export function processHookEvent(event = {}) {
     trimSessions(state);
     return state;
   });
-  if (['Stop', 'SessionEnd', 'generic-stop'].includes(eventNameForReceipt)) writeReceipt(cwd, state);
-  return state;
+
+  let attestation = null;
+  let attestationError = null;
+  if (['Stop', 'SessionEnd', 'generic-stop'].includes(eventName)) {
+    writeReceipt(cwd, state);
+    try { attestation = createAttestation(cwd); }
+    catch (error) { attestationError = error.message; }
+  }
+
+  return {
+    state,
+    policyDecision,
+    provenance: provenanceRecord,
+    provenanceError,
+    attestation,
+    attestationError,
+    hookOutput: policyDecision ? policyDecisionOutput(event, policyDecision) : null
+  };
 }
 
-function receiptFromState(state) {
+export function processHookEvent(event = {}) {
+  return processHookLifecycle(event).state;
+}
+
+function receiptFromState(state, cwd) {
   const session = Object.values(state.sessions || {}).sort((a, b) => String(b.lastEventAt || '').localeCompare(String(a.lastEventAt || '')))[0] || null;
   const metrics = computeMetrics(state);
   const concepts = Object.entries(session?.concepts || {}).map(([id, detail]) => ({
@@ -136,6 +205,9 @@ function receiptFromState(state) {
     confidence: Math.round(((state.ledger[id]?.confidence) || 0) * 100),
     exposures: state.ledger[id]?.exposures || 0
   }));
+  const chain = verifyProvenanceChain(cwd);
+  const policy = loadPolicy(cwd);
+  const bom = buildAgentBom(cwd, { write: false });
   return {
     schema: 'idleproof.receipt.v1',
     project: state.project,
@@ -145,19 +217,24 @@ function receiptFromState(state) {
       source: session.source,
       startedAt: session.startedAt,
       completedAt: session.completedAt || null,
-      prompt: session.prompt,
+      intent: { sha256: sha256(session.prompt || ''), chars: String(session.prompt || '').length },
       files: session.touchedFiles,
       changed: session.changed,
       proof: session.proof,
       findings: session.findings,
       concepts
     } : null,
-    metrics
+    metrics,
+    assurance: {
+      policy: { profile: policy.profile, source: policy.source },
+      provenance: { valid: chain.ok, events: chain.length, headSha256: chain.headHash },
+      agentBillOfMaterials: bom
+    }
   };
 }
 
 function writeReceipt(cwd, state) {
-  const receipt = receiptFromState(state);
+  const receipt = receiptFromState(state, cwd);
   const paths = projectPaths(cwd);
   fs.mkdirSync(paths.dir, { recursive: true });
   fs.writeFileSync(paths.receipt, `${JSON.stringify(receipt, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });

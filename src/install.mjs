@@ -5,17 +5,19 @@ import { projectPaths } from './paths.mjs';
 const EVENTS = [
   ['SessionStart', null],
   ['UserPromptSubmit', null],
-  ['PreToolUse', 'Bash|Write|Edit|MultiEdit|NotebookEdit|Read|Grep|Glob|WebFetch|WebSearch|mcp__.*'],
-  ['PostToolUse', 'Bash|Write|Edit|MultiEdit|NotebookEdit|Read|Grep|Glob|WebFetch|WebSearch|mcp__.*'],
-  ['PostToolUseFailure', 'Bash|Write|Edit|MultiEdit|NotebookEdit|Read|Grep|Glob|WebFetch|WebSearch|mcp__.*'],
+  ['PreToolUse', '.*'],
+  ['PermissionRequest', '.*'],
+  ['PostToolUse', '.*'],
+  ['PostToolUseFailure', '.*'],
+  ['SubagentStart', null],
+  ['SubagentStop', null],
   ['Stop', null],
   ['SessionEnd', null]
 ];
 
 function readJson(file) {
-  try {
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch (error) {
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
+  catch (error) {
     if (error.code === 'ENOENT') return {};
     throw new Error(`Cannot parse ${file}: ${error.message}`);
   }
