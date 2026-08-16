@@ -83,8 +83,16 @@ function technologiesFrom(text) {
   return TECHNOLOGIES.filter(([, pattern]) => pattern.test(text)).map(([name]) => name);
 }
 
+function preferredContextFile(session = {}) {
+  const touched = [...(session.touchedFiles || [])].at(-1) || null;
+  const live = session.currentResource || null;
+  const capabilities = new Set(session.currentCapabilities || []);
+  const reading = capabilities.has('code.read') || capabilities.has('database.read') || capabilities.has('scm.read');
+  return reading ? (live || touched) : (touched || live);
+}
+
 export function extractTaskSignals(cwd = process.cwd(), session = {}) {
-  const file = [...(session.touchedFiles || [])].at(-1) || session.currentResource || null;
+  const file = preferredContextFile(session);
   const safe = safeFile(cwd, file);
   const prompt = String(session.prompt || '');
   if (!safe) {
