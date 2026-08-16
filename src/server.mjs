@@ -5,7 +5,7 @@ import { spawn } from 'node:child_process';
 import { CONCEPT_BY_ID } from './catalog.mjs';
 import { publicSession } from './analyze.mjs';
 import { extractTaskSignals } from './context.mjs';
-import { buildFeatureModel } from './feature-model.mjs';
+import { cachedFeatureModel, findFeatureMemory, recentFeatureMemory, scoreFeatureAnswer } from './feature-memory.mjs';
 import { buildLearningExperience, buildLearningJourney } from './learning.mjs';
 import { presentLearningCard } from './presentation.mjs';
 import { taskConceptAvailability, snoozeUntil } from './snooze.mjs';
@@ -136,6 +136,7 @@ function safeFeatureModel(model, memory = null) {
   } : null;
   return {
     schema: model.schema,
+    featureKey: model.featureKey || null,
     fingerprint: model.fingerprint,
     confidence: model.confidence,
     generatedFrom: model.generatedFrom,
@@ -148,6 +149,8 @@ function safeFeatureModel(model, memory = null) {
     challenge,
     explainBack: model.explainBack,
     disclaimer: model.disclaimer,
+    drift: memory?.lastDrift || null,
+    needsRefresh: Boolean(memory?.needsRefresh),
     fluency: {
       confidence: Math.round((memory?.confidence || 0) * 100),
       exposures: memory?.exposures || 0,
@@ -159,27 +162,28 @@ function safeFeatureModel(model, memory = null) {
   };
 }
 
-function recentFeatureMemory(state) {
-  return Object.values(state.features || {})
-    .sort((a, b) => String(b.lastSeenAt || '').localeCompare(String(a.lastSeenAt || '')))
-    .slice(0, 8)
-    .map((entry) => ({
-      fingerprint: entry.fingerprint,
-      task: entry.task || 'Previous task',
-      confidence: Math.round((entry.confidence || 0) * 100),
-      exposures: entry.exposures || 0,
-      checks: entry.checks || 0,
-      lastSeenAt: entry.lastSeenAt || null,
-      story: (entry.story || []).slice(0, 5),
-      surfaces: entry.surfaces || { routes: [], tables: [], technologies: [] },
-      tests: (entry.tests || []).slice(0, 6),
-      riskNotes: (entry.riskNotes || []).slice(0, 4)
-    }));
+function publicFeatureMemory(state) {
+  return recentFeatureMemory(state, 8).map((entry) => ({
+    featureKey: entry.featureKey || entry.fingerprint,
+    fingerprint: entry.fingerprint,
+    task: entry.task || 'Previous task',
+    confidence: Math.round((entry.confidence || 0) * 100),
+    exposures: entry.exposures || 0,
+    checks: entry.checks || 0,
+    needsRefresh: Boolean(entry.needsRefresh),
+    drift: entry.lastDrift || null,
+    lastSeenAt: entry.lastSeenAt || null,
+    story: (entry.story || []).slice(0, 5),
+    surfaces: entry.surfaces || { routes: [], tables: [], technologies: [] },
+    tests: (entry.tests || []).slice(0, 6),
+    riskNotes: (entry.riskNotes || []).slice(0, 4)
+  }));
 }
 
 function currentFeatureModel(cwd, state, enriched) {
-  const model = buildFeatureModel(cwd, enriched || {});
-  return { raw: model, public: safeFeatureModel(model, state.features?.[model.fingerprint] || null) };
+  const model = cachedFeatureModel(cwd, enriched || {});
+  const memory = findFeatureMemory(state, model);
+  return { raw: model, public: safeFeatureModel(model, memory) };
 }
 
 function presentState(cwd) {
@@ -229,7 +233,7 @@ function presentState(cwd) {
       resumeAt: learning.resumeAt
     },
     featureModel: featureModel.public,
-    featureMemory: recentFeatureMemory(state),
+    featureMemory: publicFeatureMemory(state),
     ledger: Object.fromEntries(Object.entries(state.ledger)
       .filter(([, entry]) => entry.exposures > 0)
       .map(([id, entry]) => [id, {
@@ -339,38 +343,12 @@ export function createServer({ cwd = process.cwd(), port = DEFAULT_PORT } = {}) 
         const recentEvents = safeRecentEvents(cwd, 40);
         const session = latestSession(state);
         const enriched = enrichLearningSession(cwd, session, recentEvents);
-        const model = buildFeatureModel(cwd, enriched || session || {});
+        const model = cachedFeatureModel(cwd, enriched || session || {});
         if (!model.challenge || !model.generatedFrom.filesInspected) return json(res, 409, { error: 'No feature challenge available' });
         if (body.fingerprint && body.fingerprint !== model.fingerprint) return json(res, 409, { error: 'Feature model changed; refresh before answering' });
         const correct = body.choice === model.challenge.answer;
         mutateState(cwd, (next) => {
-          next.features ||= {};
-          const entry = next.features[model.fingerprint] || {
-            fingerprint: model.fingerprint,
-            exposures: 1,
-            checks: 0,
-            correct: 0,
-            wrong: 0,
-            confidence: 0,
-            firstSeenAt: new Date().toISOString(),
-            sessionIds: session?.id ? [session.id] : []
-          };
-          entry.checks += 1;
-          if (correct) {
-            entry.correct += 1;
-            entry.confidence = Math.min(1, (entry.confidence || 0) + ((entry.confidence || 0) < 0.5 ? 0.32 : 0.16));
-          } else {
-            entry.wrong += 1;
-            entry.confidence = Math.max(0, (entry.confidence || 0) - 0.08);
-          }
-          entry.lastAnsweredAt = new Date().toISOString();
-          entry.lastSeenAt = entry.lastSeenAt || new Date().toISOString();
-          entry.task = String(session?.prompt || '').replace(/\s+/g, ' ').trim().slice(0, 180);
-          entry.story = model.story;
-          entry.surfaces = model.surfaces;
-          entry.tests = model.tests;
-          entry.riskNotes = model.riskNotes;
-          next.features[model.fingerprint] = entry;
+          scoreFeatureAnswer(next, session, model, correct);
           return next;
         });
         return json(res, 200, {
