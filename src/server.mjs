@@ -6,6 +6,7 @@ import { CONCEPT_BY_ID } from './catalog.mjs';
 import { publicSession } from './analyze.mjs';
 import { extractTaskSignals } from './context.mjs';
 import { buildLearningExperience } from './learning.mjs';
+import { presentLearningCard } from './presentation.mjs';
 import { computeMetrics, loadState, mutateState } from './state.mjs';
 import { buildReceipt } from './hook.mjs';
 import { PACKAGE_ROOT, DEFAULT_PORT, projectPaths } from './paths.mjs';
@@ -62,10 +63,18 @@ function safeRecentEvents(cwd, limit = 18) {
   }));
 }
 
+function latestContextEvent(session, recentEvents = []) {
+  const reversed = [...recentEvents].reverse();
+  if (session?.id) {
+    const exact = reversed.find((record) => record.event?.sessionId === session.id);
+    if (exact) return exact.event;
+  }
+  return reversed.find((record) => !record.event?.sessionId)?.event || null;
+}
+
 function enrichLearningSession(cwd, session, recentEvents = []) {
   if (!session) return null;
-  const matching = [...recentEvents].reverse().find((record) => !record.event?.sessionId || record.event.sessionId === session.id);
-  const event = matching?.event || null;
+  const event = latestContextEvent(session, recentEvents);
   const enriched = {
     ...session,
     currentCapabilities: event?.capabilities || [],
@@ -79,7 +88,15 @@ function enrichLearningSession(cwd, session, recentEvents = []) {
 function learningForState(cwd, state, recentEvents = safeRecentEvents(cwd, 40)) {
   const session = latestSession(state);
   const enriched = enrichLearningSession(cwd, session, recentEvents);
-  return { session, enriched, learning: buildLearningExperience(state, enriched || {}, 'testing') };
+  const learning = buildLearningExperience(state, enriched || {}, 'testing');
+  return {
+    session,
+    enriched,
+    learning: {
+      ...learning,
+      card: presentLearningCard(learning.card, enriched || {})
+    }
+  };
 }
 
 function presentState(cwd) {
