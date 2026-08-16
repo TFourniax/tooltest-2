@@ -1,14 +1,12 @@
 let feedbackLock = null;
+let featureFeedbackLock = null;
 
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (value = '') => String(value).replace(/[&<>'"]/g, (ch) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#039;', '"':'&quot;' }[ch]));
 const shortHash = (value, size = 12) => value ? `${String(value).slice(0, size)}…` : 'waiting';
 
 async function api(path, options = {}) {
-  const res = await fetch(path, {
-    ...options,
-    headers: { 'content-type': 'application/json', ...(options.headers || {}) }
-  });
+  const res = await fetch(path, { ...options, headers: { 'content-type': 'application/json', ...(options.headers || {}) } });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
@@ -52,16 +50,11 @@ function renderLedger(ledger) {
 }
 
 function renderJourney(state) {
-  const learning = state.learning || {};
-  const concepts = learning.concepts || [];
+  const concepts = state.learning?.concepts || [];
   const complete = state.session?.status === 'complete';
   const visible = concepts.slice(0, complete ? 6 : 3);
   $('learningJourney').innerHTML = visible.length
-    ? visible.map((item) => `<div class="ledger-row">
-        <span class="ledger-title">${escapeHtml(item.title)}</span>
-        <span class="ledger-risk">${escapeHtml(item.status)} · ${item.confidence}%</span>
-        <span class="ledger-meter" title="${item.confidence}% mastery"><i style="width:${item.confidence}%"></i></span>
-      </div>`).join('')
+    ? visible.map((item) => `<div class="ledger-row"><span class="ledger-title">${escapeHtml(item.title)}</span><span class="ledger-risk">${escapeHtml(item.status)} · ${item.confidence}%</span><span class="ledger-meter" title="${item.confidence}% mastery"><i style="width:${item.confidence}%"></i></span></div>`).join('')
     : '<p class="empty">The task knowledge map will appear as the agent reveals relevant concepts.</p>';
 }
 
@@ -78,12 +71,11 @@ function renderLearning(state) {
     $('cardConfidence').textContent = `${recap.mastered || 0} mastered · ${recap.building || 0} building · ${recap.review || 0} review`;
     $('cardTitle').textContent = 'No lesson forced right now';
     $('cardWhy').textContent = 'You chose “not now”. IdleProof does not count that as a wrong answer or reduce your mastery.';
-    $('cardLesson').textContent = 'The task context keeps running in the background. A useful lesson will return when the context changes or the snooze expires.';
+    $('cardLesson').textContent = 'The agent can keep working. A useful lesson returns when context changes or the snooze expires.';
     $('question').textContent = '';
-    $('answers').innerHTML = first ? `<button class="text-button" id="resumeLesson" type="button">resume learning now</button>` : '';
+    $('answers').innerHTML = first ? '<button class="text-button" id="resumeLesson" type="button">resume learning now</button>' : '';
     $('feedback').textContent = '';
-    const resume = $('resumeLesson');
-    if (resume) resume.addEventListener('click', () => snoozeLesson(first, 0));
+    $('resumeLesson')?.addEventListener('click', () => snoozeLesson(first, 0));
     renderJourney(state);
     return;
   }
@@ -102,10 +94,92 @@ function renderLearning(state) {
   const choices = (card.options || []).map((option, index) => `<button class="answer" data-choice="${index}">${escapeHtml(option)}</button>`).join('');
   const snooze = card.id ? '<button class="text-button" id="snoozeLesson" type="button">not now · 10 min</button>' : '';
   $('answers').innerHTML = `${choices}${snooze}`;
-  document.querySelectorAll('.answer').forEach((button) => button.addEventListener('click', () => submitAnswer(card.id, Number(button.dataset.choice))));
-  const snoozeButton = $('snoozeLesson');
-  if (snoozeButton) snoozeButton.addEventListener('click', () => snoozeLesson(card.id, 10));
+  document.querySelectorAll('#answers .answer').forEach((button) => button.addEventListener('click', () => submitAnswer(card.id, Number(button.dataset.choice))));
+  $('snoozeLesson')?.addEventListener('click', () => snoozeLesson(card.id, 10));
   renderJourney(state);
+}
+
+function storyStep(step, index) {
+  const role = escapeHtml(step.role || step.type || 'code');
+  return `<div class="feature-step role-${role}"><span>${role}</span><strong>${escapeHtml(step.label)}</strong><small>${escapeHtml(step.evidence || 'observed locally')}</small></div>${index >= 0 ? '<span class="feature-arrow" aria-hidden="true">→</span>' : ''}`;
+}
+
+function surfaceChip(type, value) {
+  return `<span class="surface-chip"><b>${escapeHtml(type)}</b>${escapeHtml(value)}</span>`;
+}
+
+function renderFeatureMemory(memory = []) {
+  $('featureMemoryCount').textContent = `${memory.length} learned`;
+  $('featureMemory').innerHTML = memory.length ? memory.map((item) => {
+    const story = (item.story || []).slice(0, 4).map((step) => escapeHtml(step.label)).join(' → ');
+    const surfaces = [
+      ...(item.surfaces?.technologies || []).slice(0, 2),
+      ...(item.surfaces?.routes || []).slice(0, 1),
+      ...(item.surfaces?.tables || []).slice(0, 1)
+    ];
+    return `<article class="memory-card">
+      <div class="memory-top"><strong>${escapeHtml(item.task || 'Previous feature')}</strong><span>${item.confidence || 0}% fluent</span></div>
+      <p>${story || 'Feature structure captured from a completed task.'}</p>
+      <div class="memory-tags">${surfaces.map((value) => `<span>${escapeHtml(value)}</span>`).join('')}</div>
+      <div class="memory-meter"><i style="width:${item.confidence || 0}%"></i></div>
+    </article>`;
+  }).join('') : '<p class="empty">Completed feature tasks will accumulate here and become spaced-review material.</p>';
+}
+
+function renderFeatureModel(state) {
+  const model = state.featureModel;
+  const projectFluency = state.metrics?.featureCoverage || 0;
+  $('featureFluency').textContent = `${projectFluency}%`;
+  $('featureFluencyHint').textContent = state.metrics?.featuresSeen
+    ? `${state.metrics.featuresSeen} feature mental model${state.metrics.featuresSeen === 1 ? '' : 's'} tracked`
+    : 'mental models demonstrated';
+  renderFeatureMemory(state.featureMemory || []);
+
+  if (!model) {
+    $('featureModelStatus').textContent = 'waiting for code context';
+    $('currentFeatureFluency').textContent = '0%';
+    $('featureDisclaimer').textContent = 'IdleProof will build a bounded static map once the agent touches project-local code.';
+    $('featureStory').innerHTML = '<p class="empty">No connected feature structure observed yet.</p>';
+    $('featureSurfaces').innerHTML = '';
+    $('featureRiskNotes').innerHTML = '';
+    $('featureExplainBack').className = 'explain-back hidden';
+    $('featureChallenge').className = 'challenge feature-challenge hidden';
+    return;
+  }
+
+  $('featureModelStatus').textContent = `bounded static · ${model.generatedFrom?.filesInspected || 0} files`;
+  $('currentFeatureFluency').textContent = `${model.fluency?.confidence || 0}%`;
+  $('featureDisclaimer').textContent = model.disclaimer || 'This is a bounded static map, not a proven runtime trace.';
+  const story = model.story || [];
+  $('featureStory').innerHTML = story.length
+    ? story.map((step, index) => storyStep(step, index === story.length - 1 ? -1 : index)).join('')
+    : '<p class="empty">IdleProof sees code, but not enough connected structure to tell a useful feature story yet.</p>';
+
+  const surfaces = [
+    ...(model.surfaces?.routes || []).slice(0, 4).map((v) => ['route', v]),
+    ...(model.surfaces?.technologies || []).slice(0, 4).map((v) => ['external', v]),
+    ...(model.surfaces?.tables || []).slice(0, 4).map((v) => ['data', v]),
+    ...(model.tests || []).slice(0, 3).map((v) => ['test', v])
+  ];
+  $('featureSurfaces').innerHTML = surfaces.map(([type, value]) => surfaceChip(type, value)).join('');
+  $('featureRiskNotes').innerHTML = (model.riskNotes || []).map((note) => `<p>↳ ${escapeHtml(note)}</p>`).join('');
+
+  if (model.explainBack) {
+    $('featureExplainBack').className = 'explain-back';
+    $('featureExplainBack').innerHTML = `<span>60-SECOND EXPLAIN-BACK</span><p>${escapeHtml(model.explainBack)}</p>`;
+  } else {
+    $('featureExplainBack').className = 'explain-back hidden';
+  }
+
+  if (model.challenge) {
+    $('featureChallenge').className = 'challenge feature-challenge';
+    $('featureQuestion').textContent = model.challenge.question;
+    if (!featureFeedbackLock || featureFeedbackLock !== model.fingerprint) $('featureFeedback').textContent = '';
+    $('featureAnswers').innerHTML = (model.challenge.options || []).map((option, index) => `<button class="answer feature-answer" data-choice="${index}">${escapeHtml(option)}</button>`).join('');
+    document.querySelectorAll('.feature-answer').forEach((button) => button.addEventListener('click', () => submitFeatureAnswer(model.fingerprint, Number(button.dataset.choice))));
+  } else {
+    $('featureChallenge').className = 'challenge feature-challenge hidden';
+  }
 }
 
 function eventClass(policy) {
@@ -118,17 +192,11 @@ function eventClass(policy) {
 
 function renderTimeline(control) {
   const rows = [...(control.recentEvents || [])].reverse();
-  $('timeline').innerHTML = rows.length
-    ? rows.slice(0, 18).map((record) => {
-        const e = record.event || {};
-        const p = e.policy;
-        return `<div class="trace-row ${eventClass(p)}">
-          <span class="trace-seq">#${record.sequence}</span>
-          <div class="trace-main"><strong>${escapeHtml(e.eventType || 'event')}${e.tool ? ` · ${escapeHtml(e.tool)}` : ''}</strong><span>${escapeHtml(e.source || 'agent')}${e.resource ? ` · ${escapeHtml(e.resource)}` : ''}${e.mcp?.server ? ` · MCP ${escapeHtml(e.mcp.server)}` : ''}</span></div>
-          <div class="trace-side">${p ? `<span class="decision ${escapeHtml(p.originalDecision || p.decision)}">${escapeHtml((p.originalDecision || p.decision || 'allow').toUpperCase())}</span><small>risk ${p.risk || 0}</small>` : '<small>observed</small>'}</div>
-        </div>`;
-      }).join('')
-    : '<p class="empty">Agent activity appears here so each lesson can be grounded in what is actually happening.</p>';
+  $('timeline').innerHTML = rows.length ? rows.slice(0, 18).map((record) => {
+    const e = record.event || {};
+    const p = e.policy;
+    return `<div class="trace-row ${eventClass(p)}"><span class="trace-seq">#${record.sequence}</span><div class="trace-main"><strong>${escapeHtml(e.eventType || 'event')}${e.tool ? ` · ${escapeHtml(e.tool)}` : ''}</strong><span>${escapeHtml(e.source || 'agent')}${e.resource ? ` · ${escapeHtml(e.resource)}` : ''}${e.mcp?.server ? ` · MCP ${escapeHtml(e.mcp.server)}` : ''}</span></div><div class="trace-side">${p ? `<span class="decision ${escapeHtml(p.originalDecision || p.decision)}">${escapeHtml((p.originalDecision || p.decision || 'allow').toUpperCase())}</span><small>risk ${p.risk || 0}</small>` : '<small>observed</small>'}</div></div>`;
+  }).join('') : '<p class="empty">Agent activity appears here so each lesson can be grounded in what is actually happening.</p>';
 }
 
 function renderDecision(control) {
@@ -143,8 +211,8 @@ function renderDecision(control) {
   banner.className = `decision-banner ${decision}`;
   const canApprove = ['ask', 'deny'].includes(decision) && latest.approvalFingerprint;
   banner.innerHTML = `<div><strong>${escapeHtml(decision.toUpperCase())} · risk ${latest.risk || 0}</strong><span>${escapeHtml(latest.reason || 'IdleProof paused a risky agent action.')}</span></div>${canApprove ? `<button id="approveAction" data-fingerprint="${escapeHtml(latest.approvalFingerprint)}">approve once</button>` : ''}`;
-  const button = $('approveAction');
-  if (button) button.addEventListener('click', async () => {
+  $('approveAction')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget;
     button.disabled = true;
     try {
       await api('/api/approve', { method:'POST', body:JSON.stringify({ fingerprint: button.dataset.fingerprint, uses:1, minutes:10 }) });
@@ -156,10 +224,8 @@ function renderDecision(control) {
 function renderControlPlane(state) {
   const control = state.controlPlane || {};
   $('runtimeRisk').textContent = control.runtimeRisk || 0;
-  $('traceEvents').textContent = control.provenance?.events || 0;
   $('integrityChip').textContent = control.provenance?.valid ? 'local trace verified' : 'trace invalid';
   $('integrityChip').className = `chip ${control.provenance?.valid ? 'chip-ok' : 'chip-bad'}`;
-  $('traceHint').textContent = control.provenance?.valid ? 'agent context observed' : 'integrity failure';
   $('chainHead').textContent = `head: ${shortHash(control.provenance?.headHash, 14)}`;
   $('traceHash').textContent = shortHash(control.provenance?.headHash, 20);
 
@@ -172,7 +238,7 @@ function renderControlPlane(state) {
   const bom = control.agentBom || { tools:[], mcpServers:[], sources:[] };
   $('agentCount').textContent = `${bom.capabilities?.length || 0} capabilit${bom.capabilities?.length === 1 ? 'y' : 'ies'}`;
   $('mcpCount').textContent = `${bom.mcpServers?.length || 0} MCP server${bom.mcpServers?.length === 1 ? '' : 's'}`;
-  $('agentSources').textContent = bom.sources?.length ? `Observed: ${bom.sources.join(', ')} · ${bom.tools?.length || 0} raw tools` : 'No agent execution observed yet.';
+  $('agentSources').textContent = bom.sources?.length ? `Observed: ${bom.sources.join(', ')} · ${control.provenance?.events || 0} events` : 'No agent execution observed yet.';
 
   const att = control.attestation || {};
   $('attestationState').textContent = !att.exists ? 'waiting' : att.valid ? 'signed · valid' : 'signature invalid';
@@ -202,20 +268,20 @@ function render(state) {
   $('coverage').textContent = `${state.metrics.coverage}%`;
   document.body.classList.toggle('completed', complete);
   $('statusDot').classList.toggle('active', active);
-  $('status').textContent = active ? `${agentName} working · ${learning.paused ? 'learning snoozed' : 'live lesson ready'}` : complete ? `${agentName} turn complete · recap ready` : 'Waiting for a coding agent';
+  $('status').textContent = active ? `${agentName} working · ${learning.paused ? 'learning snoozed' : 'live lesson ready'}` : complete ? `${agentName} turn complete · mental-model review ready` : 'Waiting for a coding agent';
   $('window').textContent = active ? `≈ ${session.estimatedWindow || 20} sec learning window` : complete ? 'handoff review' : '0 sec window';
   $('currentTool').textContent = session?.currentTool || (complete ? 'Task complete · review what changed' : 'No active tool');
   $('headline').innerHTML = active
-    ? 'Your agent is building.<br><em>Learn this task while it works.</em>'
+    ? 'Your agent is building.<br><em>Keep the mental model.</em>'
     : complete
       ? 'The code is ready.<br><em>Make sure the understanding is too.</em>'
       : 'Vibe code fast.<br><em>Stay fluent in your own product.</em>';
-  $('task').textContent = session?.prompt || 'Run `idleproof on`, then use Claude Code or Codex normally. IdleProof turns the agent’s live work into short, contextual lessons.';
-
+  $('task').textContent = session?.prompt || 'Run `idleproof on`, then use Claude Code or Codex normally. IdleProof turns live agent work into task-specific learning and feature understanding.';
   if (active && learning.file) $('currentTool').textContent = `${session.currentTool || 'Working'} · ${learning.file}`;
 
   renderControlPlane(state);
   renderLearning(state);
+  renderFeatureModel(state);
   renderFiles(session);
   renderFindings(session);
   renderLedger(state.ledger);
@@ -226,7 +292,7 @@ async function submitAnswer(conceptId, choice) {
   try {
     feedbackLock = conceptId;
     const result = await api('/api/answer', { method: 'POST', body: JSON.stringify({ conceptId, choice }) });
-    const buttons = [...document.querySelectorAll('.answer')];
+    const buttons = [...document.querySelectorAll('#answers .answer')];
     buttons.forEach((button, index) => {
       button.disabled = true;
       if (index === result.answer) button.classList.add('correct');
@@ -237,6 +303,24 @@ async function submitAnswer(conceptId, choice) {
   } catch (error) {
     feedbackLock = null;
     $('feedback').textContent = `Could not record answer: ${error.message}`;
+  }
+}
+
+async function submitFeatureAnswer(fingerprint, choice) {
+  try {
+    featureFeedbackLock = fingerprint;
+    const result = await api('/api/feature-answer', { method: 'POST', body: JSON.stringify({ fingerprint, choice }) });
+    const buttons = [...document.querySelectorAll('.feature-answer')];
+    buttons.forEach((button, index) => {
+      button.disabled = true;
+      if (index === result.answer) button.classList.add('correct');
+      else if (index === choice) button.classList.add('wrong');
+    });
+    $('featureFeedback').textContent = `${result.correct ? 'Correct.' : 'Not quite.'} ${result.explanation}`;
+    setTimeout(() => { featureFeedbackLock = null; render(result.state); }, 2200);
+  } catch (error) {
+    featureFeedbackLock = null;
+    $('featureFeedback').textContent = `Could not record feature check: ${error.message}`;
   }
 }
 
@@ -256,7 +340,7 @@ async function snoozeLesson(conceptId, minutes = 10) {
 async function poll() {
   try {
     const state = await api('/api/state');
-    if (!feedbackLock) render(state);
+    if (!feedbackLock && !featureFeedbackLock) render(state);
   } catch {
     $('status').textContent = 'IdleProof disconnected';
     $('integrityChip').textContent = 'offline';
@@ -297,4 +381,4 @@ $('acceptResponsibility').addEventListener('click', async () => {
 });
 
 poll();
-setInterval(poll, 1000);
+setInterval(poll, 1500);

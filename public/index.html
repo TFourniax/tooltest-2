@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="dark" />
-  <meta name="description" content="IdleProof turns coding-agent work into short, contextual lessons about the task you are building." />
-  <title>IdleProof — Learn what your coding agent is building</title>
+  <meta name="description" content="IdleProof keeps the mental model of your product in sync while coding agents build it." />
+  <title>IdleProof — Stay fluent in what your coding agent builds</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
@@ -28,7 +28,7 @@
           <span id="window" class="chip">0 sec window</span>
         </div>
         <h1 id="headline">Vibe code fast.<br><em>Stay fluent in your own product.</em></h1>
-        <p id="task" class="task">Run <code>idleproof on</code>, then use Claude Code or Codex normally. IdleProof turns the agent’s live work into short, contextual lessons.</p>
+        <p id="task" class="task">Run <code>idleproof on</code>, then use Claude Code or Codex normally. IdleProof turns live agent work into task-specific learning and a mental model of the feature being built.</p>
         <div class="live-line">
           <span>AGENT NOW</span><strong id="currentTool">No active tool</strong>
           <div class="pulse-track"><i id="pulse"></i></div>
@@ -38,9 +38,9 @@
 
       <aside class="metric-grid">
         <article class="metric panel"><span>TASK RISK</span><strong id="runtimeRisk">0</strong><small>/100 · observed activity</small></article>
-        <article class="metric panel"><span>AGENT EVENTS</span><strong id="traceEvents">0</strong><small id="traceHint">context observed</small></article>
-        <article class="metric panel"><span>KNOWLEDGE DEBT</span><strong id="debt">0</strong><small>what the project knows that you may not</small></article>
-        <article class="metric panel"><span>COGNITIVE COVERAGE</span><strong id="coverage">100%</strong><small>demonstrated recall</small></article>
+        <article class="metric panel feature-metric"><span>FEATURE FLUENCY</span><strong id="featureFluency">0%</strong><small id="featureFluencyHint">mental models demonstrated</small></article>
+        <article class="metric panel"><span>KNOWLEDGE DEBT</span><strong id="debt">0</strong><small>concepts exposed but not yet owned</small></article>
+        <article class="metric panel"><span>COGNITIVE COVERAGE</span><strong id="coverage">100%</strong><small>demonstrated concept recall</small></article>
       </aside>
     </section>
 
@@ -71,9 +71,38 @@
       </article>
     </section>
 
+    <section class="feature-grid">
+      <article class="panel feature-model-panel">
+        <div class="section-head">
+          <div><span class="mini-label">FEATURE MENTAL MODEL</span><h2>How this feature hangs together</h2></div>
+          <div class="feature-head-meta"><span id="featureModelStatus" class="chip">waiting for code context</span><strong id="currentFeatureFluency">0%</strong></div>
+        </div>
+        <p id="featureDisclaimer" class="feature-disclaimer">IdleProof builds a bounded static map from the project-local files the agent actually touches.</p>
+        <div id="featureStory" class="feature-story"><p class="empty">A feature path will appear as IdleProof sees connected code.</p></div>
+        <div id="featureSurfaces" class="surface-row"></div>
+        <div id="featureRiskNotes" class="feature-notes"></div>
+        <div id="featureExplainBack" class="explain-back hidden"></div>
+        <div id="featureChallenge" class="challenge feature-challenge hidden">
+          <span class="challenge-kicker">DO YOU OWN THE FEATURE MODEL? · ONE TAP</span>
+          <h3 id="featureQuestion"></h3>
+          <div id="featureAnswers" class="answers"></div>
+          <p id="featureFeedback" class="feedback" aria-live="polite"></p>
+        </div>
+      </article>
+
+      <article class="panel feature-memory-panel">
+        <div class="section-head">
+          <div><span class="mini-label">PROJECT MEMORY</span><h2>Features you still own mentally</h2></div>
+          <span id="featureMemoryCount" class="chip">0 learned</span>
+        </div>
+        <p class="memory-intro">IdleProof remembers feature-level understanding separately from coding concepts. Repeated work can strengthen — or reveal drift in — your mental model.</p>
+        <div id="featureMemory" class="feature-memory"><p class="empty">Completed tasks will accumulate here.</p></div>
+      </article>
+    </section>
+
     <section class="bottom-grid">
       <article class="panel">
-        <div class="section-head"><h3>Files behind this lesson</h3><span id="linesChanged">+0 −0</span></div>
+        <div class="section-head"><h3>Files behind this task</h3><span id="linesChanged">+0 −0</span></div>
         <div id="files" class="file-list"><p class="empty">No files observed yet.</p></div>
       </article>
 
@@ -83,7 +112,7 @@
       </article>
 
       <article class="panel ledger-panel">
-        <div class="section-head"><h3>Your project knowledge map</h3><span>risk × exposure × uncertainty</span></div>
+        <div class="section-head"><h3>Your concept knowledge map</h3><span>risk × exposure × uncertainty</span></div>
         <div id="ledger" class="ledger"></div>
       </article>
     </section>
@@ -115,7 +144,7 @@
     <section class="evidence panel">
       <div>
         <span class="mini-label">FREE · LOCAL · NO MODEL BILL REQUIRED</span>
-        <h2>The agent writes the code.<br><em>IdleProof keeps you in the loop.</em></h2>
+        <h2>The agent writes the code.<br><em>IdleProof keeps your mental model in sync.</em></h2>
       </div>
       <div class="evidence-grid">
         <div><span>DIFF PROOF</span><code id="proofId">waiting</code></div>
@@ -124,7 +153,7 @@
       </div>
     </section>
 
-    <footer><span>IdleProof · free local learning layer for coding agents</span><span>Claude Code · Codex · task-aware micro-learning</span></footer>
+    <footer><span>IdleProof · free local learning layer for coding agents</span><span>Claude Code · Codex · feature-aware learning</span></footer>
   </main>
   <script type="module" src="/app.js"></script>
 </body>
