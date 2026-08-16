@@ -49,7 +49,7 @@ test('handoff changes the challenge from implementation teaching to acceptance r
   assert.equal(experience.phase, 'handoff');
   assert.equal(experience.card.kind, 'applied');
   assert.match(experience.card.question, /Before you accept the finished change/);
-  assert.match(experience.card.question, /roll back|corrupting/i);
+  assert.match(experience.card.options[0], /roll back|corrupting/i);
   assert.match(experience.card.review, /042_org\.sql/);
 });
 
