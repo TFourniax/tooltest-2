@@ -13,6 +13,7 @@ import {
 import { evaluatePolicy, loadPolicy, policyDecisionOutput } from './policy.mjs';
 import { appendProvenanceEvent, buildAgentBom, sha256, verifyProvenanceChain } from './provenance.mjs';
 import { createAttestation } from './attest.mjs';
+import { buildFeatureModel } from './feature-model.mjs';
 
 function now() {
   return new Date().toISOString();
@@ -86,6 +87,30 @@ function strictRecorderFailClosed(event, policyDecision, provenanceError, cwd) {
     approvalFingerprint: policyDecision?.approvalFingerprint || 'recorder-failure',
     matches: policyDecision?.matches || []
   };
+}
+
+function rememberFeature(state, session, model) {
+  if (!model || !model.fingerprint || !model.generatedFrom?.filesInspected) return;
+  state.features ||= {};
+  const current = state.features[model.fingerprint] || {
+    fingerprint: model.fingerprint,
+    exposures: 0,
+    checks: 0,
+    correct: 0,
+    wrong: 0,
+    confidence: 0,
+    firstSeenAt: now(),
+    sessionIds: []
+  };
+  if (!current.sessionIds.includes(session.id)) current.exposures += 1;
+  current.sessionIds = [...new Set([...current.sessionIds, session.id])].slice(-12);
+  current.lastSeenAt = now();
+  current.task = String(session.prompt || '').replace(/\s+/g, ' ').trim().slice(0, 180);
+  current.story = (model.story || []).slice(0, 7);
+  current.surfaces = model.surfaces || { routes: [], tables: [], technologies: [] };
+  current.tests = (model.tests || []).slice(0, 12);
+  current.riskNotes = (model.riskNotes || []).slice(0, 6);
+  state.features[model.fingerprint] = current;
 }
 
 export function processHookLifecycle(event = {}) {
@@ -167,6 +192,18 @@ export function processHookLifecycle(event = {}) {
       session.currentTool = null;
       session.estimatedWindow = 0;
       session.completedAt = now();
+      const featureModel = buildFeatureModel(cwd, session);
+      session.featureModel = featureModel.generatedFrom.filesInspected ? {
+        fingerprint: featureModel.fingerprint,
+        confidence: featureModel.confidence,
+        story: featureModel.story,
+        surfaces: featureModel.surfaces,
+        tests: featureModel.tests,
+        riskNotes: featureModel.riskNotes,
+        explainBack: featureModel.explainBack,
+        disclaimer: featureModel.disclaimer
+      } : null;
+      rememberFeature(state, session, featureModel);
     }
 
     trimSessions(state);
@@ -222,7 +259,8 @@ function receiptFromState(state, cwd) {
       changed: session.changed,
       proof: session.proof,
       findings: session.findings,
-      concepts
+      concepts,
+      featureModel: session.featureModel || null
     } : null,
     metrics,
     assurance: {
