@@ -43,6 +43,20 @@ function renderLedger(ledger) {
     : '<p class="empty">Concepts appear as the coding agent touches your codebase.</p>';
 }
 
+function renderJourney(state) {
+  const learning = state.learning || {};
+  const concepts = learning.concepts || [];
+  const complete = state.session?.status === 'complete';
+  const visible = concepts.slice(0, complete ? 6 : 3);
+  $('learningJourney').innerHTML = visible.length
+    ? visible.map((item) => `<div class="ledger-row">
+        <span class="ledger-title">${escapeHtml(item.title)}</span>
+        <span class="ledger-risk">${escapeHtml(item.status)} · ${item.confidence}%</span>
+        <span class="ledger-meter" title="${item.confidence}% mastery"><i style="width:${item.confidence}%"></i></span>
+      </div>`).join('')
+    : '<p class="empty">The task knowledge map will appear as the agent reveals relevant concepts.</p>';
+}
+
 function renderLearning(state) {
   const card = state.card || {};
   const learning = state.learning || {};
@@ -51,7 +65,7 @@ function renderLearning(state) {
   $('cardRisk').textContent = handoff ? 'HANDOFF' : riskLabel(card);
   $('cardTime').textContent = `≈ ${Math.min(card.seconds || 30, Math.max(12, state.session?.estimatedWindow || card.seconds || 30))} sec`;
   $('cardConfidence').textContent = handoff
-    ? `${recap.review || 0} concept${recap.review === 1 ? '' : 's'} still to review`
+    ? `${recap.mastered || 0} mastered · ${recap.building || 0} building · ${recap.review || 0} review`
     : `${card.confidence || 0}% mastery · ${learning.phase || 'live'}`;
   $('cardTitle').textContent = card.title || 'Current task';
   $('cardWhy').textContent = card.why || 'IdleProof will connect a useful concept to the task as soon as the agent starts working.';
@@ -60,6 +74,7 @@ function renderLearning(state) {
   if (!feedbackLock || feedbackLock !== card.id) $('feedback').textContent = '';
   $('answers').innerHTML = (card.options || []).map((option, index) => `<button class="answer" data-choice="${index}">${escapeHtml(option)}</button>`).join('');
   document.querySelectorAll('.answer').forEach((button) => button.addEventListener('click', () => submitAnswer(card.id, Number(button.dataset.choice))));
+  renderJourney(state);
 }
 
 function eventClass(policy) {
