@@ -19,6 +19,14 @@ function riskLabel(card = {}) {
   return card.level?.toUpperCase() || 'CORE';
 }
 
+function resumeLabel(value) {
+  if (!value) return 'when the task context changes';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'soon';
+  const minutes = Math.max(1, Math.ceil((date.getTime() - Date.now()) / 60000));
+  return `in about ${minutes} min`;
+}
+
 function renderFiles(session) {
   const files = session?.touchedFiles || [];
   $('files').innerHTML = files.length
@@ -62,8 +70,27 @@ function renderLearning(state) {
   const learning = state.learning || {};
   const handoff = state.session?.status === 'complete';
   const recap = learning.recap || {};
+
+  if (learning.paused) {
+    const first = learning.snoozedConceptIds?.[0] || '';
+    $('cardRisk').textContent = 'PAUSED';
+    $('cardTime').textContent = resumeLabel(learning.resumeAt);
+    $('cardConfidence').textContent = `${recap.mastered || 0} mastered · ${recap.building || 0} building · ${recap.review || 0} review`;
+    $('cardTitle').textContent = 'No lesson forced right now';
+    $('cardWhy').textContent = 'You chose “not now”. IdleProof does not count that as a wrong answer or reduce your mastery.';
+    $('cardLesson').textContent = 'The task context keeps running in the background. A useful lesson will return when the context changes or the snooze expires.';
+    $('question').textContent = '';
+    $('answers').innerHTML = first ? `<button class="text-button" id="resumeLesson" type="button">resume learning now</button>` : '';
+    $('feedback').textContent = '';
+    const resume = $('resumeLesson');
+    if (resume) resume.addEventListener('click', () => snoozeLesson(first, 0));
+    renderJourney(state);
+    return;
+  }
+
   $('cardRisk').textContent = handoff ? 'HANDOFF' : riskLabel(card);
-  $('cardTime').textContent = `≈ ${Math.min(card.seconds || 30, Math.max(12, state.session?.estimatedWindow || card.seconds || 30))} sec`;
+  const depth = card.presentation?.label ? ` · ${card.presentation.label}` : '';
+  $('cardTime').textContent = `≈ ${card.seconds || 20} sec${depth}`;
   $('cardConfidence').textContent = handoff
     ? `${recap.mastered || 0} mastered · ${recap.building || 0} building · ${recap.review || 0} review`
     : `${card.confidence || 0}% mastery · ${learning.phase || 'live'}`;
@@ -72,8 +99,12 @@ function renderLearning(state) {
   $('cardLesson').textContent = card.lesson || '';
   $('question').textContent = card.question || 'What should you understand before accepting this change?';
   if (!feedbackLock || feedbackLock !== card.id) $('feedback').textContent = '';
-  $('answers').innerHTML = (card.options || []).map((option, index) => `<button class="answer" data-choice="${index}">${escapeHtml(option)}</button>`).join('');
+  const choices = (card.options || []).map((option, index) => `<button class="answer" data-choice="${index}">${escapeHtml(option)}</button>`).join('');
+  const snooze = card.id ? '<button class="text-button" id="snoozeLesson" type="button">not now · 10 min</button>' : '';
+  $('answers').innerHTML = `${choices}${snooze}`;
   document.querySelectorAll('.answer').forEach((button) => button.addEventListener('click', () => submitAnswer(card.id, Number(button.dataset.choice))));
+  const snoozeButton = $('snoozeLesson');
+  if (snoozeButton) snoozeButton.addEventListener('click', () => snoozeLesson(card.id, 10));
   renderJourney(state);
 }
 
@@ -171,7 +202,7 @@ function render(state) {
   $('coverage').textContent = `${state.metrics.coverage}%`;
   document.body.classList.toggle('completed', complete);
   $('statusDot').classList.toggle('active', active);
-  $('status').textContent = active ? `${agentName} working · live lesson ready` : complete ? `${agentName} turn complete · recap ready` : 'Waiting for a coding agent';
+  $('status').textContent = active ? `${agentName} working · ${learning.paused ? 'learning snoozed' : 'live lesson ready'}` : complete ? `${agentName} turn complete · recap ready` : 'Waiting for a coding agent';
   $('window').textContent = active ? `≈ ${session.estimatedWindow || 20} sec learning window` : complete ? 'handoff review' : '0 sec window';
   $('currentTool').textContent = session?.currentTool || (complete ? 'Task complete · review what changed' : 'No active tool');
   $('headline').innerHTML = active
@@ -204,7 +235,21 @@ async function submitAnswer(conceptId, choice) {
     $('feedback').textContent = result.correct ? `Correct. ${result.review}` : `Not quite. ${result.review}`;
     setTimeout(() => { feedbackLock = null; render(result.state); }, 1700);
   } catch (error) {
+    feedbackLock = null;
     $('feedback').textContent = `Could not record answer: ${error.message}`;
+  }
+}
+
+async function snoozeLesson(conceptId, minutes = 10) {
+  if (!conceptId) return;
+  try {
+    feedbackLock = conceptId;
+    const result = await api('/api/snooze', { method: 'POST', body: JSON.stringify({ conceptId, minutes }) });
+    feedbackLock = null;
+    render(result.state);
+  } catch (error) {
+    feedbackLock = null;
+    $('feedback').textContent = `Could not pause this lesson: ${error.message}`;
   }
 }
 
