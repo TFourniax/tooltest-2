@@ -16,6 +16,14 @@ function latestTouchedFile(session) {
   return files.length ? files[files.length - 1] : (session?.currentResource || null);
 }
 
+function learningTarget(session, file) {
+  const signals = session?.taskSignals || {};
+  if (signals.symbol && file) return `${signals.symbol} in ${file}`;
+  if (signals.route && file) return `${signals.route} in ${file}`;
+  if (signals.table && file) return `${signals.table} in ${file}`;
+  return file || null;
+}
+
 function minutesSince(iso) {
   if (!iso) return Infinity;
   const value = Date.parse(iso);
@@ -42,8 +50,8 @@ export function detectLearningPhase(session = {}) {
   return session.status === 'active' ? 'work' : 'idle';
 }
 
-function phaseLead(phase, file) {
-  const where = file ? ` in ${file}` : '';
+function phaseLead(phase, target) {
+  const where = target ? ` in ${target}` : '';
   if (phase === 'inspect') return `While the agent inspects the code${where}`;
   if (phase === 'implement') return `While the agent changes the code${where}`;
   if (phase === 'verify') return `While the agent verifies the change${where}`;
@@ -51,7 +59,7 @@ function phaseLead(phase, file) {
   if (phase === 'handoff') return `Before you accept the finished change${where}`;
   if (phase === 'reason') return `While the agent reasons about the next step${where}`;
   if (phase === 'plan') return 'Before the agent commits to an implementation';
-  return file ? `For the code being touched in ${file}` : 'For the current task';
+  return target ? `For the code being touched in ${target}` : 'For the current task';
 }
 
 const APPLIED_QUIZZES = {
@@ -139,24 +147,36 @@ function appliedQuiz(concept, phase) {
   return { question: selected[0], options: selected[1], answer: 0, kind: 'applied' };
 }
 
-function taskConnection(concept, task, phase, file) {
+function signalSentence(session) {
+  const signals = session?.taskSignals || {};
+  const parts = [];
+  if (signals.symbol) parts.push(`active symbol ${signals.symbol}`);
+  if (signals.route) parts.push(`route ${signals.route}`);
+  if (signals.table) parts.push(`table ${signals.table}`);
+  if (signals.technologies?.length) parts.push(`stack signal ${signals.technologies.slice(0, 3).join(', ')}`);
+  return parts.length ? ` Local context: ${parts.join(' · ')}.` : '';
+}
+
+function taskConnection(concept, task, phase, file, session) {
   const anchor = task ? `“${task}”` : 'the current task';
   const location = file ? ` The latest observed file is ${file}.` : '';
   const action = phase === 'handoff'
     ? 'You are at the handoff boundary, so this is the moment to verify you understand the important behavior before accepting it.'
     : 'IdleProof selected this because the agent activity exposes this concept right now.';
-  return `${action} The task is ${anchor}.${location} ${concept.why}`;
+  return `${action} The task is ${anchor}.${location}${signalSentence(session)} ${concept.why}`;
 }
 
-function applicationPrompt(concept, phase, file) {
-  const target = file ? `Open ${file}` : 'Look at the agent’s current change';
+function applicationPrompt(concept, phase, file, session) {
+  const signals = session?.taskSignals || {};
+  const anchor = signals.symbol ? `${signals.symbol}${file ? ` in ${file}` : ''}` : file;
+  const target = anchor ? `Open ${anchor}` : 'Look at the agent’s current change';
   if (phase === 'handoff') return `${target} before accepting the turn and ${lowerFirst(concept.review)}`;
   if (phase === 'verify') return `${target} and predict which failure or invariant the current verification should catch.`;
   return `${target} when the agent pauses and ${lowerFirst(concept.review)}`;
 }
 
 function challengeId(session, concept, phase, file, question) {
-  const raw = [session?.id, concept.id, phase, file, question, session?.currentTool, ...(session?.currentCapabilities || []), session?.lastEventAt].filter(Boolean).join('|');
+  const raw = [session?.id, concept.id, phase, file, session?.taskSignals?.symbol, session?.taskSignals?.route, question, session?.currentTool, ...(session?.currentCapabilities || []), session?.lastEventAt].filter(Boolean).join('|');
   return createHash('sha256').update(raw || concept.id).digest('hex').slice(0, 20);
 }
 
@@ -198,9 +218,10 @@ export function buildContextualCard(concept, state = {}, session = {}) {
   if (!concept) return null;
   const phase = detectLearningPhase(session);
   const file = latestTouchedFile(session);
+  const target = learningTarget(session, file);
   const task = summarizeTask(session.prompt);
   const ledger = state.ledger?.[concept.id] || {};
-  const lead = phaseLead(phase, file);
+  const lead = phaseLead(phase, target);
   const quiz = appliedQuiz(concept, phase) || { question: concept.question, options: concept.options, answer: concept.answer, kind: 'concept' };
   const taskCue = task ? ` For “${summarizeTask(task, 72)}”,` : '';
   const question = `${lead}:${taskCue} ${lowerFirst(quiz.question)}`;
@@ -209,9 +230,9 @@ export function buildContextualCard(concept, state = {}, session = {}) {
     question,
     options: quiz.options,
     answer: quiz.answer,
-    why: taskConnection(concept, task, phase, file),
-    lesson: `${concept.lesson} Apply it here: ${applicationPrompt(concept, phase, file)}`,
-    review: `${concept.review}${file ? ` Apply that review directly to ${file}.` : ''}`,
+    why: taskConnection(concept, task, phase, file, session),
+    lesson: `${concept.lesson} Apply it here: ${applicationPrompt(concept, phase, file, session)}`,
+    review: `${concept.review}${target ? ` Apply that review directly to ${target}.` : ''}`,
     confidence: Math.round((ledger.confidence || 0) * 100),
     exposures: ledger.exposures || 0,
     reviewDue: isReviewDue(ledger),
@@ -222,8 +243,10 @@ export function buildContextualCard(concept, state = {}, session = {}) {
       task,
       phase,
       file,
+      target,
       tool: session.currentTool || null,
       capabilities: session.currentCapabilities || [],
+      signals: session.taskSignals || null,
       source: session.source || 'agent'
     }
   };

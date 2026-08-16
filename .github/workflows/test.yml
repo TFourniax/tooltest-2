@@ -24,6 +24,7 @@ jobs:
         run: |
           node --check ./src/cli.mjs
           node --check ./src/hook.mjs
+          node --check ./src/context.mjs
           node --check ./src/learning.mjs
           node --check ./src/policy.mjs
           node --check ./src/provenance.mjs

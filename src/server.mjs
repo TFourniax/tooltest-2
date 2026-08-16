@@ -4,6 +4,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { CONCEPT_BY_ID } from './catalog.mjs';
 import { publicSession } from './analyze.mjs';
+import { extractTaskSignals } from './context.mjs';
 import { buildLearningExperience } from './learning.mjs';
 import { computeMetrics, loadState, mutateState } from './state.mjs';
 import { buildReceipt } from './hook.mjs';
@@ -61,21 +62,23 @@ function safeRecentEvents(cwd, limit = 18) {
   }));
 }
 
-function enrichLearningSession(session, recentEvents = []) {
+function enrichLearningSession(cwd, session, recentEvents = []) {
   if (!session) return null;
   const matching = [...recentEvents].reverse().find((record) => !record.event?.sessionId || record.event.sessionId === session.id);
   const event = matching?.event || null;
-  return {
+  const enriched = {
     ...session,
     currentCapabilities: event?.capabilities || [],
     currentExecutable: event?.commandExecutable || null,
     currentResource: event?.resource || null
   };
+  enriched.taskSignals = extractTaskSignals(cwd, enriched);
+  return enriched;
 }
 
 function learningForState(cwd, state, recentEvents = safeRecentEvents(cwd, 40)) {
   const session = latestSession(state);
-  const enriched = enrichLearningSession(session, recentEvents);
+  const enriched = enrichLearningSession(cwd, session, recentEvents);
   return { session, enriched, learning: buildLearningExperience(state, enriched || {}, 'testing') };
 }
 
@@ -107,7 +110,8 @@ function presentState(cwd) {
       ...publicSession(session),
       currentCapabilities: enriched?.currentCapabilities || [],
       currentExecutable: enriched?.currentExecutable || null,
-      currentResource: enriched?.currentResource || null
+      currentResource: enriched?.currentResource || null,
+      taskSignals: enriched?.taskSignals || null
     } : null,
     card: publicConcept,
     learning: {

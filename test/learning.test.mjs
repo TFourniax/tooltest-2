@@ -13,7 +13,7 @@ function stateFor(id, confidence = 0.2, extra = {}) {
   return { ledger: { [id]: { confidence, exposures: 1, ...extra } } };
 }
 
-test('contextual learning card is grounded in the active task and touched file', () => {
+test('contextual learning card is grounded in the active task, file and local symbol', () => {
   const state = stateFor('auth', 0.2);
   const session = {
     id: 'session-1',
@@ -23,6 +23,7 @@ test('contextual learning card is grounded in the active task and touched file',
     currentTool: 'Write',
     currentCapabilities: ['code.modify'],
     touchedFiles: ['src/auth/session.ts'],
+    taskSignals: { file: 'src/auth/session.ts', symbol: 'authorizeAdmin', route: '/admin', table: null, technologies: ['OAuth'] },
     concepts: { auth: { events: 3 } },
     events: []
   };
@@ -31,12 +32,14 @@ test('contextual learning card is grounded in the active task and touched file',
   assert.equal(experience.phase, 'implement');
   assert.equal(experience.selectedConceptId, 'auth');
   assert.equal(experience.card.kind, 'applied');
+  assert.match(experience.card.question, /authorizeAdmin/);
   assert.match(experience.card.question, /src\/auth\/session\.ts/);
   assert.match(experience.card.question, /Google OAuth/);
   assert.match(experience.card.question, /permission check/i);
-  assert.match(experience.card.why, /Google OAuth/);
-  assert.match(experience.card.lesson, /Apply it here:/);
+  assert.match(experience.card.why, /active symbol authorizeAdmin/);
+  assert.match(experience.card.lesson, /Open authorizeAdmin in src\/auth\/session\.ts/);
   assert.deepEqual(experience.card.context.capabilities, ['code.modify']);
+  assert.equal(experience.card.context.signals.route, '/admin');
   assert.equal(experience.card.context.source, 'claude');
   assert.equal(experience.recap.review, 1);
   assert.equal(experience.recap.weakest, 'Authentication & sessions');
