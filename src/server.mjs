@@ -5,7 +5,8 @@ import { spawn } from 'node:child_process';
 import { CONCEPT_BY_ID } from './catalog.mjs';
 import { publicSession } from './analyze.mjs';
 import { extractTaskSignals } from './context.mjs';
-import { cachedFeatureModel, findFeatureMemory, recentFeatureMemory, scoreFeatureAnswer } from './feature-memory.mjs';
+import { cachedFeatureModel, findFeatureMemory, previewFeatureDrift, recentFeatureMemory, scoreFeatureAnswer } from './feature-memory.mjs';
+import { buildProjectModel } from './project-model.mjs';
 import { buildLearningExperience, buildLearningJourney } from './learning.mjs';
 import { presentLearningCard } from './presentation.mjs';
 import { taskConceptAvailability, snoozeUntil } from './snooze.mjs';
@@ -127,7 +128,7 @@ function learningForState(cwd, state, recentEvents = safeRecentEvents(cwd, 40)) 
   };
 }
 
-function safeFeatureModel(model, memory = null) {
+function safeFeatureModel(model, memory = null, liveDrift = null) {
   if (!model || !model.generatedFrom?.filesInspected) return null;
   const challenge = model.challenge ? {
     kind: model.challenge.kind,
@@ -149,8 +150,8 @@ function safeFeatureModel(model, memory = null) {
     challenge,
     explainBack: model.explainBack,
     disclaimer: model.disclaimer,
-    drift: memory?.lastDrift || null,
-    needsRefresh: Boolean(memory?.needsRefresh),
+    drift: liveDrift ? { ...liveDrift, preview: true } : (memory?.lastDrift || null),
+    needsRefresh: Boolean(liveDrift || memory?.needsRefresh),
     fluency: {
       confidence: Math.round((memory?.confidence || 0) * 100),
       exposures: memory?.exposures || 0,
@@ -183,14 +184,17 @@ function publicFeatureMemory(state) {
 function currentFeatureModel(cwd, state, enriched) {
   const model = cachedFeatureModel(cwd, enriched || {});
   const memory = findFeatureMemory(state, model);
-  return { raw: model, public: safeFeatureModel(model, memory) };
+  const liveDrift = previewFeatureDrift(state, model);
+  return { raw: model, public: safeFeatureModel(model, memory, liveDrift) };
 }
 
 function presentState(cwd) {
   const state = loadState(cwd);
   const recentEvents = safeRecentEvents(cwd);
   const { session, enriched, learning } = learningForState(cwd, state, recentEvents);
-  const featureModel = currentFeatureModel(cwd, state, enriched || session || {});
+  const liveSession = enriched || session || {};
+  const featureModel = currentFeatureModel(cwd, state, liveSession);
+  const projectModel = buildProjectModel(state, liveSession, featureModel.raw);
   let publicConcept = null;
   if (learning.card) {
     const { answer, patterns, ...safeCard } = learning.card;
@@ -234,6 +238,7 @@ function presentState(cwd) {
     },
     featureModel: featureModel.public,
     featureMemory: publicFeatureMemory(state),
+    projectModel,
     ledger: Object.fromEntries(Object.entries(state.ledger)
       .filter(([, entry]) => entry.exposures > 0)
       .map(([id, entry]) => [id, {

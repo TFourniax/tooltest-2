@@ -27,6 +27,7 @@ jobs:
           node --check ./src/context.mjs
           node --check ./src/feature-model.mjs
           node --check ./src/feature-memory.mjs
+          node --check ./src/project-model.mjs
           node --check ./src/learning.mjs
           node --check ./src/presentation.mjs
           node --check ./src/snooze.mjs
