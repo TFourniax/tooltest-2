@@ -13,7 +13,7 @@ function lowerFirst(value = '') {
 
 function latestTouchedFile(session) {
   const files = session?.touchedFiles || [];
-  return files.length ? files[files.length - 1] : null;
+  return files.length ? files[files.length - 1] : (session?.currentResource || null);
 }
 
 function minutesSince(iso) {
@@ -29,8 +29,12 @@ export function summarizeTask(prompt = '', max = 118) {
 export function detectLearningPhase(session = {}) {
   if (session.status === 'complete') return 'handoff';
   const tool = String(session.currentTool || '');
+  const capabilities = new Set(session.currentCapabilities || []);
   const recent = (session.events || []).slice(-4);
   if (recent.some((event) => event.failed) || /failed/i.test(tool)) return 'recover';
+  if (capabilities.has('test.execute') || capabilities.has('build.execute')) return 'verify';
+  if ([...capabilities].some((capability) => ['code.modify', 'database.mutate', 'database.destructive', 'database.migration', 'ci.modify', 'secrets.write', 'dependency.install'].includes(capability))) return 'implement';
+  if ([...capabilities].some((capability) => ['code.read', 'scm.read', 'database.read'].includes(capability))) return 'inspect';
   if (/test|vitest|jest|pytest|playwright|cypress|build|compile/i.test(tool)) return 'verify';
   if (/read|grep|glob|search/i.test(tool)) return 'inspect';
   if (/write|edit|multiedit|apply_patch|notebookedit/i.test(tool)) return 'implement';
@@ -152,7 +156,7 @@ function applicationPrompt(concept, phase, file) {
 }
 
 function challengeId(session, concept, phase, file, question) {
-  const raw = [session?.id, concept.id, phase, file, question, session?.currentTool, session?.lastEventAt].filter(Boolean).join('|');
+  const raw = [session?.id, concept.id, phase, file, question, session?.currentTool, ...(session?.currentCapabilities || []), session?.lastEventAt].filter(Boolean).join('|');
   return createHash('sha256').update(raw || concept.id).digest('hex').slice(0, 20);
 }
 
@@ -198,7 +202,8 @@ export function buildContextualCard(concept, state = {}, session = {}) {
   const ledger = state.ledger?.[concept.id] || {};
   const lead = phaseLead(phase, file);
   const quiz = appliedQuiz(concept, phase) || { question: concept.question, options: concept.options, answer: concept.answer, kind: 'concept' };
-  const question = `${lead}: ${lowerFirst(quiz.question)}`;
+  const taskCue = task ? ` For “${summarizeTask(task, 72)}”,` : '';
+  const question = `${lead}:${taskCue} ${lowerFirst(quiz.question)}`;
   return {
     ...concept,
     question,
@@ -218,6 +223,7 @@ export function buildContextualCard(concept, state = {}, session = {}) {
       phase,
       file,
       tool: session.currentTool || null,
+      capabilities: session.currentCapabilities || [],
       source: session.source || 'agent'
     }
   };

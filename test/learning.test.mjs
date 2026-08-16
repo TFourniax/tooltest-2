@@ -21,6 +21,7 @@ test('contextual learning card is grounded in the active task and touched file',
     status: 'active',
     prompt: 'Add Google OAuth login and protect the admin route with role checks.',
     currentTool: 'Write',
+    currentCapabilities: ['code.modify'],
     touchedFiles: ['src/auth/session.ts'],
     concepts: { auth: { events: 3 } },
     events: []
@@ -31,9 +32,11 @@ test('contextual learning card is grounded in the active task and touched file',
   assert.equal(experience.selectedConceptId, 'auth');
   assert.equal(experience.card.kind, 'applied');
   assert.match(experience.card.question, /src\/auth\/session\.ts/);
+  assert.match(experience.card.question, /Google OAuth/);
   assert.match(experience.card.question, /permission check/i);
   assert.match(experience.card.why, /Google OAuth/);
   assert.match(experience.card.lesson, /Apply it here:/);
+  assert.deepEqual(experience.card.context.capabilities, ['code.modify']);
   assert.equal(experience.card.context.source, 'claude');
   assert.equal(experience.recap.review, 1);
   assert.equal(experience.recap.weakest, 'Authentication & sessions');
@@ -53,10 +56,13 @@ test('handoff changes the challenge from implementation teaching to acceptance r
   assert.match(experience.card.review, /042_org\.sql/);
 });
 
-test('learning phase follows the actual agent lifecycle', () => {
+test('learning phase follows both agent tools and semantic capabilities', () => {
   assert.equal(detectLearningPhase({ status: 'active', currentTool: 'Grep', events: [] }), 'inspect');
   assert.equal(detectLearningPhase({ status: 'active', currentTool: 'npm test', events: [] }), 'verify');
   assert.equal(detectLearningPhase({ status: 'active', currentTool: 'Write', events: [] }), 'implement');
+  assert.equal(detectLearningPhase({ status: 'active', currentTool: 'Bash', currentCapabilities: ['test.execute'], events: [] }), 'verify');
+  assert.equal(detectLearningPhase({ status: 'active', currentTool: 'Bash', currentCapabilities: ['database.migration'], events: [] }), 'implement');
+  assert.equal(detectLearningPhase({ status: 'active', currentTool: 'Bash', currentCapabilities: ['code.read'], events: [] }), 'inspect');
   assert.equal(detectLearningPhase({ status: 'active', currentTool: 'Thinking', touchedFiles: ['a.js'], events: [] }), 'reason');
   assert.equal(detectLearningPhase({ status: 'complete', currentTool: null, events: [] }), 'handoff');
   assert.equal(detectLearningPhase({ status: 'active', currentTool: 'Thinking', events: [{ failed: true }] }), 'recover');

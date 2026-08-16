@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { CONCEPT_BY_ID } from './catalog.mjs';
-import { rankCard, publicSession } from './analyze.mjs';
+import { publicSession } from './analyze.mjs';
 import { buildLearningExperience } from './learning.mjs';
 import { computeMetrics, loadState, mutateState } from './state.mjs';
 import { buildReceipt } from './hook.mjs';
@@ -61,18 +61,34 @@ function safeRecentEvents(cwd, limit = 18) {
   }));
 }
 
+function enrichLearningSession(session, recentEvents = []) {
+  if (!session) return null;
+  const matching = [...recentEvents].reverse().find((record) => !record.event?.sessionId || record.event.sessionId === session.id);
+  const event = matching?.event || null;
+  return {
+    ...session,
+    currentCapabilities: event?.capabilities || [],
+    currentExecutable: event?.commandExecutable || null,
+    currentResource: event?.resource || null
+  };
+}
+
+function learningForState(cwd, state, recentEvents = safeRecentEvents(cwd, 40)) {
+  const session = latestSession(state);
+  const enriched = enrichLearningSession(session, recentEvents);
+  return { session, enriched, learning: buildLearningExperience(state, enriched || {}, 'testing') };
+}
+
 function presentState(cwd) {
   const state = loadState(cwd);
-  const session = latestSession(state);
-  const cardId = rankCard(state, session);
-  const concept = CONCEPT_BY_ID[cardId];
-  const learning = buildLearningExperience(state, session || {}, cardId);
+  const recentEvents = safeRecentEvents(cwd);
+  const { session, enriched, learning } = learningForState(cwd, state, recentEvents);
+  const concept = CONCEPT_BY_ID[learning.selectedConceptId] || CONCEPT_BY_ID.testing;
   const { answer, patterns, ...publicConcept } = learning.card || concept;
   const policy = loadPolicy(cwd);
   const chain = verifyProvenanceChain(cwd);
   const bom = buildAgentBom(cwd, { write: false });
   const responsibility = responsibilityReport(cwd);
-  const recentEvents = safeRecentEvents(cwd);
   const maxRecentRisk = Math.max(0, ...recentEvents.map((record) => Number(record.event?.policy?.risk || 0)));
   const latestDecision = [...recentEvents].reverse().find((record) => record.event?.policy)?.event?.policy || null;
   const attestationPath = projectPaths(cwd).attestation;
@@ -87,7 +103,12 @@ function presentState(cwd) {
     updatedAt: state.updatedAt,
     preferences: state.preferences,
     metrics: computeMetrics(state),
-    session: publicSession(session),
+    session: session ? {
+      ...publicSession(session),
+      currentCapabilities: enriched?.currentCapabilities || [],
+      currentExecutable: enriched?.currentExecutable || null,
+      currentResource: enriched?.currentResource || null
+    } : null,
     card: publicConcept,
     learning: {
       phase: learning.phase,
@@ -115,6 +136,16 @@ function presentState(cwd) {
       attestation
     }
   };
+}
+
+function currentAnswerContext(cwd, conceptId) {
+  const state = loadState(cwd);
+  const { learning } = learningForState(cwd, state);
+  if (learning.card?.id === conceptId) {
+    return { answer: learning.card.answer, review: learning.card.review };
+  }
+  const concept = CONCEPT_BY_ID[conceptId];
+  return concept ? { answer: concept.answer, review: concept.review } : null;
 }
 
 function mime(file) {
@@ -161,9 +192,8 @@ export function createServer({ cwd = process.cwd(), port = DEFAULT_PORT } = {}) 
         const body = await readBody(req);
         const concept = CONCEPT_BY_ID[body.conceptId];
         if (!concept || !Number.isInteger(body.choice)) return json(res, 400, { error: 'Invalid answer' });
-        const before = presentState(cwd);
-        const contextualReview = before.card?.id === concept.id ? before.card.review : concept.review;
-        const correct = body.choice === concept.answer;
+        const context = currentAnswerContext(cwd, concept.id) || { answer: concept.answer, review: concept.review };
+        const correct = body.choice === context.answer;
         mutateState(cwd, (state) => {
           const entry = state.ledger[concept.id];
           if (correct) {
@@ -177,7 +207,7 @@ export function createServer({ cwd = process.cwd(), port = DEFAULT_PORT } = {}) 
           return state;
         });
         buildReceipt(cwd);
-        return json(res, 200, { correct, answer: concept.answer, review: contextualReview, state: presentState(cwd) });
+        return json(res, 200, { correct, answer: context.answer, review: context.review, state: presentState(cwd) });
       }
 
       if (url.pathname === '/api/preferences' && req.method === 'POST') {
