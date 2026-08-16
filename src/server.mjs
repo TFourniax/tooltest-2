@@ -5,8 +5,9 @@ import { spawn } from 'node:child_process';
 import { CONCEPT_BY_ID } from './catalog.mjs';
 import { publicSession } from './analyze.mjs';
 import { extractTaskSignals } from './context.mjs';
-import { buildLearningExperience } from './learning.mjs';
+import { buildLearningExperience, buildLearningJourney } from './learning.mjs';
 import { presentLearningCard } from './presentation.mjs';
+import { taskConceptAvailability, snoozeUntil } from './snooze.mjs';
 import { computeMetrics, loadState, mutateState } from './state.mjs';
 import { buildReceipt } from './hook.mjs';
 import { PACKAGE_ROOT, DEFAULT_PORT, projectPaths } from './paths.mjs';
@@ -88,13 +89,39 @@ function enrichLearningSession(cwd, session, recentEvents = []) {
 function learningForState(cwd, state, recentEvents = safeRecentEvents(cwd, 40)) {
   const session = latestSession(state);
   const enriched = enrichLearningSession(cwd, session, recentEvents);
-  const learning = buildLearningExperience(state, enriched || {}, 'testing');
+  const journey = buildLearningJourney(state, enriched || {});
+  const availability = taskConceptAvailability(state, enriched || {});
+
+  if (availability.paused) {
+    return {
+      session,
+      enriched,
+      learning: {
+        ...journey,
+        selectedConceptId: null,
+        card: null,
+        paused: true,
+        snoozedConceptIds: availability.snoozed.map((item) => item.id),
+        resumeAt: availability.resumeAt
+      }
+    };
+  }
+
+  const learningSession = enriched && Object.keys(enriched.concepts || {}).length
+    ? { ...enriched, concepts: availability.available }
+    : enriched;
+  const selected = buildLearningExperience(state, learningSession || {}, 'testing');
   return {
     session,
     enriched,
     learning: {
-      ...learning,
-      card: presentLearningCard(learning.card, enriched || {})
+      ...selected,
+      concepts: journey.concepts,
+      recap: journey.recap,
+      card: presentLearningCard(selected.card, enriched || {}),
+      paused: false,
+      snoozedConceptIds: availability.snoozed.map((item) => item.id),
+      resumeAt: availability.resumeAt
     }
   };
 }
@@ -103,8 +130,11 @@ function presentState(cwd) {
   const state = loadState(cwd);
   const recentEvents = safeRecentEvents(cwd);
   const { session, enriched, learning } = learningForState(cwd, state, recentEvents);
-  const concept = CONCEPT_BY_ID[learning.selectedConceptId] || CONCEPT_BY_ID.testing;
-  const { answer, patterns, ...publicConcept } = learning.card || concept;
+  let publicConcept = null;
+  if (learning.card) {
+    const { answer, patterns, ...safeCard } = learning.card;
+    publicConcept = safeCard;
+  }
   const policy = loadPolicy(cwd);
   const chain = verifyProvenanceChain(cwd);
   const bom = buildAgentBom(cwd, { write: false });
@@ -136,7 +166,10 @@ function presentState(cwd) {
       task: learning.task,
       file: learning.file,
       concepts: learning.concepts,
-      recap: learning.recap
+      recap: learning.recap,
+      paused: learning.paused,
+      snoozedConceptIds: learning.snoozedConceptIds,
+      resumeAt: learning.resumeAt
     },
     ledger: Object.fromEntries(Object.entries(state.ledger)
       .filter(([, entry]) => entry.exposures > 0)
@@ -144,7 +177,8 @@ function presentState(cwd) {
         title: CONCEPT_BY_ID[id]?.title || id,
         risk: CONCEPT_BY_ID[id]?.risk || 1,
         exposures: entry.exposures,
-        confidence: Math.round((entry.confidence || 0) * 100)
+        confidence: Math.round((entry.confidence || 0) * 100),
+        snoozedUntil: entry.snoozedUntil || null
       }])),
     controlPlane: {
       policy: { profile: policy.profile, source: policy.source, sha256: policyHash(cwd) },
@@ -225,10 +259,25 @@ export function createServer({ cwd = process.cwd(), port = DEFAULT_PORT } = {}) 
             entry.confidence = Math.max(0, entry.confidence - 0.08);
           }
           entry.lastAnsweredAt = new Date().toISOString();
+          entry.snoozedUntil = null;
           return state;
         });
         buildReceipt(cwd);
         return json(res, 200, { correct, answer: context.answer, review: context.review, state: presentState(cwd) });
+      }
+
+      if (url.pathname === '/api/snooze' && req.method === 'POST') {
+        const body = await readBody(req);
+        const concept = CONCEPT_BY_ID[body.conceptId];
+        if (!concept) return json(res, 400, { error: 'Invalid concept' });
+        const until = snoozeUntil(body.minutes ?? 10);
+        mutateState(cwd, (state) => {
+          const entry = state.ledger[concept.id];
+          entry.snoozedUntil = until;
+          entry.lastSkippedAt = new Date().toISOString();
+          return state;
+        });
+        return json(res, 200, { ok: true, conceptId: concept.id, snoozedUntil: until, state: presentState(cwd) });
       }
 
       if (url.pathname === '/api/preferences' && req.method === 'POST') {
