@@ -23,6 +23,7 @@ jobs:
       - name: Syntax check critical entrypoints
         run: |
           node --check ./src/cli.mjs
+          node --check ./src/learning-cli.mjs
           node --check ./src/hook.mjs
           node --check ./src/context.mjs
           node --check ./src/feature-model.mjs
