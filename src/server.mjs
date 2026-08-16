@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 import { CONCEPT_BY_ID } from './catalog.mjs';
 import { publicSession } from './analyze.mjs';
 import { extractTaskSignals } from './context.mjs';
+import { buildFeatureModel } from './feature-model.mjs';
 import { buildLearningExperience, buildLearningJourney } from './learning.mjs';
 import { presentLearningCard } from './presentation.mjs';
 import { taskConceptAvailability, snoozeUntil } from './snooze.mjs';
@@ -126,10 +127,66 @@ function learningForState(cwd, state, recentEvents = safeRecentEvents(cwd, 40)) 
   };
 }
 
+function safeFeatureModel(model, memory = null) {
+  if (!model || !model.generatedFrom?.filesInspected) return null;
+  const challenge = model.challenge ? {
+    kind: model.challenge.kind,
+    question: model.challenge.question,
+    options: model.challenge.options
+  } : null;
+  return {
+    schema: model.schema,
+    fingerprint: model.fingerprint,
+    confidence: model.confidence,
+    generatedFrom: model.generatedFrom,
+    nodes: model.nodes,
+    edges: model.edges,
+    story: model.story,
+    surfaces: model.surfaces,
+    tests: model.tests,
+    riskNotes: model.riskNotes,
+    challenge,
+    explainBack: model.explainBack,
+    disclaimer: model.disclaimer,
+    fluency: {
+      confidence: Math.round((memory?.confidence || 0) * 100),
+      exposures: memory?.exposures || 0,
+      checks: memory?.checks || 0,
+      correct: memory?.correct || 0,
+      wrong: memory?.wrong || 0,
+      lastAnsweredAt: memory?.lastAnsweredAt || null
+    }
+  };
+}
+
+function recentFeatureMemory(state) {
+  return Object.values(state.features || {})
+    .sort((a, b) => String(b.lastSeenAt || '').localeCompare(String(a.lastSeenAt || '')))
+    .slice(0, 8)
+    .map((entry) => ({
+      fingerprint: entry.fingerprint,
+      task: entry.task || 'Previous task',
+      confidence: Math.round((entry.confidence || 0) * 100),
+      exposures: entry.exposures || 0,
+      checks: entry.checks || 0,
+      lastSeenAt: entry.lastSeenAt || null,
+      story: (entry.story || []).slice(0, 5),
+      surfaces: entry.surfaces || { routes: [], tables: [], technologies: [] },
+      tests: (entry.tests || []).slice(0, 6),
+      riskNotes: (entry.riskNotes || []).slice(0, 4)
+    }));
+}
+
+function currentFeatureModel(cwd, state, enriched) {
+  const model = buildFeatureModel(cwd, enriched || {});
+  return { raw: model, public: safeFeatureModel(model, state.features?.[model.fingerprint] || null) };
+}
+
 function presentState(cwd) {
   const state = loadState(cwd);
   const recentEvents = safeRecentEvents(cwd);
   const { session, enriched, learning } = learningForState(cwd, state, recentEvents);
+  const featureModel = currentFeatureModel(cwd, state, enriched || session || {});
   let publicConcept = null;
   if (learning.card) {
     const { answer, patterns, ...safeCard } = learning.card;
@@ -171,6 +228,8 @@ function presentState(cwd) {
       snoozedConceptIds: learning.snoozedConceptIds,
       resumeAt: learning.resumeAt
     },
+    featureModel: featureModel.public,
+    featureMemory: recentFeatureMemory(state),
     ledger: Object.fromEntries(Object.entries(state.ledger)
       .filter(([, entry]) => entry.exposures > 0)
       .map(([id, entry]) => [id, {
@@ -242,6 +301,13 @@ export function createServer({ cwd = process.cwd(), port = DEFAULT_PORT } = {}) 
       if (url.pathname === '/api/attestation' && req.method === 'GET') return json(res, 200, createAttestation(cwd));
       if (url.pathname === '/api/evidence' && req.method === 'GET') return json(res, 200, createEvidenceBundle(cwd));
       if (url.pathname === '/api/responsibility' && req.method === 'GET') return json(res, 200, responsibilityReport(cwd));
+      if (url.pathname === '/api/feature-model' && req.method === 'GET') {
+        const state = loadState(cwd);
+        const recentEvents = safeRecentEvents(cwd, 40);
+        const session = latestSession(state);
+        const enriched = enrichLearningSession(cwd, session, recentEvents);
+        return json(res, 200, currentFeatureModel(cwd, state, enriched || session || {}).public || { available: false });
+      }
 
       if (url.pathname === '/api/answer' && req.method === 'POST') {
         const body = await readBody(req);
@@ -264,6 +330,55 @@ export function createServer({ cwd = process.cwd(), port = DEFAULT_PORT } = {}) 
         });
         buildReceipt(cwd);
         return json(res, 200, { correct, answer: context.answer, review: context.review, state: presentState(cwd) });
+      }
+
+      if (url.pathname === '/api/feature-answer' && req.method === 'POST') {
+        const body = await readBody(req);
+        if (!Number.isInteger(body.choice)) return json(res, 400, { error: 'Invalid feature answer' });
+        const state = loadState(cwd);
+        const recentEvents = safeRecentEvents(cwd, 40);
+        const session = latestSession(state);
+        const enriched = enrichLearningSession(cwd, session, recentEvents);
+        const model = buildFeatureModel(cwd, enriched || session || {});
+        if (!model.challenge || !model.generatedFrom.filesInspected) return json(res, 409, { error: 'No feature challenge available' });
+        if (body.fingerprint && body.fingerprint !== model.fingerprint) return json(res, 409, { error: 'Feature model changed; refresh before answering' });
+        const correct = body.choice === model.challenge.answer;
+        mutateState(cwd, (next) => {
+          next.features ||= {};
+          const entry = next.features[model.fingerprint] || {
+            fingerprint: model.fingerprint,
+            exposures: 1,
+            checks: 0,
+            correct: 0,
+            wrong: 0,
+            confidence: 0,
+            firstSeenAt: new Date().toISOString(),
+            sessionIds: session?.id ? [session.id] : []
+          };
+          entry.checks += 1;
+          if (correct) {
+            entry.correct += 1;
+            entry.confidence = Math.min(1, (entry.confidence || 0) + ((entry.confidence || 0) < 0.5 ? 0.32 : 0.16));
+          } else {
+            entry.wrong += 1;
+            entry.confidence = Math.max(0, (entry.confidence || 0) - 0.08);
+          }
+          entry.lastAnsweredAt = new Date().toISOString();
+          entry.lastSeenAt = entry.lastSeenAt || new Date().toISOString();
+          entry.task = String(session?.prompt || '').replace(/\s+/g, ' ').trim().slice(0, 180);
+          entry.story = model.story;
+          entry.surfaces = model.surfaces;
+          entry.tests = model.tests;
+          entry.riskNotes = model.riskNotes;
+          next.features[model.fingerprint] = entry;
+          return next;
+        });
+        return json(res, 200, {
+          correct,
+          answer: model.challenge.answer,
+          explanation: model.challenge.explanation,
+          state: presentState(cwd)
+        });
       }
 
       if (url.pathname === '/api/snooze' && req.method === 'POST') {
