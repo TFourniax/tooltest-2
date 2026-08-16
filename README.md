@@ -5,20 +5,25 @@
 IdleProof is a free, local learning layer for Claude Code, Codex and terminal-based coding agents. It watches the task the agent is performing and turns natural wait windows into short lessons and one-tap questions about **the code being changed right now**.
 
 ```text
-Claude Code is editing src/auth/session.ts
+Claude Code is editing src/stripe.ts
 
-LIVE TASK LESSON · Authentication & sessions
-≈ 24 sec
+LIVE TASK LESSON · HTTP & API contracts
+≈ 24 sec · quick lesson
 
-The task is “Add Google OAuth login and protect the admin route…”
-The latest observed file is src/auth/session.ts.
+Task: “Make handleStripeWebhook idempotent and verify the Stripe webhook signature.”
+Observed locally:
+  symbol      handleStripeWebhook
+  route       /api/webhooks/stripe
+  technology  Stripe
 
-While the agent changes the code in src/auth/session.ts:
-Which check must still happen after a user is successfully authenticated?
+If Stripe retries /api/webhooks/stripe in handleStripeWebhook,
+what property must this handler preserve?
 
-[ Authorization for the requested action ]
-[ CSS validation ]
-[ Client-side route rendering ]
+[ Idempotency ]
+[ Font weight ]
+[ Source-map size ]
+
+[ not now · 10 min ]
 ```
 
 The goal is not to slow vibe coding down. The goal is to let people keep the speed of coding agents **without progressively losing the mental model of the software they own**.
@@ -28,43 +33,99 @@ The goal is not to slow vibe coding down. The goal is to let people keep the spe
 ```text
 agent receives a task
         ↓
-IdleProof observes prompt + lifecycle + touched files
+IdleProof observes task + lifecycle + semantic action + local code context
         ↓
 detects the concepts that matter now
         ↓
 selects the highest-value learning opportunity
         ↓
-turns the current wait window into a contextual lesson
+adapts depth to the actual wait window
         ↓
-one-tap understanding check
+specializes the question to the current task / symbol / route / table
+        ↓
+one-tap understanding check — or “not now”
         ↓
 updates the user's project knowledge map
         ↓
-next task adapts to what the user already understands
+next task adapts to demonstrated mastery
 ```
 
-IdleProof currently distinguishes the agent's working phase — planning, inspection, implementation, verification, recovery and handoff — so the same concept can be taught differently depending on what is happening.
+IdleProof distinguishes planning, inspection, implementation, verification, recovery, reasoning and handoff. The same concept is therefore taught differently depending on what the agent is actually doing.
 
-At handoff, the lesson changes from “here is a useful idea” to “before you accept this change, verify that you understand this boundary.”
+At handoff, the interaction changes from “learn this while the agent works” to “before you accept this change, verify that you understand this boundary.”
 
-## Why this is different from a coding course
+## Questions about *this* task, not generic coding trivia
 
 IdleProof does not ask generic questions simply because you happen to use JavaScript.
 
-It derives learning context from:
+It can ground a lesson in:
 
-- the current user task;
+- the current task;
 - the coding agent and lifecycle event;
-- tools currently being used;
-- files actually touched;
+- semantic activity such as `test.execute`, `build.execute`, `database.migration` or `code.modify`;
+- the file currently being read or changed;
+- locally extracted functions/classes;
+- detected API routes;
+- detected SQL tables;
+- stack signals such as Stripe, Supabase, OAuth/OIDC, PostgreSQL, React, Next.js, Prisma, Redis, Playwright and others;
 - the real Git change at handoff;
 - concepts previously encountered in this project;
 - the user's demonstrated confidence on those concepts;
 - risk, so auth, secrets, migrations and production changes matter more than trivia.
 
-The built-in catalog currently covers authentication, SQL/transactions, migrations, async JavaScript, React state/effects, TypeScript boundaries, testing, secrets, HTTP/API contracts, dependencies, Git, CI/CD, concurrency, accessibility and caching.
+For example, a generic HTTP lesson can become:
 
-The contextual layer is deterministic and local. **IdleProof does not require a paid LLM API to produce its core learning experience.**
+```text
+If Stripe retries /api/webhooks/stripe in handleStripeWebhook,
+what property must this handler preserve?
+```
+
+An OAuth lesson can become:
+
+```text
+After OAuth identifies the user in authorizeAdmin,
+where must the permission check for the protected action still happen?
+```
+
+A migration lesson can target the actual table being changed and ask about rolling-deploy compatibility or rollback behavior.
+
+This task specialization is deterministic and local. **The core learning experience does not require a paid LLM API.**
+
+## It uses the time the agent actually gives you
+
+IdleProof does not assume every wait is 30 seconds.
+
+It adapts the lesson to the estimated window:
+
+```text
+~5–12 sec   → quick glance
+~13–35 sec  → quick lesson
+>35 sec      → deeper pass + concrete review move
+task done    → handoff check
+```
+
+A short tool call gets a principle plus one tap. A longer build/test can carry a little more explanation and a concrete review action. The product should fit inside the agent workflow, not compete with it.
+
+## “Not now” is not a wrong answer
+
+Learning must not become another notification system users learn to hate.
+
+Every live lesson can be snoozed:
+
+```text
+not now · 10 min
+```
+
+IdleProof then:
+
+- does **not** lower confidence;
+- does **not** count a wrong answer;
+- temporarily removes that concept from selection;
+- immediately offers another relevant concept from the same task if one exists;
+- pauses learning only if every currently useful concept is snoozed;
+- lets the user resume immediately.
+
+The agent keeps working either way.
 
 ## Install
 
@@ -89,19 +150,26 @@ The UI is served on `127.0.0.1`; source code does not need to be sent to an Idle
 
 ## What a live card knows
 
-For every active turn IdleProof can build a context object such as:
+A live turn can now produce context like:
 
 ```json
 {
-  "task": "Add Google OAuth login and protect the admin route",
+  "task": "Make handleStripeWebhook idempotent and verify the Stripe webhook signature",
   "phase": "implement",
-  "file": "src/auth/session.ts",
-  "tool": "Write",
+  "file": "src/stripe.ts",
+  "target": "handleStripeWebhook in src/stripe.ts",
+  "tool": "Bash",
+  "capabilities": ["code.modify"],
+  "signals": {
+    "symbol": "handleStripeWebhook",
+    "route": "/api/webhooks/stripe",
+    "technologies": ["Stripe"]
+  },
   "source": "claude"
 }
 ```
 
-That context is attached to the selected concept and used to produce the lesson, question and review action.
+The local context extractor is deliberately narrow: it reads only a project-local current file, refuses paths outside the project root, caps inspected files at 128 KiB, avoids binary files and returns signals rather than source code.
 
 The current task also gets a learning journey:
 
@@ -112,6 +180,12 @@ Testing strategy             mastered    84%
 ```
 
 This is deliberately not a certification system. It is a memory of exposure and demonstrated recall designed to help the user decide what deserves attention.
+
+## Spaced recall instead of repetition
+
+IdleProof keeps a local learning ledger and avoids immediately repeating the same question just because a concept remains important.
+
+Current review intervals expand with demonstrated confidence, from minutes for a weak concept to roughly a day for a strongly demonstrated one. Current-task relevance, risk, uncertainty, recent exposure and recent answers all influence which concept appears next.
 
 ## Knowledge Debt
 
@@ -133,8 +207,8 @@ When the agent completes a turn, IdleProof captures the real Git change and can 
 
 - concepts touched by the task;
 - which ones are already mastered vs still weak;
-- the files behind the lesson;
-- a short review action tied to the actual file;
+- the files and symbols behind the lesson;
+- a short review action tied to the actual change;
 - deterministic findings worth noticing;
 - the diff digest for the completed change.
 
@@ -151,13 +225,35 @@ TASK COMPLETE
 Next best review: Authentication & sessions
 ```
 
+## Built-in learning domains
+
+The curated catalog currently covers:
+
+- authentication & authorization;
+- SQL & transactions;
+- migrations;
+- async JavaScript;
+- React state/effects;
+- TypeScript boundaries;
+- testing;
+- secrets;
+- HTTP/API contracts;
+- dependencies;
+- Git/change boundaries;
+- CI/CD;
+- concurrency;
+- accessibility;
+- caching.
+
+Each domain has phase-aware applied questions for implementation, verification and handoff in addition to the underlying concept card.
+
 ## Under the hood
 
 IdleProof already contains more infrastructure than the learning UI needs because reliable context matters. These primitives stay secondary to the free learning experience:
 
 - Claude Code and Codex lifecycle adapters;
 - semantic capability normalization;
-- local runtime policy with allow / observe / ask / deny;
+- local runtime safety policy with allow / observe / ask / deny;
 - a privacy-conscious append-only Flight Recorder;
 - hash-chain integrity checks;
 - local signed change evidence;
@@ -173,13 +269,13 @@ The learning cockpit is local-only by default.
 
 The provenance recorder intentionally avoids storing raw prompt/tool payloads in its portable trace. It retains narrow metadata and digests instead. The local learning state may retain a compact task prompt because that context is what makes the lesson useful; it remains in the project's local `.idleproof` state.
 
-See `SECURITY.md` for the exact trust boundaries.
+Local task-signal extraction does not upload source code. See `SECURITY.md` for the exact trust boundaries.
 
 ## Free by design
 
 IdleProof is MIT-licensed and designed to work without a hosted model bill. The distribution goal is simple: it should be easy enough that a vibecoder can install it once and then forget about the plumbing.
 
-Future code-quality or verification products may integrate with IdleProof, but they should remain separate tools. IdleProof's own job is narrow:
+IdleProof's own job is narrow:
 
 > **Learn what your coding agent is building while it builds it.**
 
@@ -187,7 +283,7 @@ Future code-quality or verification products may integrate with IdleProof, but t
 
 IdleProof can only observe lifecycle surfaces exposed by the underlying coding agent. It is not a sandbox, SAST replacement, formal verifier, malware detector, or proof that generated code is safe.
 
-Its concept detection is currently heuristic and curated. The roadmap is to improve task decomposition, context selection, spaced recall and project-specific question generation while preserving a zero-cost local path.
+Concept detection and free-form specialization are still intentionally heuristic/curated rather than unrestricted model generation. That keeps the default path local, deterministic and zero-cost while the project develops richer task decomposition and adaptive learning.
 
 ## Development
 
@@ -196,7 +292,7 @@ npm test
 npm pack --dry-run
 ```
 
-CI validates Node.js 20 and 22.
+CI validates Node.js 20 and 22. The current suite covers contextual learning, semantic activity, local code signals, wait-window adaptation, task specialization, spaced recall, snoozing, hooks, provenance, policy, packaging and the localhost cockpit.
 
 ## License
 
