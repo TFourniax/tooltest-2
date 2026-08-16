@@ -1,3 +1,5 @@
+import { buildDueFeatureReviews, nextFeatureRecallChallenge } from './feature-review.mjs';
+
 function unique(values) {
   return [...new Set((values || []).filter(Boolean))];
 }
@@ -121,37 +123,31 @@ export function buildProjectTopology(state = {}) {
   return { hotspots: hotspots.slice(0, 16), sharedBoundaries: sharedBoundaries.slice(0, 16) };
 }
 
-export function buildFeatureReviewQueue(state = {}, limit = 8) {
-  return Object.values(state.features || {})
-    .filter((entry) => featureId(entry) && (entry.exposures || 0) > 0)
-    .map((entry) => {
-      const confidence = Math.round((entry.confidence || 0) * 100);
-      const driftBoost = entry.needsRefresh ? 80 : 0;
-      const uncertainty = 100 - confidence;
-      const exposureBoost = Math.min(20, (entry.exposures || 0) * 4);
-      return {
-        ...publicFeature(entry),
-        priority: driftBoost + uncertainty + exposureBoost,
-        reason: entry.needsRefresh ? `feature changed: ${entry.lastDrift?.summary || 'mental model drift detected'}` : confidence < 50 ? 'low demonstrated feature fluency' : 'spaced feature recall'
-      };
-    })
-    .sort((a, b) => b.priority - a.priority || String(b.lastSeenAt || '').localeCompare(String(a.lastSeenAt || '')))
-    .slice(0, limit);
+export function buildFeatureReviewQueue(state = {}, limit = 8, now = Date.now()) {
+  return buildDueFeatureReviews(state, { limit, now });
 }
 
-export function buildProjectModel(state = {}, session = {}, currentFeatureModel = null) {
+export function buildProjectModel(state = {}, session = {}, currentFeatureModel = null, now = Date.now()) {
   const impact = buildChangeImpact(state, session, currentFeatureModel);
   const topology = buildProjectTopology(state);
-  const reviewQueue = buildFeatureReviewQueue(state);
+  const reviewQueue = buildFeatureReviewQueue(state, 8, now);
+  const reviewChallenge = nextFeatureRecallChallenge(state, now);
   return {
     schema: 'idleproof.project-mental-model.v1',
     impact,
     topology,
     reviewQueue,
+    reviewChallenge: reviewChallenge ? {
+      challengeId: reviewChallenge.challengeId,
+      featureKey: reviewChallenge.featureKey,
+      kind: reviewChallenge.kind,
+      question: reviewChallenge.question,
+      options: reviewChallenge.options
+    } : null,
     stats: {
       learnedFeatures: Object.values(state.features || {}).filter((entry) => (entry.exposures || 0) > 0).length,
       sharedHotspots: topology.hotspots.length,
-      pendingFeatureReviews: reviewQueue.filter((item) => item.needsRefresh || item.confidence < 60).length
+      pendingFeatureReviews: reviewQueue.filter((item) => item.due && (item.needsRefresh || item.confidence < 60 || item.reason.includes('spaced'))).length
     }
   };
 }

@@ -7,6 +7,7 @@
   <meta name="description" content="IdleProof keeps the mental model of your product in sync while coding agents build it." />
   <title>IdleProof — Stay fluent in what your coding agent builds</title>
   <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/feature-review.css" />
 </head>
 <body>
   <main class="shell">
@@ -73,6 +74,12 @@
           <div><span class="sub-label">SHARED CODE HOTSPOTS</span><div id="projectHotspots" class="compact-list"><p class="empty">Hotspots emerge when multiple learned features share code.</p></div></div>
           <div><span class="sub-label">FEATURE REVIEW QUEUE</span><div id="featureReviewQueue" class="compact-list"><p class="empty">Feature reviews appear as your project memory grows.</p></div></div>
         </div>
+        <div id="memoryReviewChallenge" class="challenge memory-review-challenge hidden">
+          <span class="challenge-kicker">SPACED FEATURE RECALL · ONE TAP</span>
+          <h3 id="memoryReviewQuestion"></h3>
+          <div id="memoryReviewAnswers" class="answers"></div>
+          <p id="memoryReviewFeedback" class="feedback" aria-live="polite"></p>
+        </div>
       </article>
     </section>
 
@@ -94,5 +101,6 @@
     <footer><span>IdleProof · free local learning layer for coding agents</span><span>Claude Code · Codex · feature-aware learning</span></footer>
   </main>
   <script type="module" src="/app.js"></script>
+  <script type="module" src="/feature-review.js"></script>
 </body>
 </html>

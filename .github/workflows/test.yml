@@ -27,6 +27,7 @@ jobs:
           node --check ./src/context.mjs
           node --check ./src/feature-model.mjs
           node --check ./src/feature-memory.mjs
+          node --check ./src/feature-review.mjs
           node --check ./src/project-model.mjs
           node --check ./src/learning.mjs
           node --check ./src/presentation.mjs
@@ -35,6 +36,7 @@ jobs:
           node --check ./src/provenance.mjs
           node --check ./src/attest.mjs
           node --check ./public/app.js
+          node --check ./public/feature-review.js
       - name: Validate JSON examples and schemas
         run: |
           node -e "for (const f of ['examples/idleproof.policy.json','spec/idleproof-policy.schema.json','spec/agentic-development-provenance.schema.json']) JSON.parse(require('fs').readFileSync(f,'utf8'))"

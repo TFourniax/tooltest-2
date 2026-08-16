@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createServer } from '../src/server.mjs';
 import { processHookEvent } from '../src/hook.mjs';
+import { mutateState } from '../src/state.mjs';
 
 test('local dashboard serves state and records one-tap proof answers', async () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'idleproof-server-'));
@@ -77,6 +78,67 @@ test('feature mental model is public without its answer and feature check update
     assert.ok(result.state.featureModel.fluency.confidence > 0);
     assert.ok(result.state.metrics.featureCoverage > 0);
     assert.equal(result.state.featureMemory[0].fingerprint, state.featureModel.fingerprint);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('stored feature recall is answer-hidden, clears drift only after a correct review, and updates feature fluency', async () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'idleproof-feature-review-server-'));
+  mutateState(cwd, (state) => {
+    state.features.checkout = {
+      featureKey: 'checkout',
+      fingerprint: 'checkout-v2',
+      task: 'Stripe checkout',
+      exposures: 3,
+      checks: 1,
+      correct: 1,
+      wrong: 0,
+      confidence: 0.6,
+      needsRefresh: true,
+      lastSeenAt: '2026-08-16T20:00:00.000Z',
+      lastDrift: {
+        level: 'material',
+        summary: 'new external boundary Redis',
+        added: { technologies: ['Redis'] },
+        removed: {}
+      },
+      surfaces: { technologies: ['Stripe', 'Redis'], routes: ['/api/checkout'], tables: ['subscriptions'] },
+      story: [{ type: 'file', label: 'src/api/checkout.ts', role: 'api' }]
+    };
+    state.features.auth = {
+      featureKey: 'auth', fingerprint: 'auth-v1', task: 'Admin auth', exposures: 2, checks: 1,
+      correct: 1, wrong: 0, confidence: 0.5, lastSeenAt: '2026-08-16T19:00:00.000Z',
+      surfaces: { technologies: ['OAuth'], routes: ['/api/admin'], tables: ['sessions'] },
+      story: [{ type: 'file', label: 'src/auth/session.ts', role: 'service' }]
+    };
+    return state;
+  });
+
+  const { server, url } = await createServer({ cwd, port: 0 });
+  try {
+    const state = await fetch(`${url}/api/state`).then((res) => res.json());
+    const challenge = state.projectModel.reviewChallenge;
+    assert.ok(challenge);
+    assert.equal(challenge.featureKey, 'checkout');
+    assert.equal(challenge.kind, 'drift-recall');
+    assert.equal('answer' in challenge, false);
+    const correctChoice = challenge.options.indexOf('Redis');
+    assert.ok(correctChoice >= 0);
+
+    const result = await fetch(`${url}/api/feature-review-answer`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ featureKey: challenge.featureKey, challengeId: challenge.challengeId, choice: correctChoice })
+    }).then((res) => res.json());
+    assert.equal(result.correct, true);
+    assert.equal(result.answer, correctChoice);
+    assert.match(result.explanation, /Redis/i);
+    const checkout = result.state.featureMemory.find((item) => item.featureKey === 'checkout');
+    assert.equal(checkout.needsRefresh, false);
+    assert.ok(checkout.confidence > 60);
+    assert.ok(result.state.metrics.featureCoverage > state.metrics.featureCoverage);
   } finally {
     await new Promise((resolve) => server.close(resolve));
     fs.rmSync(cwd, { recursive: true, force: true });
