@@ -27,6 +27,7 @@ jobs:
           node --check ./src/context.mjs
           node --check ./src/learning.mjs
           node --check ./src/presentation.mjs
+          node --check ./src/snooze.mjs
           node --check ./src/policy.mjs
           node --check ./src/provenance.mjs
           node --check ./src/attest.mjs
