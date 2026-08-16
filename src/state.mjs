@@ -42,7 +42,7 @@ function acquireLock(cwd) {
 
 export function freshState(cwd = process.cwd()) {
   return {
-    version: 1,
+    version: 2,
     project: path.basename(path.resolve(cwd)),
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -52,6 +52,7 @@ export function freshState(cwd = process.cwd()) {
       sponsorCards: false
     },
     sessions: {},
+    features: {},
     ledger: Object.fromEntries(CONCEPTS.map((concept) => [concept.id, {
       exposures: 0,
       correct: 0,
@@ -73,7 +74,8 @@ export function loadState(cwd = process.cwd()) {
       ...parsed,
       preferences: { ...base.preferences, ...(parsed.preferences || {}) },
       ledger: { ...base.ledger, ...(parsed.ledger || {}) },
-      sessions: parsed.sessions || {}
+      sessions: parsed.sessions || {},
+      features: parsed.features || {}
     };
   } catch (error) {
     if (error.code === 'ENOENT' || error instanceof SyntaxError) return freshState(cwd);
@@ -120,7 +122,12 @@ export function computeMetrics(state) {
   }
 
   const coverage = weightedExposure === 0 ? 100 : Math.round((weightedConfidence / weightedExposure) * 100);
-  return { debt, coverage, conceptsSeen };
+  const featureEntries = Object.values(state.features || {}).filter((entry) => (entry.exposures || 0) > 0);
+  const featureExposure = featureEntries.reduce((sum, entry) => sum + Math.min(5, entry.exposures || 0), 0);
+  const featureConfidence = featureEntries.reduce((sum, entry) => sum + Math.min(5, entry.exposures || 0) * (entry.confidence || 0), 0);
+  const featureCoverage = featureExposure === 0 ? 0 : Math.round((featureConfidence / featureExposure) * 100);
+  const featureDebt = featureEntries.reduce((sum, entry) => sum + Math.round(Math.min(5, entry.exposures || 0) * (1 - (entry.confidence || 0))), 0);
+  return { debt, coverage, conceptsSeen, featureCoverage, featureDebt, featuresSeen: featureEntries.length };
 }
 
 export function trimSessions(state, maxSessions = 30) {
