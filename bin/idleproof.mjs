@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { main } from '../src/cli.mjs';
 import { learningCliHelp, runLearningCli } from '../src/learning-cli.mjs';
+import { runDemo } from '../src/demo.mjs';
 
 const args = process.argv.slice(2);
 
@@ -9,6 +10,10 @@ async function run() {
   if (['help', '--help', '-h'].includes(cmd)) {
     await main(args);
     process.stdout.write(`${learningCliHelp()}\n`);
+    return;
+  }
+  if (cmd === 'demo') {
+    await runDemo(args.slice(1));
     return;
   }
   if (await runLearningCli(args)) return;
