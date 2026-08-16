@@ -20,7 +20,7 @@ const SEVERITY = { low: 1, medium: 2, high: 3, critical: 4 };
 const val = (args, key, fallback = null) => { const i = args.indexOf(key); return i >= 0 && args[i + 1] != null ? args[i + 1] : fallback; };
 
 function help() {
-  console.log(`IdleProof — agentic software control plane
+  console.log(`IdleProof — learn what your coding agent is building
 
 Start:
   idleproof on [--agent claude|codex|all]
@@ -51,7 +51,7 @@ Evidence:
   idleproof verify [ATTESTATION] [--key PUBLIC_KEY]
   idleproof receipt [--json]
 
-Assurance:
+Learning & assurance:
   idleproof status
   idleproof check [--max N] [--fail-on LEVEL] [--require-attestation] [--require-owner]
   idleproof doctor
@@ -86,7 +86,7 @@ async function background(args) {
   for (let i = 0; i < 50; i += 1) {
     await new Promise((resolve) => setTimeout(resolve, 40));
     const info = serverInfo(cwd);
-    if (info && alive(info.pid)) { const url = `http://127.0.0.1:${info.port}`; console.log(`✓ IdleProof control plane: ${url}`); if (!args.includes('--no-open')) openBrowser(url); return; }
+    if (info && alive(info.pid)) { const url = `http://127.0.0.1:${info.port}`; console.log(`✓ IdleProof learning cockpit: ${url}`); if (!args.includes('--no-open')) openBrowser(url); return; }
     if (child.exitCode != null) break;
   }
   throw new Error('Background server failed. Run `idleproof serve` for diagnostics.');
@@ -105,7 +105,7 @@ async function serve(args, demo = false) {
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Invalid --port.');
   if (demo) seedDemo(process.cwd());
   const { url } = await createServer({ cwd: process.cwd(), port });
-  console.log(`✓ IdleProof control plane: ${url}`);
+  console.log(`✓ IdleProof learning cockpit: ${url}`);
   if (!args.includes('--no-open')) openBrowser(url);
 }
 
@@ -141,7 +141,7 @@ export async function main(args) {
   const [cmd = 'help', sub] = args;
   const cwd = process.cwd();
   if (['help','--help','-h'].includes(cmd)) return help();
-  if (cmd === 'on') { const agent = String(val(args, '--agent', 'claude')).toLowerCase(); installAdapters(cwd, agent); console.log(`✓ Runtime policy: ${loadPolicy(cwd).profile}`); await background(args.slice(1)); console.log('✓ Terminal is free — use your agent normally.'); return; }
+  if (cmd === 'on') { const agent = String(val(args, '--agent', 'claude')).toLowerCase(); installAdapters(cwd, agent); console.log(`✓ Safety profile: ${loadPolicy(cwd).profile}`); await background(args.slice(1)); console.log('✓ Terminal is free — use your agent normally; IdleProof learns alongside it.'); return; }
   if (cmd === 'start') return background(args.slice(1));
   if (cmd === 'stop') return stop(cwd);
   if (cmd === 'serve') return serve(args.slice(1));
@@ -190,7 +190,7 @@ export async function main(args) {
     return;
   }
 
-  if (cmd === 'status') { const { session, metrics } = stateSummary(cwd); const chain = verifyProvenanceChain(cwd); const r = responsibilityReport(cwd); console.log(`Agent: ${session?.status || 'none'} · ${session?.source || 'none'}`); console.log(`Policy: ${loadPolicy(cwd).profile} · provenance ${chain.ok ? 'valid' : 'INVALID'} (${chain.length})`); console.log(`Knowledge debt ${metrics.debt} · cognitive ${metrics.coverage}% · responsibility ${r.responsibilityCoverage}%`); return; }
+  if (cmd === 'status') { const { session, metrics } = stateSummary(cwd); const chain = verifyProvenanceChain(cwd); const r = responsibilityReport(cwd); console.log(`Agent: ${session?.status || 'none'} · ${session?.source || 'none'}`); console.log(`Safety: ${loadPolicy(cwd).profile} · provenance ${chain.ok ? 'valid' : 'INVALID'} (${chain.length})`); console.log(`Knowledge debt ${metrics.debt} · cognitive ${metrics.coverage}% · responsibility ${r.responsibilityCoverage}%`); return; }
   if (cmd === 'check') {
     const max = Number(val(args,'--max',25)); const failOn = String(val(args,'--fail-on','critical')).toLowerCase(); if (!SEVERITY[failOn]) throw new Error('Invalid --fail-on.');
     const { state, metrics } = stateSummary(cwd); const session = latest(state); const risky = (session?.findings || []).filter((f) => (SEVERITY[f.severity] || 0) >= SEVERITY[failOn]); const chain = verifyProvenanceChain(cwd); const resp = responsibilityReport(cwd); const ownerOk = !args.includes('--require-owner') || resp.obligations.length === 0;
