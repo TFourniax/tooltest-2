@@ -46,6 +46,7 @@ jobs:
           node --check ./src/server.mjs
           node --check ./src/local-http-security.mjs
           node --check ./scripts/package-smoke.mjs
+          node --check ./scripts/idlebench.mjs
           node --check ./public/app.js
           node --check ./public/feature-review.js
       - name: Validate JSON examples and schemas
@@ -57,6 +58,17 @@ jobs:
         run: npm test
       - name: Validate npm package contents
         run: npm pack --dry-run
+
+  quality:
+    name: IdleBench contextual quality gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run deterministic learning-quality benchmark
+        run: node ./scripts/idlebench.mjs
 
   package-e2e:
     name: installed package journey (${{ matrix.os }})
