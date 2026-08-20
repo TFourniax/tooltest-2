@@ -39,3 +39,19 @@ test('Claude installer is idempotent and preserves existing settings/hooks', () 
     fs.rmSync(cwd, { recursive: true, force: true });
   }
 });
+
+test('Claude installer refuses a missing IdleProof entrypoint without changing user settings', () => {
+  const { cwd } = fixture();
+  try {
+    const file = path.join(cwd, '.claude', 'settings.local.json');
+    const before = fs.readFileSync(file, 'utf8');
+    assert.throws(
+      () => installClaude({ cwd, binPath:path.join(cwd, 'missing-idleproof.mjs') }),
+      /does not exist/i
+    );
+    assert.equal(fs.readFileSync(file, 'utf8'), before);
+    assert.equal(hasClaudeInstall(cwd), false);
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
