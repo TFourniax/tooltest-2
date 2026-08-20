@@ -104,11 +104,13 @@ function normalizeState(cwd, parsed) {
 }
 
 function readStateFile(file, cwd) {
+  // Filesystem/permission errors are operational failures, not corruption. Preserve them so an
+  // unreadable primary cannot silently fall back to stale data.
+  const raw = fs.readFileSync(file, 'utf8');
   let parsed;
   try {
-    parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+    parsed = JSON.parse(raw);
   } catch (error) {
-    if (error.code === 'ENOENT') throw error;
     const wrapped = new Error(`Cannot parse IdleProof state file ${file}: ${error.message}`);
     wrapped.code = 'IDLEPROOF_STATE_CORRUPT';
     wrapped.cause = error;
@@ -130,6 +132,7 @@ function recoverStateFromBackup(cwd, primaryError) {
       error.cause = primaryError;
       throw error;
     }
+    if (backupError.code === 'IDLEPROOF_STATE_NEWER_VERSION') throw backupError;
     const error = new Error(
       `IdleProof state and backup are both unreadable. Primary: ${primaryError.message} Backup: ${backupError.message}`
     );
@@ -155,7 +158,8 @@ export function loadState(cwd = process.cwd()) {
     // A newer schema is not corruption. Falling back to an older backup would silently roll the
     // project backwards and can destroy fields the older runtime does not understand.
     if (error.code === 'IDLEPROOF_STATE_NEWER_VERSION') throw error;
-    return recoverStateFromBackup(cwd, error);
+    if (error.code === 'IDLEPROOF_STATE_CORRUPT') return recoverStateFromBackup(cwd, error);
+    throw error;
   }
 }
 
@@ -175,15 +179,19 @@ export function saveState(cwd, state) {
   state.version = CURRENT_STATE_VERSION;
   state.updatedAt = new Date().toISOString();
 
-  // Preserve the last known-good primary before replacing it. Never rotate a malformed or
-  // unsupported file into the backup slot: an older healthy backup is more valuable for recovery.
+  // Preserve the last known-good primary before replacing it. Never rotate a malformed file into
+  // the backup slot: an older healthy backup is more valuable for recovery.
   try {
     const previous = fs.readFileSync(paths.state, 'utf8');
     const parsedPrevious = JSON.parse(previous);
     normalizeState(cwd, parsedPrevious);
     writeAtomic(paths.stateBackup, previous.endsWith('\n') ? previous : `${previous}\n`);
   } catch (error) {
-    if (error.code !== 'ENOENT' && error.code === 'IDLEPROOF_STATE_NEWER_VERSION') throw error;
+    if (error.code === 'ENOENT' || error.code === 'IDLEPROOF_STATE_CORRUPT' || error instanceof SyntaxError) {
+      // First save, or a corrupt primary being explicitly repaired after successful backup load.
+    } else {
+      throw error;
+    }
   }
 
   writeAtomic(paths.state, `${JSON.stringify(state, null, 2)}\n`);
