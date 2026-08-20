@@ -42,12 +42,14 @@ jobs:
           node --check ./src/policy.mjs
           node --check ./src/provenance.mjs
           node --check ./src/attest.mjs
+          node --check ./src/state.mjs
+          node --check ./src/server.mjs
           node --check ./src/local-http-security.mjs
           node --check ./public/app.js
           node --check ./public/feature-review.js
       - name: Validate JSON examples and schemas
         run: |
-          node -e "for (const f of ['examples/idleproof.policy.json','spec/idleproof-policy.schema.json','spec/agentic-development-provenance.schema.json']) JSON.parse(require('fs').readFileSync(f,'utf8'))"
+          node -e "for (const f of ['examples/idleproof.policy.json','spec/idleproof-policy.schema.json','spec/agentic-development-provenance.schema.json','spec/change-envelope-v1.schema.json']) JSON.parse(require('fs').readFileSync(f,'utf8'))"
       - name: Smoke CLI
         run: node ./bin/idleproof.mjs --help
       - name: Run unit and product-journey tests
