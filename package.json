@@ -1,7 +1,7 @@
 {
   "name": "idleproof",
   "version": "0.10.0",
-  "description": "Free local learning layer for coding agents: learn the task while Claude Code or Codex builds it.",
+  "description": "Local learning and understanding layer for coding agents: learn the task while Claude Code or Codex builds it.",
   "type": "module",
   "bin": { "idleproof": "./bin/idleproof.mjs" },
   "scripts": {
