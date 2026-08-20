@@ -40,15 +40,25 @@ function touchedFiles(session = {}) {
   ].map((file) => String(file || '').replaceAll('\\', '/')));
 }
 
+function modeledFiles(currentFeatureModel = null) {
+  return unique(fileSteps(currentFeatureModel || {}).map((step) => String(step.label || '').replaceAll('\\', '/')));
+}
+
 export function buildChangeImpact(state = {}, session = {}, currentFeatureModel = null) {
-  const touched = new Set(touchedFiles(session));
+  const directFiles = touchedFiles(session);
+  // The active file alone can understate blast radius. A task reading an API route may have a
+  // bounded local feature graph that reaches a shared service actually modified by the change.
+  // Use that deterministic, project-local graph for overlap detection while keeping direct vs
+  // modeled files separate in the public result so we never pretend every dependency was touched.
+  const graphFiles = modeledFiles(currentFeatureModel);
+  const relevant = new Set(unique([...directFiles, ...graphFiles]));
   const currentKey = currentFeatureModel?.featureKey || null;
   const affected = [];
 
   for (const entry of Object.values(state.features || {})) {
     const key = featureId(entry);
     if (!key) continue;
-    const shared = fileSteps(entry).filter((step) => touched.has(step.label));
+    const shared = fileSteps(entry).filter((step) => relevant.has(step.label));
     if (!shared.length) continue;
     const structuralWeight = shared.reduce((sum, step) => sum + roleWeight(step.role), 0);
     const uncertainty = 1 - (entry.confidence || 0);
@@ -65,14 +75,16 @@ export function buildChangeImpact(state = {}, session = {}, currentFeatureModel 
   const weak = otherFeatures.filter((item) => item.needsRefresh || item.confidence < 60);
   const sharedFiles = unique(otherFeatures.flatMap((item) => item.sharedFiles.map((file) => file.file)));
   return {
-    touchedFiles: [...touched],
+    touchedFiles: directFiles,
+    modeledFiles: graphFiles.filter((file) => !directFiles.includes(file)),
+    relevantFiles: [...relevant],
     affected,
     otherFeatures,
     weak,
     blastRadius: otherFeatures.length,
     summary: otherFeatures.length
-      ? `This change touches ${otherFeatures.length} other learned feature${otherFeatures.length === 1 ? '' : 's'} through ${sharedFiles.slice(0, 3).join(', ')}.`
-      : 'No other learned feature currently shares the files touched by this task.'
+      ? `This task's observed feature surface overlaps ${otherFeatures.length} other learned feature${otherFeatures.length === 1 ? '' : 's'} through ${sharedFiles.slice(0, 3).join(', ')}.`
+      : 'No other learned feature currently overlaps the observed files for this task.'
   };
 }
 
