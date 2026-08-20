@@ -44,6 +44,21 @@ function readBody(req) {
   });
 }
 
+function readJsonArtifact(file) {
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
+  catch (error) {
+    if (error.code === 'ENOENT') return null;
+    throw new Error(`Cannot read IdleProof artifact ${file}: ${error.message}`);
+  }
+}
+
+function artifactResponse(res, file, label) {
+  const artifact = readJsonArtifact(file);
+  return artifact == null
+    ? json(res, 404, { error:`No ${label} has been generated yet.` })
+    : json(res, 200, artifact);
+}
+
 function latestSession(state) {
   return Object.values(state.sessions || {}).sort((a,b) => String(b.lastEventAt || '').localeCompare(String(a.lastEventAt || '')))[0] || null;
 }
@@ -166,15 +181,20 @@ export function createServer({ cwd = process.cwd(), port = DEFAULT_PORT } = {}) 
       const boundary = validateLocalRequest(req);
       if (!boundary.ok) return json(res, boundary.status, { error:boundary.error });
       const url = new URL(req.url, 'http://127.0.0.1');
+      const paths = projectPaths(cwd);
       if (url.pathname === '/api/health') return json(res, 200, { ok:true, product:'idleproof', plane:'local', pid:process.pid, instanceId });
       if (url.pathname === '/api/state' && req.method === 'GET') return json(res, 200, presentState(cwd));
-      if (url.pathname === '/api/receipt' && req.method === 'GET') return json(res, 200, buildReceipt(cwd));
+      if (url.pathname === '/api/receipt' && req.method === 'GET') return artifactResponse(res, paths.receipt, 'receipt');
+      if (url.pathname === '/api/receipt' && req.method === 'POST') return json(res, 200, buildReceipt(cwd));
       if (url.pathname === '/api/policy' && req.method === 'GET') return json(res, 200, loadPolicy(cwd));
       if (url.pathname === '/api/policy/replay' && req.method === 'GET') return json(res, 200, replayPolicy(cwd, { profile:url.searchParams.get('profile') || null, limit:10000 }));
       if (url.pathname === '/api/provenance' && req.method === 'GET') return json(res, 200, { chain:verifyProvenanceChain(cwd), events:safeRecentEvents(cwd,100) });
-      if (url.pathname === '/api/bom' && req.method === 'GET') return json(res, 200, buildAgentBom(cwd));
-      if (url.pathname === '/api/attestation' && req.method === 'GET') return json(res, 200, createAttestation(cwd));
-      if (url.pathname === '/api/evidence' && req.method === 'GET') return json(res, 200, createEvidenceBundle(cwd));
+      if (url.pathname === '/api/bom' && req.method === 'GET') return json(res, 200, buildAgentBom(cwd, { write:false }));
+      if (url.pathname === '/api/bom' && req.method === 'POST') return json(res, 200, buildAgentBom(cwd));
+      if (url.pathname === '/api/attestation' && req.method === 'GET') return artifactResponse(res, paths.attestation, 'attestation');
+      if (url.pathname === '/api/attestation' && req.method === 'POST') return json(res, 200, createAttestation(cwd));
+      if (url.pathname === '/api/evidence' && req.method === 'GET') return artifactResponse(res, paths.evidence, 'evidence bundle');
+      if (url.pathname === '/api/evidence' && req.method === 'POST') return json(res, 200, createEvidenceBundle(cwd));
       if (url.pathname === '/api/responsibility' && req.method === 'GET') return json(res, 200, responsibilityReport(cwd));
       if (url.pathname === '/api/feature-model' && req.method === 'GET') { const state=loadState(cwd); const events=safeRecentEvents(cwd,40); const session=latestSession(state); const enriched=enrichLearningSession(cwd,session,events); return json(res,200,currentFeatureModel(cwd,state,enriched || session || {}).public || { available:false }); }
 
