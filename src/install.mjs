@@ -23,6 +23,26 @@ function readJson(file) {
   }
 }
 
+function writeJsonAtomic(file, value) {
+  const temp = `${file}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.tmp`;
+  try {
+    fs.writeFileSync(temp, `${JSON.stringify(value, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
+    fs.renameSync(temp, file);
+  } finally {
+    try { fs.rmSync(temp, { force: true }); } catch {}
+  }
+}
+
+function resolveBin(binPath) {
+  if (typeof binPath !== 'string' || !binPath.trim()) throw new Error('IdleProof hook installer requires its CLI path.');
+  const resolved = path.resolve(binPath);
+  let stat;
+  try { stat = fs.statSync(resolved); }
+  catch (error) { throw new Error(`IdleProof CLI entrypoint does not exist: ${resolved}`); }
+  if (!stat.isFile()) throw new Error(`IdleProof CLI entrypoint is not a file: ${resolved}`);
+  return resolved;
+}
+
 function isIdleProofHook(entry) {
   return (entry?.hooks || []).some((hook) => typeof hook.command === 'string' && hook.command.includes('idleproof.mjs') && hook.command.includes(' hook'));
 }
@@ -32,7 +52,8 @@ export function installClaude({ cwd = process.cwd(), binPath }) {
   fs.mkdirSync(path.dirname(paths.claudeSettings), { recursive: true });
   const settings = readJson(paths.claudeSettings);
   settings.hooks ||= {};
-  const command = `\"${process.execPath}\" \"${path.resolve(binPath)}\" hook`;
+  const resolvedBin = resolveBin(binPath);
+  const command = `\"${process.execPath}\" \"${resolvedBin}\" hook`;
 
   for (const [event, matcher] of EVENTS) {
     settings.hooks[event] ||= [];
@@ -42,7 +63,7 @@ export function installClaude({ cwd = process.cwd(), binPath }) {
     settings.hooks[event].push(entry);
   }
 
-  fs.writeFileSync(paths.claudeSettings, `${JSON.stringify(settings, null, 2)}\n`, 'utf8');
+  writeJsonAtomic(paths.claudeSettings, settings);
   return paths.claudeSettings;
 }
 
@@ -54,7 +75,7 @@ export function uninstallClaude({ cwd = process.cwd() }) {
     settings.hooks[event] = (settings.hooks[event] || []).filter((entry) => !isIdleProofHook(entry));
     if (!settings.hooks[event].length) delete settings.hooks[event];
   }
-  fs.writeFileSync(paths.claudeSettings, `${JSON.stringify(settings, null, 2)}\n`, 'utf8');
+  writeJsonAtomic(paths.claudeSettings, settings);
   return true;
 }
 
