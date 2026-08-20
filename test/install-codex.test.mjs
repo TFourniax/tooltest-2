@@ -52,3 +52,19 @@ test('Codex installer is idempotent, project-local, and preserves existing hooks
     fs.rmSync(cwd, { recursive: true, force: true });
   }
 });
+
+test('Codex installer refuses a missing IdleProof entrypoint without changing user hooks', () => {
+  const { cwd } = fixture();
+  try {
+    const file = path.join(cwd, '.codex', 'hooks.json');
+    const before = fs.readFileSync(file, 'utf8');
+    assert.throws(
+      () => installCodex({ cwd, binPath:path.join(cwd, 'missing-idleproof.mjs') }),
+      /does not exist/i
+    );
+    assert.equal(fs.readFileSync(file, 'utf8'), before);
+    assert.equal(hasCodexInstall(cwd), false);
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
