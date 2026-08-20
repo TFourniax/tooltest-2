@@ -48,6 +48,25 @@ test('change impact finds other learned features sharing a touched central file'
   assert.equal(impact.weak.length, 1);
 });
 
+test('change impact uses the bounded current feature graph without claiming modeled dependencies were directly touched', () => {
+  const memory = state();
+  const impact = buildChangeImpact(memory, {
+    currentResource: 'src/api/checkout.ts',
+    touchedFiles: ['src/api/checkout.ts']
+  }, {
+    featureKey:'checkout',
+    story: [
+      { type:'file', label:'src/api/checkout.ts', role:'api' },
+      { type:'file', label:'src/services/billing.ts', role:'service' }
+    ]
+  });
+  assert.equal(impact.blastRadius, 1);
+  assert.equal(impact.otherFeatures[0].featureKey, 'invoices');
+  assert.deepEqual(impact.touchedFiles, ['src/api/checkout.ts']);
+  assert.deepEqual(impact.modeledFiles, ['src/services/billing.ts']);
+  assert.ok(impact.relevantFiles.includes('src/services/billing.ts'));
+});
+
 test('project topology exposes shared files and boundaries instead of pretending to know runtime calls', () => {
   const topology = buildProjectTopology(state());
   const billing = topology.hotspots.find((item) => item.file === 'src/services/billing.ts');
