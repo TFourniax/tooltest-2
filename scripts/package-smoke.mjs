@@ -4,7 +4,6 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 const ROOT = process.cwd();
-const NPM = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
 function exec(command, args, options = {}) {
   return execFileSync(command, args, {
@@ -12,8 +11,16 @@ function exec(command, args, options = {}) {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
     timeout: options.timeout || 30000,
-    env: { ...process.env, ...(options.env || {}) }
+    env: { ...process.env, ...(options.env || {}) },
+    shell: Boolean(options.shell)
   });
+}
+
+function npm(args, options = {}) {
+  // Recent Node versions no longer reliably execute npm.cmd directly through execFileSync on
+  // Windows hosted runners (EINVAL). The normal npm command is a shell shim there, so use the
+  // platform shell only for this trusted test invocation. POSIX keeps direct exec semantics.
+  return exec('npm', args, { ...options, shell: process.platform === 'win32' });
 }
 
 function git(cwd, ...args) {
@@ -27,15 +34,15 @@ function runIdleProof(bin, cwd, ...args) {
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'idleproof-package-smoke-'));
 let tarball = null;
 try {
-  const packed = JSON.parse(exec(NPM, ['pack', '--json'], { cwd: ROOT }));
+  const packed = JSON.parse(npm(['pack', '--json'], { cwd: ROOT }));
   if (!Array.isArray(packed) || !packed[0]?.filename) throw new Error('npm pack did not return an artifact filename');
   tarball = path.resolve(ROOT, packed[0].filename);
   if (!fs.existsSync(tarball)) throw new Error(`npm pack artifact missing: ${tarball}`);
 
   const consumer = path.join(temp, 'consumer');
   fs.mkdirSync(consumer, { recursive: true });
-  exec(NPM, ['init', '-y'], { cwd: consumer });
-  exec(NPM, ['install', '--ignore-scripts', '--no-audit', '--no-fund', tarball], { cwd: consumer, timeout: 60000 });
+  npm(['init', '-y'], { cwd: consumer });
+  npm(['install', '--ignore-scripts', '--no-audit', '--no-fund', tarball], { cwd: consumer, timeout: 60000 });
 
   const bin = path.join(consumer, 'node_modules', 'idleproof', 'bin', 'idleproof.mjs');
   if (!fs.existsSync(bin)) throw new Error('installed IdleProof package does not contain its CLI entrypoint');
