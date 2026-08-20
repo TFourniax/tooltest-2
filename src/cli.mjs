@@ -55,7 +55,7 @@ Learning & assurance:
   idleproof status
   idleproof check [--max N] [--fail-on LEVEL] [--require-attestation] [--require-owner]
   idleproof doctor
-  idleproof reset`);
+  idleproof reset [--force]`);
 }
 
 async function stdinJson() { let raw = ''; for await (const chunk of process.stdin) raw += chunk; return raw.trim() ? JSON.parse(raw) : {}; }
@@ -120,6 +120,40 @@ async function stop(cwd) {
   process.kill(info.pid, 'SIGTERM');
   try { fs.unlinkSync(projectPaths(cwd).server); } catch {}
   console.log(`✓ Stopped IdleProof (pid ${info.pid}).`);
+}
+
+function resetRecoveryRoot(cwd) {
+  const gitDir = path.join(cwd, '.git');
+  return fs.existsSync(gitDir)
+    ? path.join(gitDir, 'idleproof-recovery')
+    : path.join(cwd, '.idleproof-recovery');
+}
+
+async function resetLocalState(cwd, args = []) {
+  const paths = projectPaths(cwd);
+  if (!fs.existsSync(paths.dir)) {
+    console.log('IdleProof has no local state to reset.');
+    return;
+  }
+
+  const info = serverInfo(cwd);
+  if (info && await probeServer(cwd, info)) {
+    throw new Error('IdleProof is running. Run `idleproof stop` before resetting local state.');
+  }
+
+  if (args.includes('--force')) {
+    fs.rmSync(paths.dir, { recursive:true, force:true });
+    console.log('✓ IdleProof local state permanently deleted; hooks and project policy preserved.');
+    return;
+  }
+
+  const recoveryRoot = resetRecoveryRoot(cwd);
+  fs.mkdirSync(recoveryRoot, { recursive:true, mode:0o700 });
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const destination = path.join(recoveryRoot, `${stamp}-${process.pid}`);
+  fs.renameSync(paths.dir, destination);
+  console.log(`✓ IdleProof local state archived before reset: ${path.relative(cwd, destination)}`);
+  console.log('  Use `idleproof reset --force` only when you intentionally want irreversible deletion.');
 }
 
 async function serve(args, demo = false) {
@@ -221,6 +255,6 @@ export async function main(args) {
   }
   if (cmd === 'receipt') { const r = buildReceipt(cwd); if (args.includes('--json')) console.log(JSON.stringify(r,null,2)); else console.log(`✓ Receipt ${path.relative(cwd,projectPaths(cwd).receipt)} · diff ${r.session?.proof?.diffSha256 || 'none'} · provenance ${r.assurance?.provenance?.events || 0}`); return; }
   if (cmd === 'doctor') return doctor(cwd);
-  if (cmd === 'reset') { fs.rmSync(projectPaths(cwd).dir, { recursive:true, force:true }); console.log('✓ Local state/evidence/recorder identity reset; hooks and project policy preserved.'); return; }
+  if (cmd === 'reset') return resetLocalState(cwd, args.slice(1));
   throw new Error(`Unknown command: ${args.join(' ')}\nRun idleproof --help.`);
 }
