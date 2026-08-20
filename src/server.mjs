@@ -20,9 +20,11 @@ import { createAttestation, verifyAttestation } from './attest.mjs';
 import { createEvidenceBundle } from './evidence.mjs';
 import { acceptResponsibility, responsibilityReport } from './ownership.mjs';
 import { replayPolicy } from './replay.mjs';
+import { validateLocalRequest } from './local-http-security.mjs';
 
 const SECURITY_HEADERS = {
   'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'x-frame-options': 'DENY',
+  'cross-origin-resource-policy': 'same-origin', 'permissions-policy': 'camera=(), microphone=(), geolocation=()',
   'content-security-policy': "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
 };
 
@@ -148,8 +150,10 @@ function serveStatic(req, res) {
 
 export function createServer({ cwd = process.cwd(), port = DEFAULT_PORT } = {}) {
   const server = http.createServer(async (req, res) => {
-    const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     try {
+      const boundary = validateLocalRequest(req);
+      if (!boundary.ok) return json(res, boundary.status, { error:boundary.error });
+      const url = new URL(req.url, 'http://127.0.0.1');
       if (url.pathname === '/api/health') return json(res, 200, { ok:true, product:'idleproof', plane:'local' });
       if (url.pathname === '/api/state' && req.method === 'GET') return json(res, 200, presentState(cwd));
       if (url.pathname === '/api/receipt' && req.method === 'GET') return json(res, 200, buildReceipt(cwd));
