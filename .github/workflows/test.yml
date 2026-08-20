@@ -2,7 +2,7 @@ name: test
 
 on:
   push:
-    branches: [main]
+    branches: [main, "agent/idleproof-human-ci"]
   pull_request:
 
 permissions:
