@@ -23,6 +23,26 @@ function readJson(file) {
   }
 }
 
+function writeJsonAtomic(file, value) {
+  const temp = `${file}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.tmp`;
+  try {
+    fs.writeFileSync(temp, `${JSON.stringify(value, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
+    fs.renameSync(temp, file);
+  } finally {
+    try { fs.rmSync(temp, { force: true }); } catch {}
+  }
+}
+
+function resolveBin(binPath) {
+  if (typeof binPath !== 'string' || !binPath.trim()) throw new Error('IdleProof hook installer requires its CLI path.');
+  const resolved = path.resolve(binPath);
+  let stat;
+  try { stat = fs.statSync(resolved); }
+  catch { throw new Error(`IdleProof CLI entrypoint does not exist: ${resolved}`); }
+  if (!stat.isFile()) throw new Error(`IdleProof CLI entrypoint is not a file: ${resolved}`);
+  return resolved;
+}
+
 function isIdleProofHook(entry) {
   return (entry?.hooks || []).some((hook) =>
     hook?.type === 'command' &&
@@ -48,7 +68,8 @@ export function installCodex({ cwd = process.cwd(), binPath }) {
   const config = readJson(paths.codexHooks);
   config.description ||= 'Project-local Codex hooks. IdleProof entries can be removed with `idleproof uninstall codex`.';
   config.hooks ||= {};
-  const command = `\"${process.execPath}\" \"${path.resolve(binPath)}\" hook-codex`;
+  const resolvedBin = resolveBin(binPath);
+  const command = `\"${process.execPath}\" \"${resolvedBin}\" hook-codex`;
 
   for (const [event, matcher, timeout] of EVENTS) {
     config.hooks[event] ||= [];
@@ -58,7 +79,7 @@ export function installCodex({ cwd = process.cwd(), binPath }) {
     config.hooks[event].push(entry);
   }
 
-  fs.writeFileSync(paths.codexHooks, `${JSON.stringify(config, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
+  writeJsonAtomic(paths.codexHooks, config);
   addLocalGitExclude(cwd, '.codex/hooks.json');
   return paths.codexHooks;
 }
@@ -75,7 +96,7 @@ export function uninstallCodex({ cwd = process.cwd() } = {}) {
     if (!config.hooks[event].length) delete config.hooks[event];
   }
   if (!changed) return false;
-  fs.writeFileSync(paths.codexHooks, `${JSON.stringify(config, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
+  writeJsonAtomic(paths.codexHooks, config);
   return true;
 }
 
