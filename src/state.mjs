@@ -3,6 +3,8 @@ import path from 'node:path';
 import { projectPaths } from './paths.mjs';
 import { CONCEPTS } from './catalog.mjs';
 
+export const CURRENT_STATE_VERSION = 2;
+
 const LOCK_STALE_MS = 5000;
 const LOCK_WAIT_MS = 8;
 const LOCK_TIMEOUT_MS = 900;
@@ -42,7 +44,7 @@ function acquireLock(cwd) {
 
 export function freshState(cwd = process.cwd()) {
   return {
-    version: 2,
+    version: CURRENT_STATE_VERSION,
     project: path.basename(path.resolve(cwd)),
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -64,32 +66,127 @@ export function freshState(cwd = process.cwd()) {
   };
 }
 
-export function loadState(cwd = process.cwd()) {
-  const { state: statePath } = projectPaths(cwd);
-  try {
-    const parsed = JSON.parse(fs.readFileSync(statePath, 'utf8'));
-    const base = freshState(cwd);
-    return {
-      ...base,
-      ...parsed,
-      preferences: { ...base.preferences, ...(parsed.preferences || {}) },
-      ledger: { ...base.ledger, ...(parsed.ledger || {}) },
-      sessions: parsed.sessions || {},
-      features: parsed.features || {}
-    };
-  } catch (error) {
-    if (error.code === 'ENOENT' || error instanceof SyntaxError) return freshState(cwd);
+function normalizeState(cwd, parsed) {
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    const error = new Error('IdleProof state root must be a JSON object.');
+    error.code = 'IDLEPROOF_STATE_CORRUPT';
     throw error;
+  }
+
+  const rawVersion = parsed.version ?? 1;
+  if (!Number.isInteger(rawVersion) || rawVersion < 1) {
+    const error = new Error(`IdleProof state has an invalid version: ${String(rawVersion)}`);
+    error.code = 'IDLEPROOF_STATE_CORRUPT';
+    throw error;
+  }
+  if (rawVersion > CURRENT_STATE_VERSION) {
+    const error = new Error(
+      `IdleProof state version ${rawVersion} is newer than this runtime supports (${CURRENT_STATE_VERSION}). Upgrade IdleProof before opening this project.`
+    );
+    error.code = 'IDLEPROOF_STATE_NEWER_VERSION';
+    throw error;
+  }
+
+  // Version 1 did not have the complete feature-memory surface. The additive merge below is the
+  // migration: preserve known user data, introduce missing current fields, then persist version 2
+  // on the next successful mutation. Future incompatible versions must get explicit migrations.
+  const migrated = { ...parsed, version: CURRENT_STATE_VERSION };
+  const base = freshState(cwd);
+  return {
+    ...base,
+    ...migrated,
+    version: CURRENT_STATE_VERSION,
+    preferences: { ...base.preferences, ...(migrated.preferences || {}) },
+    ledger: { ...base.ledger, ...(migrated.ledger || {}) },
+    sessions: migrated.sessions || {},
+    features: migrated.features || {}
+  };
+}
+
+function readStateFile(file, cwd) {
+  let parsed;
+  try {
+    parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (error) {
+    if (error.code === 'ENOENT') throw error;
+    const wrapped = new Error(`Cannot parse IdleProof state file ${file}: ${error.message}`);
+    wrapped.code = 'IDLEPROOF_STATE_CORRUPT';
+    wrapped.cause = error;
+    throw wrapped;
+  }
+  return normalizeState(cwd, parsed);
+}
+
+function recoverStateFromBackup(cwd, primaryError) {
+  const paths = projectPaths(cwd);
+  try {
+    return readStateFile(paths.stateBackup, cwd);
+  } catch (backupError) {
+    if (backupError.code === 'ENOENT') {
+      const error = new Error(
+        `IdleProof state is unreadable and no backup exists at ${paths.stateBackup}. Refusing to silently reset your learning history.`
+      );
+      error.code = 'IDLEPROOF_STATE_UNRECOVERABLE';
+      error.cause = primaryError;
+      throw error;
+    }
+    const error = new Error(
+      `IdleProof state and backup are both unreadable. Primary: ${primaryError.message} Backup: ${backupError.message}`
+    );
+    error.code = 'IDLEPROOF_STATE_UNRECOVERABLE';
+    error.cause = primaryError;
+    throw error;
+  }
+}
+
+export function loadState(cwd = process.cwd()) {
+  const paths = projectPaths(cwd);
+  try {
+    return readStateFile(paths.state, cwd);
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      try {
+        return readStateFile(paths.stateBackup, cwd);
+      } catch (backupError) {
+        if (backupError.code === 'ENOENT') return freshState(cwd);
+        throw backupError;
+      }
+    }
+    // A newer schema is not corruption. Falling back to an older backup would silently roll the
+    // project backwards and can destroy fields the older runtime does not understand.
+    if (error.code === 'IDLEPROOF_STATE_NEWER_VERSION') throw error;
+    return recoverStateFromBackup(cwd, error);
+  }
+}
+
+function writeAtomic(file, content) {
+  const temp = `${file}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.tmp`;
+  try {
+    fs.writeFileSync(temp, content, { encoding: 'utf8', mode: 0o600 });
+    fs.renameSync(temp, file);
+  } finally {
+    try { fs.rmSync(temp, { force: true }); } catch {}
   }
 }
 
 export function saveState(cwd, state) {
   const paths = projectPaths(cwd);
   fs.mkdirSync(paths.dir, { recursive: true });
+  state.version = CURRENT_STATE_VERSION;
   state.updatedAt = new Date().toISOString();
-  const temp = `${paths.state}.${process.pid}.${Date.now()}.tmp`;
-  fs.writeFileSync(temp, `${JSON.stringify(state, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
-  fs.renameSync(temp, paths.state);
+
+  // Preserve the last known-good primary before replacing it. Never rotate a malformed or
+  // unsupported file into the backup slot: an older healthy backup is more valuable for recovery.
+  try {
+    const previous = fs.readFileSync(paths.state, 'utf8');
+    const parsedPrevious = JSON.parse(previous);
+    normalizeState(cwd, parsedPrevious);
+    writeAtomic(paths.stateBackup, previous.endsWith('\n') ? previous : `${previous}\n`);
+  } catch (error) {
+    if (error.code !== 'ENOENT' && error.code === 'IDLEPROOF_STATE_NEWER_VERSION') throw error;
+  }
+
+  writeAtomic(paths.state, `${JSON.stringify(state, null, 2)}\n`);
 }
 
 export function mutateState(cwd, mutator) {
