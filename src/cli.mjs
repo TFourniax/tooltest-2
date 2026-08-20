@@ -65,6 +65,24 @@ function alive(pid) { try { if (!Number.isInteger(pid) || pid <= 0) return false
 function latest(state) { return Object.values(state.sessions || {}).sort((a,b) => String(b.lastEventAt || '').localeCompare(String(a.lastEventAt || '')))[0] || null; }
 function stateSummary(cwd) { const state = loadState(cwd); return { state, session: latest(state), metrics: computeMetrics(state) }; }
 
+async function probeServer(cwd, info, timeoutMs = 600) {
+  if (!info || !alive(info.pid) || !Number.isInteger(info.port) || info.port < 1 || info.port > 65535) return false;
+  if (typeof info.instanceId !== 'string' || !info.instanceId) return false;
+  if (path.resolve(String(info.cwd || '')) !== path.resolve(cwd)) return false;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`http://127.0.0.1:${info.port}/api/health`, { signal:controller.signal, cache:'no-store' });
+    if (!res.ok) return false;
+    const health = await res.json();
+    return health?.ok === true && health?.product === 'idleproof' && health?.pid === info.pid && health?.instanceId === info.instanceId;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function installAdapters(cwd, agent) {
   if (!['claude','codex','all'].includes(agent)) throw new Error('Agent must be claude, codex, or all.');
   if (agent === 'claude' || agent === 'all') console.log(`✓ Claude adapter: ${path.relative(cwd, installClaude({ cwd, binPath: BIN_PATH }))}`);
@@ -79,22 +97,26 @@ async function background(args) {
   const port = Number(val(args, '--port', DEFAULT_PORT));
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Invalid --port.');
   const current = serverInfo(cwd);
-  if (current && alive(current.pid)) { const url = `http://127.0.0.1:${current.port}`; console.log(`✓ IdleProof already running: ${url}`); if (!args.includes('--no-open')) openBrowser(url); return; }
+  if (current && await probeServer(cwd, current)) { const url = `http://127.0.0.1:${current.port}`; console.log(`✓ IdleProof already running: ${url}`); if (!args.includes('--no-open')) openBrowser(url); return; }
   try { fs.unlinkSync(projectPaths(cwd).server); } catch {}
   const child = spawn(process.execPath, [BIN_PATH, 'serve', '--port', String(port), '--no-open'], { cwd, detached: true, stdio: 'ignore' });
   child.unref();
   for (let i = 0; i < 50; i += 1) {
     await new Promise((resolve) => setTimeout(resolve, 40));
     const info = serverInfo(cwd);
-    if (info && alive(info.pid)) { const url = `http://127.0.0.1:${info.port}`; console.log(`✓ IdleProof learning cockpit: ${url}`); if (!args.includes('--no-open')) openBrowser(url); return; }
+    if (info && await probeServer(cwd, info, 250)) { const url = `http://127.0.0.1:${info.port}`; console.log(`✓ IdleProof learning cockpit: ${url}`); if (!args.includes('--no-open')) openBrowser(url); return; }
     if (child.exitCode != null) break;
   }
   throw new Error('Background server failed. Run `idleproof serve` for diagnostics.');
 }
 
-function stop(cwd) {
+async function stop(cwd) {
   const info = serverInfo(cwd);
-  if (!info || !alive(info.pid)) { try { fs.unlinkSync(projectPaths(cwd).server); } catch {} console.log('IdleProof is not running.'); return; }
+  if (!info || !await probeServer(cwd, info)) {
+    try { fs.unlinkSync(projectPaths(cwd).server); } catch {}
+    console.log(info ? 'IdleProof is not running; removed a stale server record.' : 'IdleProof is not running.');
+    return;
+  }
   process.kill(info.pid, 'SIGTERM');
   try { fs.unlinkSync(projectPaths(cwd).server); } catch {}
   console.log(`✓ Stopped IdleProof (pid ${info.pid}).`);
