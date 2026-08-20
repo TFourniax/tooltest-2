@@ -11,6 +11,7 @@ export function projectPaths(cwd = process.cwd()) {
     root,
     dir,
     state: path.join(dir, 'state.json'),
+    stateBackup: path.join(dir, 'state.json.bak'),
     lock: path.join(dir, 'state.lock'),
     server: path.join(dir, 'server.json'),
     receipt: path.join(dir, 'receipt.json'),
