@@ -1,5 +1,5 @@
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
-const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1']);
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
 
 function parseHost(rawHost) {
   if (typeof rawHost !== 'string' || !rawHost.trim()) return null;
