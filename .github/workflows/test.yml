@@ -45,6 +45,7 @@ jobs:
           node --check ./src/state.mjs
           node --check ./src/server.mjs
           node --check ./src/local-http-security.mjs
+          node --check ./scripts/package-smoke.mjs
           node --check ./public/app.js
           node --check ./public/feature-review.js
       - name: Validate JSON examples and schemas
@@ -56,3 +57,18 @@ jobs:
         run: npm test
       - name: Validate npm package contents
         run: npm pack --dry-run
+
+  package-e2e:
+    name: installed package journey (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Pack, install, configure and uninstall exact npm artifact
+        run: node ./scripts/package-smoke.mjs
