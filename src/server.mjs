@@ -2,6 +2,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { CONCEPT_BY_ID } from './catalog.mjs';
 import { publicSession } from './analyze.mjs';
 import { extractTaskSignals } from './context.mjs';
@@ -148,13 +149,24 @@ function serveStatic(req, res) {
   catch { res.writeHead(404, SECURITY_HEADERS); res.end('Not found'); }
 }
 
+function writeServerInfoAtomic(file, info) {
+  const temp = `${file}.${process.pid}.${Date.now()}.tmp`;
+  try {
+    fs.writeFileSync(temp, `${JSON.stringify(info, null, 2)}\n`, { encoding:'utf8', mode:0o600 });
+    fs.renameSync(temp, file);
+  } finally {
+    try { fs.rmSync(temp, { force:true }); } catch {}
+  }
+}
+
 export function createServer({ cwd = process.cwd(), port = DEFAULT_PORT } = {}) {
+  const instanceId = randomUUID();
   const server = http.createServer(async (req, res) => {
     try {
       const boundary = validateLocalRequest(req);
       if (!boundary.ok) return json(res, boundary.status, { error:boundary.error });
       const url = new URL(req.url, 'http://127.0.0.1');
-      if (url.pathname === '/api/health') return json(res, 200, { ok:true, product:'idleproof', plane:'local' });
+      if (url.pathname === '/api/health') return json(res, 200, { ok:true, product:'idleproof', plane:'local', pid:process.pid, instanceId });
       if (url.pathname === '/api/state' && req.method === 'GET') return json(res, 200, presentState(cwd));
       if (url.pathname === '/api/receipt' && req.method === 'GET') return json(res, 200, buildReceipt(cwd));
       if (url.pathname === '/api/policy' && req.method === 'GET') return json(res, 200, loadPolicy(cwd));
@@ -207,7 +219,18 @@ export function createServer({ cwd = process.cwd(), port = DEFAULT_PORT } = {}) 
       return serveStatic(req,res);
     } catch (error) { return json(res,500,{ error:error.message }); }
   });
-  return new Promise((resolve,reject) => { server.once('error',reject); server.listen(port,'127.0.0.1',() => { const address=server.address(); const actualPort=typeof address === 'object' && address ? address.port : port; const info={ pid:process.pid, port:actualPort, cwd, startedAt:new Date().toISOString() }; const paths=projectPaths(cwd); fs.mkdirSync(paths.dir,{recursive:true}); fs.writeFileSync(paths.server,`${JSON.stringify(info,null,2)}\n`); resolve({ server, url:`http://127.0.0.1:${actualPort}` }); }); });
+  return new Promise((resolve,reject) => {
+    server.once('error',reject);
+    server.listen(port,'127.0.0.1',() => {
+      const address=server.address();
+      const actualPort=typeof address === 'object' && address ? address.port : port;
+      const info={ pid:process.pid, instanceId, port:actualPort, cwd:path.resolve(cwd), startedAt:new Date().toISOString() };
+      const paths=projectPaths(cwd);
+      fs.mkdirSync(paths.dir,{recursive:true});
+      writeServerInfoAtomic(paths.server, info);
+      resolve({ server, url:`http://127.0.0.1:${actualPort}`, instanceId });
+    });
+  });
 }
 
 export function openBrowser(url) {
