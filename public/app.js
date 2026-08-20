@@ -243,7 +243,7 @@ function renderControlPlane(state) {
   $('policyText').textContent = 'Safety hooks stay under the hood while IdleProof teaches from the same live agent context.';
   const bom = control.agentBom || { tools:[], mcpServers:[], sources:[] };
   $('agentCount').textContent = `${bom.capabilities?.length || 0} capabilit${bom.capabilities?.length === 1 ? 'y' : 'ies'}`; $('mcpCount').textContent = `${bom.mcpServers?.length || 0} MCP server${bom.mcpServers?.length === 1 ? '' : 's'}`;
-  $('agentSources').textContent = bom.sources?.length ? `Observed: ${bom.sources.join(', ')} · ${control.provenance?.events || 0} events` : 'No agent execution observed yet.';
+  $('agentSources').textContent = bom.sources?.length ? `Observed: ${bom.sources.join(', ') || 'none'} · ${control.provenance?.events || 0} events` : 'No agent execution observed yet.';
   const att = control.attestation || {}; $('attestationState').textContent = !att.exists ? 'waiting' : att.valid ? 'signed · valid' : 'signature invalid'; $('attestationSigner').textContent = att.fingerprint ? `recorder ${shortHash(att.fingerprint, 12)}` : 'no completed turn';
   const responsibility = control.responsibility || { ownerCoverage:0, responsibilityCoverage:0, obligations:[] };
   $('responsibilityCoverage').textContent = `${responsibility.responsibilityCoverage || 0}%`; $('ownerCoverage').textContent = `${responsibility.ownerCoverage || 0}% owners mapped`;
@@ -298,7 +298,7 @@ async function poll() {
 
 $('copyEvidence').addEventListener('click', async () => {
   const button = $('copyEvidence'); const before = button.textContent;
-  try { button.disabled = true; button.textContent = 'preparing local evidence…'; const evidence = await api('/api/evidence'); await navigator.clipboard.writeText(JSON.stringify(evidence, null, 2)); button.textContent = 'evidence copied'; }
+  try { button.disabled = true; button.textContent = 'preparing local evidence…'; const evidence = await api('/api/evidence', { method:'POST', body:'{}' }); await navigator.clipboard.writeText(JSON.stringify(evidence, null, 2)); button.textContent = 'evidence copied'; }
   catch { button.textContent = 'not ready'; }
   finally { setTimeout(() => { button.disabled = false; button.textContent = before; }, 1500); }
 });
