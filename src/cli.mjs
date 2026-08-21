@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
+import { createServer as createNetServer } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { createServer, openBrowser } from './server.mjs';
 import { installClaude, uninstallClaude, hasClaudeInstall } from './install.mjs';
@@ -14,13 +15,18 @@ import { createAttestation, decodeAttestation, verifyAttestation } from './attes
 import { createEvidenceBundle } from './evidence.mjs';
 import { acceptResponsibility, responsibilityReport } from './ownership.mjs';
 import { replayPolicy } from './replay.mjs';
+import { localEdition } from './edition.mjs';
+import { assertPortalSnapshotSafe, buildPortalSnapshot } from './portal-snapshot.mjs';
+import { extractTaskSignals } from './context.mjs';
+import { buildPlainExplanation } from './explain.mjs';
+import { detectLearningPhase } from './learning.mjs';
 
 const BIN_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../bin/idleproof.mjs');
 const SEVERITY = { low: 1, medium: 2, high: 3, critical: 4 };
 const val = (args, key, fallback = null) => { const i = args.indexOf(key); return i >= 0 && args[i + 1] != null ? args[i + 1] : fallback; };
 
 function help() {
-  console.log(`IdleProof — learn what your coding agent is building
+  console.log(`IdleProof — understand what your coding agent is building
 
 Start:
   idleproof on [--agent claude|codex|all]
@@ -28,6 +34,10 @@ Start:
   idleproof stop
   idleproof serve [--port N]
   idleproof demo
+
+Product boundary:
+  idleproof edition [--json]
+  idleproof portal-preview [--json]
 
 Adapters:
   idleproof install claude|codex|all
@@ -51,7 +61,7 @@ Evidence:
   idleproof verify [ATTESTATION] [--key PUBLIC_KEY]
   idleproof receipt [--json]
 
-Learning & assurance:
+Local assurance:
   idleproof status
   idleproof check [--max N] [--fail-on LEVEL] [--require-attestation] [--require-owner]
   idleproof doctor
@@ -65,8 +75,50 @@ function alive(pid) { try { if (!Number.isInteger(pid) || pid <= 0) return false
 function latest(state) { return Object.values(state.sessions || {}).sort((a,b) => String(b.lastEventAt || '').localeCompare(String(a.lastEventAt || '')))[0] || null; }
 function stateSummary(cwd) { const state = loadState(cwd); return { state, session: latest(state), metrics: computeMetrics(state) }; }
 
+function executableAvailable(name) {
+  try {
+    execFileSync(process.platform === 'win32' ? 'where' : 'which', [name], { stdio:'ignore', timeout:1000, windowsHide:true });
+    return true;
+  } catch { return false; }
+}
+
+function detectAgent(cwd) {
+  const claudeMarker = fs.existsSync(path.join(cwd,'.claude')) || hasClaudeInstall(cwd);
+  const codexMarker = fs.existsSync(path.join(cwd,'.codex')) || hasCodexInstall(cwd);
+  if (claudeMarker && !codexMarker) return 'claude';
+  if (codexMarker && !claudeMarker) return 'codex';
+  if (claudeMarker && codexMarker) return 'all';
+  const claudeBin = executableAvailable('claude');
+  const codexBin = executableAvailable('codex');
+  if (claudeBin && !codexBin) return 'claude';
+  if (codexBin && !claudeBin) return 'codex';
+  return 'all';
+}
+
+function validPort(port) { return Number.isInteger(port) && port >= 1 && port <= 65535; }
+function canBind(port) {
+  return new Promise((resolve) => {
+    const server = createNetServer();
+    server.unref();
+    server.once('error', () => resolve(false));
+    server.listen({ host:'127.0.0.1', port, exclusive:true }, () => server.close(() => resolve(true)));
+  });
+}
+function findEphemeralPort() {
+  return new Promise((resolve,reject) => {
+    const server=createNetServer();
+    server.unref();
+    server.once('error',reject);
+    server.listen({host:'127.0.0.1',port:0,exclusive:true},()=>{
+      const address=server.address();
+      const port=typeof address==='object' && address ? address.port : null;
+      server.close((error)=> error ? reject(error) : resolve(port));
+    });
+  });
+}
+
 async function probeServer(cwd, info, timeoutMs = 600) {
-  if (!info || !alive(info.pid) || !Number.isInteger(info.port) || info.port < 1 || info.port > 65535) return false;
+  if (!info || !alive(info.pid) || !validPort(info.port)) return false;
   if (typeof info.instanceId !== 'string' || !info.instanceId) return false;
   if (path.resolve(String(info.cwd || '')) !== path.resolve(cwd)) return false;
   const controller = new AbortController();
@@ -76,11 +128,8 @@ async function probeServer(cwd, info, timeoutMs = 600) {
     if (!res.ok) return false;
     const health = await res.json();
     return health?.ok === true && health?.product === 'idleproof' && health?.pid === info.pid && health?.instanceId === info.instanceId;
-  } catch {
-    return false;
-  } finally {
-    clearTimeout(timer);
-  }
+  } catch { return false; }
+  finally { clearTimeout(timer); }
 }
 
 function installAdapters(cwd, agent) {
@@ -94,17 +143,24 @@ function installAdapters(cwd, agent) {
 
 async function background(args) {
   const cwd = process.cwd();
-  const port = Number(val(args, '--port', DEFAULT_PORT));
-  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Invalid --port.');
+  const requested = Number(val(args, '--port', DEFAULT_PORT));
+  if (!validPort(requested)) throw new Error('Invalid --port.');
   const current = serverInfo(cwd);
   if (current && await probeServer(cwd, current)) { const url = `http://127.0.0.1:${current.port}`; console.log(`✓ IdleProof already running: ${url}`); if (!args.includes('--no-open')) openBrowser(url); return; }
   try { fs.unlinkSync(projectPaths(cwd).server); } catch {}
-  const child = spawn(process.execPath, [BIN_PATH, 'serve', '--port', String(port), '--no-open'], { cwd, detached: true, stdio: 'ignore' });
+
+  const explicitPort = args.includes('--port');
+  let port = requested;
+  if (!explicitPort && !await canBind(port)) {
+    port = await findEphemeralPort();
+    console.log(`• ${DEFAULT_PORT} is busy; using local port ${port}.`);
+  }
+  const child = spawn(process.execPath, [BIN_PATH, 'serve', '--port', String(port), '--no-open'], { cwd, detached: true, stdio: 'ignore', windowsHide:true });
   child.unref();
   for (let i = 0; i < 50; i += 1) {
     await new Promise((resolve) => setTimeout(resolve, 40));
     const info = serverInfo(cwd);
-    if (info && await probeServer(cwd, info, 250)) { const url = `http://127.0.0.1:${info.port}`; console.log(`✓ IdleProof learning cockpit: ${url}`); if (!args.includes('--no-open')) openBrowser(url); return; }
+    if (info && await probeServer(cwd, info, 250)) { const url = `http://127.0.0.1:${info.port}`; console.log(`✓ IdleProof Local cockpit: ${url}`); if (!args.includes('--no-open')) openBrowser(url); return; }
     if (child.exitCode != null) break;
   }
   throw new Error('Background server failed. Run `idleproof serve` for diagnostics.');
@@ -124,29 +180,19 @@ async function stop(cwd) {
 
 function resetRecoveryRoot(cwd) {
   const gitDir = path.join(cwd, '.git');
-  return fs.existsSync(gitDir)
-    ? path.join(gitDir, 'idleproof-recovery')
-    : path.join(cwd, '.idleproof-recovery');
+  return fs.existsSync(gitDir) ? path.join(gitDir, 'idleproof-recovery') : path.join(cwd, '.idleproof-recovery');
 }
 
 async function resetLocalState(cwd, args = []) {
   const paths = projectPaths(cwd);
-  if (!fs.existsSync(paths.dir)) {
-    console.log('IdleProof has no local state to reset.');
-    return;
-  }
-
+  if (!fs.existsSync(paths.dir)) { console.log('IdleProof has no local state to reset.'); return; }
   const info = serverInfo(cwd);
-  if (info && await probeServer(cwd, info)) {
-    throw new Error('IdleProof is running. Run `idleproof stop` before resetting local state.');
-  }
-
+  if (info && await probeServer(cwd, info)) throw new Error('IdleProof is running. Run `idleproof stop` before resetting local state.');
   if (args.includes('--force')) {
     fs.rmSync(paths.dir, { recursive:true, force:true });
     console.log('✓ IdleProof local state permanently deleted; hooks and project policy preserved.');
     return;
   }
-
   const recoveryRoot = resetRecoveryRoot(cwd);
   fs.mkdirSync(recoveryRoot, { recursive:true, mode:0o700 });
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -158,10 +204,10 @@ async function resetLocalState(cwd, args = []) {
 
 async function serve(args, demo = false) {
   const port = Number(val(args, '--port', DEFAULT_PORT));
-  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Invalid --port.');
+  if (!validPort(port)) throw new Error('Invalid --port.');
   if (demo) seedDemo(process.cwd());
   const { url } = await createServer({ cwd: process.cwd(), port });
-  console.log(`✓ IdleProof learning cockpit: ${url}`);
+  console.log(`✓ IdleProof Local cockpit: ${url}`);
   if (!args.includes('--no-open')) openBrowser(url);
 }
 
@@ -193,16 +239,60 @@ function doctor(cwd) {
   if (rows.filter(([name]) => !name.includes('adapter')).some(([,ok]) => !ok)) process.exitCode = 1;
 }
 
+function portalPreview(cwd) {
+  const state=loadState(cwd);
+  const session=latest(state);
+  let explanation=null;
+  let enriched=session;
+  if (session) {
+    const taskSignals=extractTaskSignals(cwd,session);
+    enriched={...session,taskSignals};
+    explanation=buildPlainExplanation({session:enriched,phase:detectLearningPhase(enriched)});
+  }
+  const snapshot=buildPortalSnapshot({state:{...state,metrics:computeMetrics(state)},session:enriched,featureModel:session?.featureModel||null,projectModel:null,explanation});
+  assertPortalSnapshotSafe(snapshot);
+  return snapshot;
+}
+
+function printEdition(args) {
+  const edition=localEdition();
+  if (args.includes('--json')) { console.log(JSON.stringify(edition,null,2)); return; }
+  console.log(`${edition.label} · ${edition.delivery}`);
+  console.log('Source policy: source stays local');
+  console.log('Included now: live explanation, current session, current feature map, optional understanding checks, local evidence.');
+  console.log('Portal / Pro: longitudinal history, Knowledge Debt history, project memory dashboard, spaced recall, multi-project/device/team visibility.');
+}
+
+function printPortalPreview(cwd,args) {
+  const snapshot=portalPreview(cwd);
+  if (args.includes('--json')) { console.log(JSON.stringify(snapshot,null,2)); return; }
+  console.log('IdleProof Portal preview · nothing was uploaded');
+  console.log(`Project: ${snapshot.project.name} · files ${snapshot.files.length} · task ${snapshot.task.status || 'none'}`);
+  console.log(`Privacy: source code ${snapshot.privacy.sourceCodeIncluded?'included':'excluded'} · raw diff ${snapshot.privacy.rawDiffIncluded?'included':'excluded'} · raw events ${snapshot.privacy.rawAgentEventsIncluded?'included':'excluded'} · secrets redacted`);
+  console.log('Run `idleproof portal-preview --json` to inspect the exact structured payload.');
+}
+
 export async function main(args) {
   const [cmd = 'help', sub] = args;
   const cwd = process.cwd();
   if (['help','--help','-h'].includes(cmd)) return help();
-  if (cmd === 'on') { const agent = String(val(args, '--agent', 'claude')).toLowerCase(); installAdapters(cwd, agent); console.log(`✓ Safety profile: ${loadPolicy(cwd).profile}`); await background(args.slice(1)); console.log('✓ Terminal is free — use your agent normally; IdleProof learns alongside it.'); return; }
+  if (cmd === 'on') {
+    const explicit=val(args,'--agent',null);
+    const agent=String(explicit || detectAgent(cwd)).toLowerCase();
+    if (!explicit) console.log(`• Agent adapter auto-detected: ${agent}.`);
+    installAdapters(cwd, agent);
+    console.log(`✓ Safety profile: ${loadPolicy(cwd).profile}`);
+    await background(args.slice(1));
+    console.log('✓ Terminal is free — use your agent normally; IdleProof explains meaningful changes alongside it.');
+    return;
+  }
   if (cmd === 'start') return background(args.slice(1));
   if (cmd === 'stop') return stop(cwd);
   if (cmd === 'serve') return serve(args.slice(1));
   if (cmd === 'demo') return serve(args.slice(1), true);
   if (cmd === 'run') return generic(args.slice(1));
+  if (cmd === 'edition') return printEdition(args);
+  if (cmd === 'portal-preview') return printPortalPreview(cwd,args);
 
   if (cmd === 'install') { installAdapters(cwd, sub); return; }
   if (cmd === 'uninstall') {
@@ -234,7 +324,7 @@ export async function main(args) {
   if (cmd === 'responsibility') { const r = responsibilityReport(cwd); if (args.includes('--json')) console.log(JSON.stringify(r,null,2)); else { console.log(`Responsibility coverage: ${r.responsibilityCoverage}% · owner mapping ${r.ownerCoverage}%`); for (const item of r.obligations) console.log(`  - ${item.file} · ${item.domain} · ${item.owners.join(', ') || 'no owner'}`); } return; }
   if (cmd === 'accept') { const a = acceptResponsibility(cwd, { principal:val(args,'--as',''), note:val(args,'--note','') }); createAttestation(cwd); console.log(`✓ Responsibility accepted by ${a.acceptedBy} for ${a.diffSha256}`); console.log('  Trust: local self-asserted identity witnessed by recorder.'); return; }
   if (cmd === 'attest') { const env = createAttestation(cwd); if (args.includes('--json')) console.log(JSON.stringify(env,null,2)); else { const s = decodeAttestation(env); console.log(`✓ Attestation: ${path.relative(cwd, projectPaths(cwd).attestation)}`); console.log(`  Subject ${s.subject?.[0]?.digest?.sha256}`); console.log(`  Recorder ${env.verificationMaterial?.fingerprint}`); } return; }
-  if (cmd === 'evidence') { const b = createEvidenceBundle(cwd); if (args.includes('--json')) console.log(JSON.stringify(b,null,2)); else console.log(`✓ Evidence bundle: ${path.relative(cwd, projectPaths(cwd).evidence)} · ${b.provenanceCheckpoint.chain.length} trace events`); return; }
+  if (cmd === 'evidence') { const b = createEvidenceBundle(cwd); if (args.includes('--json')) console.log(JSON.stringify(b,null,2)); else console.log(`✓ Evidence bundle: ${path.relative(cwd,projectPaths(cwd).evidence)} · ${b.provenanceCheckpoint.chain.length} trace events`); return; }
   if (cmd === 'identity') { const id = ensureIdentity(cwd); if (sub === 'export') { const out = path.resolve(cwd, val(args,'--out','.idleproof/recorder.pub.pem')); fs.mkdirSync(path.dirname(out), { recursive:true }); fs.writeFileSync(out,id.publicKey,{encoding:'utf8',mode:0o644}); console.log(`✓ Public key: ${path.relative(cwd,out)} · ${id.fingerprint}`); } else console.log(`Recorder ${id.fingerprint}\nTrust: local self-asserted\nPublic key: ${path.relative(cwd,projectPaths(cwd).identityPublic)}`); return; }
   if (cmd === 'verify') {
     const target = sub;
@@ -246,12 +336,25 @@ export async function main(args) {
     return;
   }
 
-  if (cmd === 'status') { const { session, metrics } = stateSummary(cwd); const chain = verifyProvenanceChain(cwd); const r = responsibilityReport(cwd); console.log(`Agent: ${session?.status || 'none'} · ${session?.source || 'none'}`); console.log(`Safety: ${loadPolicy(cwd).profile} · provenance ${chain.ok ? 'valid' : 'INVALID'} (${chain.length})`); console.log(`Knowledge debt ${metrics.debt} · cognitive ${metrics.coverage}% · responsibility ${r.responsibilityCoverage}%`); return; }
+  if (cmd === 'status') {
+    const { session, metrics } = stateSummary(cwd); const chain = verifyProvenanceChain(cwd); const r = responsibilityReport(cwd);
+    const understanding = metrics.coverageStatus === 'unverified'
+      ? `${metrics.conceptsUnverified} explained concept${metrics.conceptsUnverified===1?'':'s'} · understanding not checked`
+      : `${metrics.coverage}% demonstrated · ${metrics.conceptsUnverified} unverified`;
+    console.log(`Agent: ${session?.status || 'none'} · ${session?.source || 'none'}`);
+    console.log(`Safety: ${loadPolicy(cwd).profile} · provenance ${chain.ok ? 'valid' : 'INVALID'} (${chain.length})`);
+    console.log(`Knowledge debt ${metrics.debt} · understanding ${understanding} · responsibility ${r.responsibilityCoverage}%`);
+    return;
+  }
   if (cmd === 'check') {
     const max = Number(val(args,'--max',25)); const failOn = String(val(args,'--fail-on','critical')).toLowerCase(); if (!SEVERITY[failOn]) throw new Error('Invalid --fail-on.');
     const { state, metrics } = stateSummary(cwd); const session = latest(state); const risky = (session?.findings || []).filter((f) => (SEVERITY[f.severity] || 0) >= SEVERITY[failOn]); const chain = verifyProvenanceChain(cwd); const resp = responsibilityReport(cwd); const ownerOk = !args.includes('--require-owner') || resp.obligations.length === 0;
     let attOk = !args.includes('--require-attestation'); if (fs.existsSync(projectPaths(cwd).attestation)) attOk = verifyAttestation(projectPaths(cwd).attestation, { expectedPublicKey:ensureIdentity(cwd).publicKey }).ok;
-    const ok = Number.isFinite(max) && metrics.debt <= max && !risky.length && chain.ok && attOk && ownerOk; console.log(`${ok ? 'PASS' : 'FAIL'} debt ${metrics.debt}/${max} · cognitive ${metrics.coverage}% · responsibility ${resp.responsibilityCoverage}% · provenance ${chain.ok ? 'valid' : 'invalid'} · attestation ${attOk ? 'valid/not-required' : 'missing/invalid'}`); if (!ok) process.exitCode = 2; return;
+    const ok = Number.isFinite(max) && metrics.debt <= max && !risky.length && chain.ok && attOk && ownerOk;
+    const understanding = metrics.coverageStatus === 'unverified' ? 'not checked' : `${metrics.coverage}% demonstrated`;
+    console.log(`${ok ? 'PASS' : 'FAIL'} debt ${metrics.debt}/${max} · understanding ${understanding} · ${metrics.conceptsUnverified} unverified · responsibility ${resp.responsibilityCoverage}% · provenance ${chain.ok ? 'valid' : 'invalid'} · attestation ${attOk ? 'valid/not-required' : 'missing/invalid'}`);
+    if (!ok) process.exitCode = 2;
+    return;
   }
   if (cmd === 'receipt') { const r = buildReceipt(cwd); if (args.includes('--json')) console.log(JSON.stringify(r,null,2)); else console.log(`✓ Receipt ${path.relative(cwd,projectPaths(cwd).receipt)} · diff ${r.session?.proof?.diffSha256 || 'none'} · provenance ${r.assurance?.provenance?.events || 0}`); return; }
   if (cmd === 'doctor') return doctor(cwd);
