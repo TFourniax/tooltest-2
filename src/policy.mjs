@@ -104,10 +104,7 @@ export function grantApproval(cwd = process.cwd(), fingerprint, { minutes = 10, 
 export function policyDecisionOutput(event, result) {
   if ((event.hook_event_name || event.type) !== 'PreToolUse') return null;
   if (result.decision === 'deny') return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: `${result.reason} IdleProof approval id: ${result.approvalFingerprint}` } };
-  if (result.decision === 'ask') {
-    if ((event.source || '') === 'codex') return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: `${result.reason} Codex does not support hook-level ask yet. Review then run: idleproof approve ${result.approvalFingerprint}` } };
-    return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'ask', permissionDecisionReason: result.reason } };
-  }
+  if (result.decision === 'ask') return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'ask', permissionDecisionReason: result.reason } };
   return null;
 }
 export function effectivePolicyMaterial(cwd = process.cwd()) { const policy = loadPolicy(cwd); return { schema: POLICY_SCHEMA, engineVersion: 2, profile: policy.profile, projectRules: Array.isArray(policy.rules) ? policy.rules : [], builtinRules: BUILTIN_RULES }; }

@@ -19,9 +19,17 @@ test('balanced policy requires review for force push and emits ask for Claude', 
   assert.equal(result.decision, 'ask'); const output = policyDecisionOutput(event, result); assert.equal(output.hookSpecificOutput.permissionDecision, 'ask');
 });
 
-test('Codex ask is fail-closed and can be granted once', () => {
+test('Codex uses its current native ask decision and can still consume a one-shot local approval', () => {
   const cwd = tmp(); const event = bash(cwd, 'git push --force origin main', 'codex'); const first = evaluatePolicy(event);
-  assert.equal(first.decision, 'ask'); const output = policyDecisionOutput(event, first); assert.equal(output.hookSpecificOutput.permissionDecision, 'deny');
+  assert.equal(first.decision, 'ask');
+  const output = policyDecisionOutput(event, first);
+  assert.deepEqual(output, {
+    hookSpecificOutput: {
+      hookEventName: 'PreToolUse',
+      permissionDecision: 'ask',
+      permissionDecisionReason: first.reason
+    }
+  });
   grantApproval(cwd, first.approvalFingerprint, { minutes: 5, uses: 1 });
   const allowed = evaluatePolicy(event, { cwd, consumeApproval: true }); assert.equal(allowed.decision, 'allow'); assert.equal(allowed.approved, true);
   const again = evaluatePolicy(event, { cwd, consumeApproval: true }); assert.equal(again.decision, 'ask');
