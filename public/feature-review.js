@@ -114,6 +114,56 @@ function installOptionalLiveCheck() {
   sync();
 }
 
+function installOptionalFeatureCheck() {
+  const challenge = document.getElementById('featureChallenge');
+  const question = document.getElementById('featureQuestion');
+  const anchor = document.getElementById('featureDisclaimer');
+  if (!challenge || !question || !anchor) return;
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'text-button';
+  button.textContent = 'check this feature map · optional';
+  anchor.insertAdjacentElement('afterend', button);
+  let key=''; let revealed=false;
+  const sync=()=>{
+    const nextKey=question.textContent.trim();
+    if (nextKey!==key) { key=nextKey; revealed=false; }
+    const available=Boolean(nextKey && document.querySelector('.feature-answer'));
+    challenge.hidden=available && !revealed;
+    button.hidden=!available || revealed;
+  };
+  button.addEventListener('click',()=>{ revealed=true; sync(); });
+  new MutationObserver(sync).observe(challenge,{childList:true,subtree:true,characterData:true});
+  sync();
+}
+
+function applyLocalEditionUi() {
+  document.body.dataset.edition='local';
+  document.querySelector('#learningCard .mini-label')?.replaceChildren(document.createTextNode('LIVE PROJECT EXPLANATION'));
+  const liveKicker=document.querySelector('#learningCard .challenge-kicker'); if (liveKicker) liveKicker.textContent='OPTIONAL · CHECK YOUR UNDERSTANDING';
+  const evidenceKicker=document.querySelector('.evidence .mini-label'); if (evidenceKicker) evidenceKicker.textContent='LOCAL · SOURCE STAYS ON THIS MACHINE';
+  const footerFirst=document.querySelector('footer span'); if (footerFirst) footerFirst.textContent='IdleProof Local · understand what your coding agent is building';
+
+  // Local is the immediate product: explain the current task and current feature map.
+  // Longitudinal memory, Knowledge Debt history, project history and spaced recall belong to Portal.
+  document.querySelector('.feature-memory-panel')?.setAttribute('hidden','');
+  document.querySelector('.project-intel-grid')?.setAttribute('hidden','');
+  document.querySelector('.ledger-panel')?.setAttribute('hidden','');
+  document.getElementById('featureFluency')?.closest('.metric')?.setAttribute('hidden','');
+  document.getElementById('debt')?.closest('.metric')?.setAttribute('hidden','');
+  document.getElementById('coverage')?.closest('.metric')?.setAttribute('hidden','');
+
+  const grid=document.querySelector('.feature-grid');
+  if (grid && !document.getElementById('portalBoundary')) {
+    const card=document.createElement('article');
+    card.id='portalBoundary';
+    card.className='panel';
+    card.innerHTML='<div class="section-head"><div><span class="mini-label">IDLEPROOF PORTAL · PRO</span><h2>Understand now. Remember later.</h2></div><span class="chip">long-term</span></div><p class="memory-intro">IdleProof Local explains the task in front of you. Portal adds persistent project history, Knowledge Debt over time, feature drift, spaced recall, multi-project visibility and proof/debt history — without requiring source code to leave this machine.</p>';
+    grid.appendChild(card);
+  }
+}
+
+applyLocalEditionUi();
 installOptionalLiveCheck();
-poll();
-setInterval(poll, 5000);
+installOptionalFeatureCheck();
+// Longitudinal spaced-recall polling is intentionally not part of the Local cockpit.
