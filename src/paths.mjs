@@ -25,6 +25,8 @@ export function projectPaths(cwd = process.cwd()) {
     evidence: path.join(dir, 'evidence-bundle.json'),
     agentBom: path.join(dir, 'agent-bom.json'),
     approvals: path.join(dir, 'approvals.json'),
+    portalConfig: path.join(dir, 'portal.json'),
+    portalQueue: path.join(dir, 'portal-queue.json'),
     policy: path.join(root, 'idleproof.policy.json'),
     claudeSettings: path.join(root, '.claude', 'settings.local.json'),
     codexHooks: path.join(root, '.codex', 'hooks.json')
