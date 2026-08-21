@@ -49,6 +49,7 @@ jobs:
           node --check ./scripts/package-smoke.mjs
           node --check ./scripts/human-smoke.mjs
           node --check ./scripts/idlebench.mjs
+          node --check ./scripts/idlebench-corpus.mjs
           node --check ./public/app.js
           node --check ./public/feature-review.js
       - name: Validate JSON examples and schemas
@@ -70,7 +71,9 @@ jobs:
         with:
           node-version: 22
       - name: Run deterministic learning-quality benchmark
-        run: node ./scripts/idlebench.mjs
+        run: |
+          node ./scripts/idlebench.mjs
+          node ./scripts/idlebench-corpus.mjs
 
   package-e2e:
     name: installed package commercial-alpha journey (${{ matrix.os }})
