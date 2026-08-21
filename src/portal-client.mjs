@@ -1,17 +1,26 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { projectPaths } from './paths.mjs';
+import { spawn } from 'node:child_process';
+import { PACKAGE_ROOT, projectPaths } from './paths.mjs';
 import { computeMetrics, loadState } from './state.mjs';
 import { assertPortalSnapshotSafe, buildPortalSnapshot, projectLocalId } from './portal-snapshot.mjs';
 
 const CONFIG_SCHEMA = 'idleproof.portal-config.v1';
-const MAX_QUEUE = 50;
+const MAX_QUEUE = 200;
 const MAX_RESPONSE_BYTES = 16 * 1024;
+const QUEUE_LOCK_STALE_MS = 10000;
+const QUEUE_LOCK_TIMEOUT_MS = 3000;
+const QUEUE_LOCK_WAIT_MS = 10;
+const sleepBuffer = new Int32Array(new SharedArrayBuffer(4));
 
 function portalError(code, message) {
   const error = new Error(message);
   error.code = code;
   return error;
+}
+
+function sleep(ms) {
+  Atomics.wait(sleepBuffer, 0, 0, ms);
 }
 
 function atomicJson(file, value) {
@@ -22,6 +31,36 @@ function atomicJson(file, value) {
     fs.renameSync(temp, file);
   } finally {
     try { fs.rmSync(temp, { force:true }); } catch {}
+  }
+}
+
+function withQueueLock(cwd, fn) {
+  const paths = projectPaths(cwd);
+  fs.mkdirSync(paths.dir, { recursive:true });
+  const started = Date.now();
+  let fd = null;
+  while (Date.now() - started < QUEUE_LOCK_TIMEOUT_MS) {
+    try {
+      fd = fs.openSync(paths.portalQueueLock, 'wx', 0o600);
+      fs.writeFileSync(fd, `${process.pid} ${Date.now()}\n`);
+      break;
+    } catch (error) {
+      if (error.code !== 'EEXIST') throw error;
+      try {
+        const stat = fs.statSync(paths.portalQueueLock);
+        if (Date.now() - stat.mtimeMs > QUEUE_LOCK_STALE_MS) {
+          fs.unlinkSync(paths.portalQueueLock);
+          continue;
+        }
+      } catch {}
+      sleep(QUEUE_LOCK_WAIT_MS);
+    }
+  }
+  if (fd == null) throw portalError('IDLEPROOF_PORTAL_QUEUE_BUSY', 'Portal retry queue stayed busy for 3s; refusing to overwrite concurrent delivery state.');
+  try { return fn(); }
+  finally {
+    try { fs.closeSync(fd); } catch {}
+    try { fs.unlinkSync(paths.portalQueueLock); } catch {}
   }
 }
 
@@ -58,7 +97,7 @@ export function readPortalConfig(cwd = process.cwd()) {
     if (error.code === 'ENOENT') return null;
     throw portalError('IDLEPROOF_PORTAL_CONFIG_CORRUPT', `Cannot read Portal config: ${error.message}`);
   }
-  if (!parsed || parsed.schema !== CONFIG_SCHEMA || typeof parsed !== 'object') throw portalError('IDLEPROOF_PORTAL_CONFIG_CORRUPT', 'Portal config has an unsupported schema.');
+  if (!parsed || parsed.schema !== CONFIG_SCHEMA || typeof parsed !== 'object' || Array.isArray(parsed)) throw portalError('IDLEPROOF_PORTAL_CONFIG_CORRUPT', 'Portal config has an unsupported schema.');
   return { schema:CONFIG_SCHEMA, enabled:parsed.enabled !== false, endpoint:validateEndpoint(parsed.endpoint), token:validateToken(parsed.token), updatedAt:parsed.updatedAt || null };
 }
 
@@ -92,11 +131,15 @@ function readQueue(cwd) {
   try {
     const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
     if (!Array.isArray(parsed)) throw new Error('queue root is not an array');
-    return parsed.filter((item) => {
-      try { return assertPortalSnapshotSafe(item); } catch { return false; }
-    }).slice(-MAX_QUEUE);
+    if (parsed.length > MAX_QUEUE) throw new Error(`queue exceeds the ${MAX_QUEUE} snapshot bound`);
+    for (const item of parsed) {
+      try { assertPortalSnapshotSafe(item); }
+      catch (error) { throw new Error(`unsafe queued snapshot: ${error.message}`); }
+    }
+    return parsed;
   } catch (error) {
     if (error.code === 'ENOENT') return [];
+    if (error.code === 'IDLEPROOF_PORTAL_QUEUE_CORRUPT') throw error;
     throw portalError('IDLEPROOF_PORTAL_QUEUE_CORRUPT', `Cannot read Portal queue: ${error.message}`);
   }
 }
@@ -107,16 +150,31 @@ function writeQueue(cwd, queue) {
     try { fs.rmSync(file, { force:true }); } catch {}
     return;
   }
-  atomicJson(file, queue.slice(-MAX_QUEUE));
+  atomicJson(file, queue);
 }
 
 export function queuePortalSnapshot(cwd = process.cwd(), snapshot = buildCurrentPortalSnapshot(cwd)) {
   assertPortalSnapshotSafe(snapshot);
-  if (!readPortalConfig(cwd)?.enabled) return { queued:false, reason:'not-configured', snapshotId:snapshot.snapshotId };
-  const queue = readQueue(cwd).filter((item) => item.snapshotId !== snapshot.snapshotId);
-  queue.push(snapshot);
-  writeQueue(cwd, queue);
-  return { queued:true, snapshotId:snapshot.snapshotId, pending:queue.length };
+  if (!readPortalConfig(cwd)?.enabled) return { queued:false, reason:'not-configured', snapshotId:snapshot.snapshotId, pending:0 };
+  return withQueueLock(cwd, () => {
+    const current = readQueue(cwd);
+    const existed = current.some((item) => item.snapshotId === snapshot.snapshotId);
+    if (existed) return { queued:false, reason:'duplicate', snapshotId:snapshot.snapshotId, pending:current.length, dropped:0 };
+    const next = [...current, snapshot];
+    const dropped = Math.max(0, next.length - MAX_QUEUE);
+    const bounded = next.slice(-MAX_QUEUE);
+    writeQueue(cwd, bounded);
+    return { queued:true, snapshotId:snapshot.snapshotId, pending:bounded.length, dropped };
+  });
+}
+
+function removeQueuedSnapshot(cwd, snapshotId) {
+  return withQueueLock(cwd, () => {
+    const current = readQueue(cwd);
+    const next = current.filter((item) => item.snapshotId !== snapshotId);
+    writeQueue(cwd, next);
+    return next.length;
+  });
 }
 
 async function boundedResponse(response) {
@@ -128,13 +186,11 @@ async function boundedResponse(response) {
 
 export async function flushPortalQueue(cwd = process.cwd(), { fetchImpl = globalThis.fetch, timeoutMs = 3000 } = {}) {
   const config = readPortalConfig(cwd);
-  const queue = readQueue(cwd);
-  if (!config?.enabled) return { configured:false, attempted:0, delivered:0, pending:queue.length };
+  const initialQueue = readQueue(cwd);
+  if (!config?.enabled) return { configured:false, attempted:0, delivered:0, pending:initialQueue.length };
   if (typeof fetchImpl !== 'function') throw portalError('IDLEPROOF_PORTAL_FETCH_UNAVAILABLE', 'This Node runtime does not provide fetch().');
   let delivered = 0;
-  const remaining = [...queue];
-  while (remaining.length) {
-    const snapshot = remaining[0];
+  for (const snapshot of initialQueue) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), Math.max(250, Math.min(15_000, Number(timeoutMs) || 3000)));
     timer.unref?.();
@@ -148,42 +204,56 @@ export async function flushPortalQueue(cwd = process.cwd(), { fetchImpl = global
       });
     } catch (error) {
       clearTimeout(timer);
-      writeQueue(cwd, remaining);
-      return { configured:true, attempted:delivered + 1, delivered, pending:remaining.length, ok:false, errorCode:error?.name === 'AbortError' ? 'TIMEOUT' : 'NETWORK_ERROR' };
+      return { configured:true, attempted:delivered + 1, delivered, pending:readQueue(cwd).length, ok:false, errorCode:error?.name === 'AbortError' ? 'TIMEOUT' : 'NETWORK_ERROR' };
     }
     clearTimeout(timer);
     const body = await boundedResponse(response);
     if (![200, 202].includes(response.status)) {
-      writeQueue(cwd, remaining);
-      return { configured:true, attempted:delivered + 1, delivered, pending:remaining.length, ok:false, httpStatus:response.status, errorCode:body?.error?.code || 'PORTAL_REJECTED' };
+      return { configured:true, attempted:delivered + 1, delivered, pending:readQueue(cwd).length, ok:false, httpStatus:response.status, errorCode:body?.error?.code || 'PORTAL_REJECTED' };
     }
-    if (body?.snapshotId && body.snapshotId !== snapshot.snapshotId) {
-      writeQueue(cwd, remaining);
-      throw portalError('IDLEPROOF_PORTAL_RESPONSE_MISMATCH', 'Portal acknowledged a different snapshotId.');
-    }
-    remaining.shift();
+    if (body?.snapshotId && body.snapshotId !== snapshot.snapshotId) throw portalError('IDLEPROOF_PORTAL_RESPONSE_MISMATCH', 'Portal acknowledged a different snapshotId.');
+    removeQueuedSnapshot(cwd, snapshot.snapshotId);
     delivered += 1;
-    writeQueue(cwd, remaining);
   }
-  return { configured:true, attempted:delivered, delivered, pending:0, ok:true };
+  return { configured:true, attempted:delivered, delivered, pending:readQueue(cwd).length, ok:true };
 }
 
 export async function syncPortal(cwd = process.cwd(), options = {}) {
   const queued = queuePortalSnapshot(cwd);
   const flushed = await flushPortalQueue(cwd, options);
-  return { ...flushed, snapshotId:queued.snapshotId, newlyQueued:queued.queued };
+  return { ...flushed, snapshotId:queued.snapshotId, newlyQueued:queued.queued, dropped:queued.dropped || 0 };
+}
+
+export function schedulePortalSync(cwd = process.cwd()) {
+  try {
+    const queued = queuePortalSnapshot(cwd);
+    if (queued.reason === 'not-configured') return { scheduled:false, ...queued };
+    const child = spawn(process.execPath, [path.join(PACKAGE_ROOT, 'bin', 'idleproof.mjs'), 'portal', 'flush', '--quiet'], {
+      cwd,
+      detached:true,
+      stdio:'ignore',
+      windowsHide:true,
+      env:{ ...process.env, IDLEPROOF_PORTAL_BACKGROUND:'1' }
+    });
+    child.once('error', () => {});
+    child.unref();
+    return { scheduled:true, ...queued };
+  } catch (error) {
+    return { scheduled:false, errorCode:error?.code || 'IDLEPROOF_PORTAL_BACKGROUND_FAILED', message:String(error?.message || error) };
+  }
 }
 
 export function portalStatus(cwd = process.cwd()) {
   const state = loadState(cwd);
   let config = null;
-  try { config = readPortalConfig(cwd); } catch (error) { return { schema:'idleproof.portal-status.v1', configured:false, healthy:false, errorCode:error.code, projectLocalId:projectLocalId(state.project, state.createdAt), pending:null }; }
+  try { config = readPortalConfig(cwd); }
+  catch (error) { return { schema:'idleproof.portal-status.v1', configured:false, healthy:false, errorCode:error.code, projectLocalId:projectLocalId(state.project, state.createdAt), pending:null }; }
   let pending = null;
   try { pending = readQueue(cwd).length; } catch { pending = null; }
   return {
     schema:'idleproof.portal-status.v1',
     configured:Boolean(config),
-    healthy:Boolean(config),
+    healthy:Boolean(config) && pending !== null,
     enabled:Boolean(config?.enabled),
     endpoint:config?.endpoint || null,
     tokenLast4:config?.token?.slice(-4) || null,
