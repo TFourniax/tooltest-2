@@ -87,9 +87,6 @@ function normalizeState(cwd, parsed) {
     throw error;
   }
 
-  // Version 1 did not have the complete feature-memory surface. The additive merge below is the
-  // migration: preserve known user data, introduce missing current fields, then persist version 2
-  // on the next successful mutation. Future incompatible versions must get explicit migrations.
   const migrated = { ...parsed, version: CURRENT_STATE_VERSION };
   const base = freshState(cwd);
   return {
@@ -104,8 +101,6 @@ function normalizeState(cwd, parsed) {
 }
 
 function readStateFile(file, cwd) {
-  // Filesystem/permission errors are operational failures, not corruption. Preserve them so an
-  // unreadable primary cannot silently fall back to stale data.
   const raw = fs.readFileSync(file, 'utf8');
   let parsed;
   try {
@@ -155,8 +150,6 @@ export function loadState(cwd = process.cwd()) {
         throw backupError;
       }
     }
-    // A newer schema is not corruption. Falling back to an older backup would silently roll the
-    // project backwards and can destroy fields the older runtime does not understand.
     if (error.code === 'IDLEPROOF_STATE_NEWER_VERSION') throw error;
     if (error.code === 'IDLEPROOF_STATE_CORRUPT') return recoverStateFromBackup(cwd, error);
     throw error;
@@ -179,8 +172,6 @@ export function saveState(cwd, state) {
   state.version = CURRENT_STATE_VERSION;
   state.updatedAt = new Date().toISOString();
 
-  // Preserve the last known-good primary before replacing it. Never rotate a malformed file into
-  // the backup slot: an older healthy backup is more valuable for recovery.
   try {
     const previous = fs.readFileSync(paths.state, 'utf8');
     const parsedPrevious = JSON.parse(previous);
@@ -209,30 +200,65 @@ export function mutateState(cwd, mutator) {
   }
 }
 
+function conceptChecks(entry = {}) {
+  return Number(entry.correct || 0) + Number(entry.wrong || 0);
+}
+
 export function computeMetrics(state) {
   let debt = 0;
-  let weightedExposure = 0;
-  let weightedConfidence = 0;
+  let checkedWeight = 0;
+  let checkedConfidence = 0;
+  let unverifiedExposure = 0;
   let conceptsSeen = 0;
+  let conceptsChecked = 0;
+  let conceptsUnverified = 0;
 
   for (const concept of CONCEPTS) {
-    const entry = state.ledger[concept.id] || {};
+    const entry = state.ledger?.[concept.id] || {};
     if (!entry.exposures) continue;
     conceptsSeen += 1;
-    const weight = concept.risk;
-    const exposureWeight = Math.min(8, entry.exposures) * weight;
-    weightedExposure += exposureWeight;
-    weightedConfidence += exposureWeight * (entry.confidence || 0);
-    debt += Math.round(exposureWeight * (1 - (entry.confidence || 0)));
+    const exposureWeight = Math.min(8, Number(entry.exposures || 0)) * concept.risk;
+    const checks = conceptChecks(entry);
+    if (!checks) {
+      conceptsUnverified += 1;
+      unverifiedExposure += exposureWeight;
+      continue;
+    }
+    conceptsChecked += 1;
+    const evidenceWeight = Math.min(8, checks) * concept.risk;
+    checkedWeight += evidenceWeight;
+    checkedConfidence += evidenceWeight * Number(entry.confidence || 0);
+    debt += Math.round(evidenceWeight * (1 - Number(entry.confidence || 0)));
   }
 
-  const coverage = weightedExposure === 0 ? 100 : Math.round((weightedConfidence / weightedExposure) * 100);
+  const coverage = checkedWeight === 0 ? 0 : Math.round((checkedConfidence / checkedWeight) * 100);
+  const coverageStatus = checkedWeight === 0 ? 'unverified' : 'demonstrated';
+
   const featureEntries = Object.values(state.features || {}).filter((entry) => (entry.exposures || 0) > 0);
-  const featureExposure = featureEntries.reduce((sum, entry) => sum + Math.min(5, entry.exposures || 0), 0);
-  const featureConfidence = featureEntries.reduce((sum, entry) => sum + Math.min(5, entry.exposures || 0) * (entry.confidence || 0), 0);
-  const featureCoverage = featureExposure === 0 ? 0 : Math.round((featureConfidence / featureExposure) * 100);
-  const featureDebt = featureEntries.reduce((sum, entry) => sum + Math.round(Math.min(5, entry.exposures || 0) * (1 - (entry.confidence || 0))), 0);
-  return { debt, coverage, conceptsSeen, featureCoverage, featureDebt, featuresSeen: featureEntries.length };
+  const checkedFeatures = featureEntries.filter((entry) => Number(entry.checks || 0) > 0);
+  const featuresUnverified = featureEntries.length - checkedFeatures.length;
+  const featureEvidence = checkedFeatures.reduce((sum, entry) => sum + Math.min(5, Number(entry.checks || 0)), 0);
+  const featureConfidence = checkedFeatures.reduce((sum, entry) => sum + Math.min(5, Number(entry.checks || 0)) * Number(entry.confidence || 0), 0);
+  const featureCoverage = featureEvidence === 0 ? 0 : Math.round((featureConfidence / featureEvidence) * 100);
+  const featureDebt = checkedFeatures.reduce((sum, entry) => {
+    const evidenceWeight = Math.min(5, Number(entry.checks || 0));
+    return sum + Math.round(evidenceWeight * (1 - Number(entry.confidence || 0)));
+  }, 0);
+
+  return {
+    debt,
+    coverage,
+    coverageStatus,
+    conceptsSeen,
+    conceptsChecked,
+    conceptsUnverified,
+    unverifiedExposure,
+    featureCoverage,
+    featureDebt,
+    featuresSeen:featureEntries.length,
+    featuresChecked:checkedFeatures.length,
+    featuresUnverified
+  };
 }
 
 export function trimSessions(state, maxSessions = 30) {
