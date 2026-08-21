@@ -15,6 +15,7 @@ import { appendProvenanceEvent, buildAgentBom, sha256, verifyProvenanceChain } f
 import { createAttestation } from './attest.mjs';
 import { cachedFeatureModel, rememberFeature } from './feature-memory.mjs';
 import { buildHookDelivery } from './delivery.mjs';
+import { captureBaselineIdentity, finalizeChangeIdentity } from './change-identity.mjs';
 
 function now() {
   return new Date().toISOString();
@@ -35,6 +36,8 @@ function ensureSession(state, event) {
       touchedFiles: [],
       changed: { added: 0, deleted: 0 },
       proof: null,
+      baselineIdentity: null,
+      changeIdentity: null,
       findings: [],
       concepts: {},
       events: []
@@ -117,9 +120,11 @@ export function processHookLifecycle(event = {}) {
     if (eventName === 'SessionStart') {
       session.status = 'idle';
       session.estimatedWindow = 0;
+      if (!session.baselineIdentity) session.baselineIdentity = captureBaselineIdentity(cwd);
     }
 
     if (eventName === 'UserPromptSubmit') {
+      if (!session.baselineIdentity) session.baselineIdentity = captureBaselineIdentity(cwd);
       session.status = 'active';
       session.prompt = String(event.prompt || '').slice(0, 1200);
       session.currentTool = 'Thinking';
@@ -157,13 +162,15 @@ export function processHookLifecycle(event = {}) {
 
     if (eventName === 'Stop' || eventName === 'SessionEnd' || eventName === 'generic-stop') {
       const snapshot = captureGitSnapshot(cwd);
+      session.changeIdentity = finalizeChangeIdentity(cwd, session.baselineIdentity);
       for (const id of conceptsFromGitSnapshot(snapshot)) exposeConcept(state, session, id);
       session.touchedFiles = [...new Set([...session.touchedFiles, ...snapshot.files])].slice(0, 80);
       session.changed = { added: snapshot.added, deleted: snapshot.deleted };
       session.proof = {
         diffSha256: snapshot.diffHash,
         head: snapshot.head,
-        capturedAt: now()
+        capturedAt: now(),
+        changeId: session.changeIdentity?.available ? session.changeIdentity.changeId : null
       };
       session.findings = analyzeDiff(snapshot.diff);
       session.status = 'complete';
@@ -254,6 +261,7 @@ function receiptFromState(state, cwd) {
       files: session.touchedFiles,
       changed: session.changed,
       proof: session.proof,
+      change: session.changeIdentity || null,
       findings: session.findings,
       concepts,
       featureModel: session.featureModel || null
