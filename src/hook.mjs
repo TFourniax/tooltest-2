@@ -16,6 +16,7 @@ import { createAttestation } from './attest.mjs';
 import { cachedFeatureModel, rememberFeature } from './feature-memory.mjs';
 import { buildHookDelivery } from './delivery.mjs';
 import { captureBaselineIdentity, finalizeChangeIdentity } from './change-identity.mjs';
+import { schedulePortalSync } from './portal-client.mjs';
 
 function now() {
   return new Date().toISOString();
@@ -216,10 +217,14 @@ export function processHookLifecycle(event = {}) {
 
   let attestation = null;
   let attestationError = null;
+  let portalSync = null;
   if (['Stop', 'SessionEnd', 'generic-stop'].includes(eventName)) {
     writeReceipt(cwd, state);
     try { attestation = createAttestation(cwd); }
     catch (error) { attestationError = error.message; }
+    // Portal transport is deliberately fail-open for the coding agent. The completed snapshot
+    // is first persisted to a bounded local queue, then a detached helper attempts delivery.
+    portalSync = schedulePortalSync(cwd);
   }
 
   const hookOutput = policyDecision
@@ -235,6 +240,7 @@ export function processHookLifecycle(event = {}) {
     provenanceError,
     attestation,
     attestationError,
+    portalSync,
     hookOutput
   };
 }
