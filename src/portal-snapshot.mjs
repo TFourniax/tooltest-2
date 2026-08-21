@@ -57,12 +57,19 @@ function stableSnapshotId(snapshot) {
   return `ipsnap_${digest(canonical(stable)).slice(0,24)}`;
 }
 
+function promptMetadata(session=null) {
+  const bounded=String(session?.prompt || '');
+  const chars=Number.isInteger(session?.promptChars) && session.promptChars>=0 ? session.promptChars : bounded.length;
+  const storedDigest=/^[a-f0-9]{64}$/.test(String(session?.promptSha256 || '')) ? session.promptSha256 : (bounded ? digest(bounded) : null);
+  return { chars, digest:storedDigest ? `sha256:${storedDigest}` : null };
+}
+
 export function projectLocalId(project = '', seed = '') {
   return createHash('sha256').update(`${project}|${seed}`).digest('hex').slice(0,24);
 }
 
 export function buildPortalSnapshot({ state={}, session=null, featureModel=null, projectModel=null, explanation=null }={}) {
-  const rawPrompt=String(session?.prompt || '');
+  const prompt=promptMetadata(session);
   const filePaths=unique([
     ...(session?.touchedFiles || []).map(cleanPath),
     ...(explanation?.files || []).map((item)=>cleanPath(item.path)),
@@ -77,8 +84,8 @@ export function buildPortalSnapshot({ state={}, session=null, featureModel=null,
     project:{ name:redact(state.project || 'project',120), localId:projectLocalId(state.project || 'project', state.createdAt || '') },
     task:{
       summary:safeTaskSummary(session,explanation),
-      promptDigest:rawPrompt ? `sha256:${digest(rawPrompt)}` : null,
-      promptChars:rawPrompt.length,
+      promptDigest:prompt.digest,
+      promptChars:prompt.chars,
       source:redact(session?.source || 'agent',40),
       status:session?.status || null,
       changed:{
