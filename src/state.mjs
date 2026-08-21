@@ -19,6 +19,15 @@ function sleep(ms) {
   Atomics.wait(sleepBuffer, 0, 0, ms);
 }
 
+function isLockContention(error, file) {
+  if (error?.code === 'EEXIST') return true;
+  // Windows can surface an active exclusive/share lock as EPERM/EACCES rather than
+  // EEXIST. Treat that as contention only when the lock path actually exists; a real
+  // directory/ACL failure with no lock must still fail immediately and visibly.
+  if (!['EPERM', 'EACCES'].includes(error?.code)) return false;
+  try { return fs.statSync(file).isFile(); } catch { return false; }
+}
+
 function acquireLock(cwd) {
   const paths = projectPaths(cwd);
   fs.mkdirSync(paths.dir, { recursive: true });
@@ -33,11 +42,11 @@ function acquireLock(cwd) {
         try { fs.unlinkSync(paths.lock); } catch {}
       };
     } catch (error) {
-      if (error.code !== 'EEXIST') throw error;
+      if (!isLockContention(error, paths.lock)) throw error;
       try {
         const stat = fs.statSync(paths.lock);
         if (Date.now() - stat.mtimeMs > LOCK_STALE_MS) {
-          fs.unlinkSync(paths.lock);
+          try { fs.unlinkSync(paths.lock); } catch {}
           continue;
         }
       } catch {}
