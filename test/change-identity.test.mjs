@@ -11,6 +11,10 @@ function git(cwd, ...args) {
   return execFileSync('git', args, { cwd, encoding:'utf8', stdio:['ignore', 'pipe', 'pipe'] }).trim();
 }
 
+function cleanup(cwd) {
+  fs.rmSync(cwd, { recursive:true, force:true, maxRetries:12, retryDelay:100 });
+}
+
 function repo() {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'idleproof-change-id-'));
   git(cwd, 'init', '-q');
@@ -61,7 +65,54 @@ test('clean Git session produces exact before/after tree identity while local Id
     assert.equal(sameChange.changeId, change.changeId, 'local tool state changed the software change identity');
     assert.equal(sameChange.candidate.tree, change.candidate.tree);
   } finally {
-    fs.rmSync(cwd, { recursive:true, force:true });
+    cleanup(cwd);
+  }
+});
+
+test('nested monorepo session binds sibling changes into the same full Git candidate tree', () => {
+  const cwd=fs.mkdtempSync(path.join(os.tmpdir(),'idleproof-monorepo-id-'));
+  try {
+    git(cwd,'init','-q');
+    git(cwd,'config','user.email','monorepo@idleproof.local');
+    git(cwd,'config','user.name','IdleProof Monorepo');
+    const app=path.join(cwd,'packages','app');
+    const shared=path.join(cwd,'packages','shared');
+    fs.mkdirSync(app,{recursive:true});
+    fs.mkdirSync(shared,{recursive:true});
+    fs.writeFileSync(path.join(app,'main.ts'),'export const app = 1;\n');
+    fs.writeFileSync(path.join(shared,'util.ts'),'export const shared = 1;\n');
+    fs.writeFileSync(path.join(cwd,'root.config.js'),'export default 1;\n');
+    git(cwd,'add','.');
+    git(cwd,'commit','-qm','monorepo baseline');
+
+    // IdleProof is deliberately launched from a nested package.
+    const baseline=captureBaselineIdentity(app);
+    assert.equal(baseline.available,true,JSON.stringify(baseline));
+
+    // The agent touches its package, a sibling package, and a root-level file.
+    fs.writeFileSync(path.join(app,'main.ts'),'export const app = 2;\n');
+    fs.writeFileSync(path.join(shared,'util.ts'),'export const shared = 2;\n');
+    fs.writeFileSync(path.join(cwd,'root.config.js'),'export default 2;\n');
+    fs.mkdirSync(path.join(app,'.idleproof'),{recursive:true});
+    fs.writeFileSync(path.join(app,'.idleproof','state.json'),'local only\n');
+    fs.mkdirSync(path.join(shared,'.codex'),{recursive:true});
+    fs.writeFileSync(path.join(shared,'.codex','hooks.json'),'{}\n');
+
+    const change=finalizeChangeIdentity(app,baseline);
+    assert.equal(change.available,true,JSON.stringify(change));
+
+    // Build the expected global software tree with the real index, excluding local plumbing.
+    fs.rmSync(path.join(app,'.idleproof'),{recursive:true,force:true});
+    fs.rmSync(path.join(shared,'.codex'),{recursive:true,force:true});
+    git(cwd,'add','-A','.');
+    const expectedTree=git(cwd,'write-tree');
+    git(cwd,'reset','--quiet','HEAD');
+
+    assert.equal(change.candidate.tree,expectedTree,'nested IdleProof session did not bind the full repository worktree');
+    assert.notEqual(change.candidate.tree,change.base.tree);
+    assert.equal(change.changeId,changeId({repository:change.repository.fingerprint,baseTree:change.base.tree,candidateTree:expectedTree}));
+  } finally {
+    cleanup(cwd);
   }
 });
 
@@ -76,7 +127,7 @@ test('pre-existing dirty software work fails closed instead of being attributed 
     assert.equal(change.available, false);
     assert.equal(change.reason, 'preexisting-dirty-worktree');
   } finally {
-    fs.rmSync(cwd, { recursive:true, force:true });
+    cleanup(cwd);
   }
 });
 
@@ -97,7 +148,9 @@ test('IdleProof receipt carries the same deterministic change id as the complete
     assert.equal(receipt.session.change.repository.fingerprint.startsWith('dwrepo_'), true);
     assert.equal(receipt.session.change.base.dirty, false);
     assert.equal(receipt.session.change.candidate.dirty, true);
+    assert.equal(receipt.session.intent.chars,'Change the app behavior'.length);
+    assert.equal(receipt.session.intent.retainedChars,'Change the app behavior'.length);
   } finally {
-    fs.rmSync(cwd, { recursive:true, force:true });
+    cleanup(cwd);
   }
 });
