@@ -19,21 +19,33 @@ test('lesson depth follows the real wait window and handoff boundary', () => {
   assert.equal(learningDepth({ status: 'complete', estimatedWindow: 0 }), 'handoff');
 });
 
-test('glance mode is concise and naturalizes symbol-grounded wording', () => {
+test('glance mode stays concise while preserving the Explain-first certainty boundary', () => {
   const result = presentLearningCard(card, { status: 'active', estimatedWindow: 8 });
   assert.equal(result.presentation.depth, 'glance');
+  assert.equal(result.presentation.explainFirst, true);
+  assert.equal(result.presentation.checkOptional, true);
   assert.ok(result.seconds <= 8);
-  assert.equal(result.lesson, 'Authentication proves identity.');
+  assert.equal(result.explanation?.schema, 'idleproof.explanation.v1');
+  assert.equal(result.explanation?.certainty?.level, 'bounded-inference');
+  assert.ok((result.explanation?.certainty?.limitations || []).length >= 3);
+  assert.match(result.lesson, /allowed|permission|access/i);
+  assert.doesNotMatch(result.lesson, /^Authentication proves identity\.$/);
   assert.match(result.question, /changes authorizeAdmin in src\/auth\/session\.ts/);
   assert.doesNotMatch(result.question, /changes the code in authorizeAdmin/);
-  assert.ok(result.why.length <= 145);
+  assert.ok(result.why.length <= 220);
 });
 
-test('deep mode uses a long wait to add a concrete review move', () => {
+test('deep mode adds meaningful explanation instead of reverting to a canned review sentence', () => {
+  const glance = presentLearningCard(card, { status: 'active', estimatedWindow: 8 });
   const result = presentLearningCard(card, { status: 'active', estimatedWindow: 50 });
   assert.equal(result.presentation.depth, 'deep');
+  assert.equal(result.presentation.explainFirst, true);
+  assert.equal(result.presentation.checkOptional, true);
   assert.ok(result.seconds >= 30);
-  assert.match(result.lesson, /authenticated-but-unauthorized users are rejected/i);
+  assert.ok(result.lesson.length > glance.lesson.length, 'deep mode should add useful context beyond glance mode');
+  assert.match(result.lesson, /What to keep in mind:/i);
+  assert.match(result.lesson, /logged in.*allowed/i);
+  assert.match(result.lesson, /requested outcome/i);
 });
 
 test('Stripe webhook signals specialize the question without an LLM call', () => {
@@ -59,6 +71,7 @@ test('Stripe webhook signals specialize the question without an LLM call', () =>
 
   const result = presentLearningCard(stripe, { status: 'active', estimatedWindow: 24 });
   assert.equal(result.presentation.specialized, true);
+  assert.equal(result.presentation.explainFirst, true);
   assert.match(result.question, /Stripe retries \/api\/webhooks\/stripe/);
   assert.match(result.question, /handleStripeWebhook/);
   assert.equal(result.options[0], 'Idempotency');

@@ -37,7 +37,7 @@ test('background server restarts after an ungraceful process death without manua
     assert.equal(fs.existsSync(record), true, 'fixture no longer represents a stale crash record');
 
     const output = execFileSync(process.execPath, [BIN, 'start', '--no-open'], { cwd, encoding:'utf8', timeout:8000 });
-    assert.match(output, /IdleProof learning cockpit:/i);
+    assert.match(output, /IdleProof Local cockpit:/i);
     const second = JSON.parse(fs.readFileSync(record, 'utf8'));
     secondPid = second.pid;
     assert.notEqual(second.pid, first.pid);

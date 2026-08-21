@@ -37,14 +37,14 @@ function isAlive(pid) {
   try { process.kill(pid, 0); return true; } catch { return false; }
 }
 
-test('background learning cockpit starts, identifies itself, and stops without occupying the terminal', async () => {
+test('background Local cockpit starts, identifies itself, and stops without occupying the terminal', async () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'idleproof-background-'));
   execFileSync('git', ['init', '-q'], { cwd });
   const port = await freePort();
   let pid = null;
   try {
     const output = execFileSync(process.execPath, [BIN, 'start', '--port', String(port), '--no-open'], { cwd, encoding: 'utf8', timeout: 5000 });
-    assert.match(output, /IdleProof learning cockpit:/);
+    assert.match(output, /IdleProof Local cockpit:/);
     const info = JSON.parse(fs.readFileSync(path.join(cwd, '.idleproof', 'server.json'), 'utf8'));
     pid = info.pid;
     assert.equal(info.port, port);
@@ -74,7 +74,7 @@ test('normal start automatically avoids an occupied legacy default port', async 
   let pid = null;
   try {
     const output = execFileSync(process.execPath, [BIN, 'start', '--no-open'], { cwd, encoding:'utf8', timeout:5000 });
-    assert.match(output, /IdleProof learning cockpit:/);
+    assert.match(output, /IdleProof Local cockpit:/);
     const info = JSON.parse(fs.readFileSync(path.join(cwd, '.idleproof', 'server.json'), 'utf8'));
     pid = info.pid;
     assert.ok(Number.isInteger(info.port) && info.port > 0);

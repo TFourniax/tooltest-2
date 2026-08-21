@@ -51,7 +51,7 @@ try {
   const bin = path.join(consumer, 'node_modules', 'idleproof', 'bin', 'idleproof.mjs');
   if (!fs.existsSync(bin)) throw new Error('installed IdleProof package does not contain its CLI entrypoint');
   const help = runIdleProof(bin, consumer, '--help');
-  if (!/learn what your coding agent is building/i.test(help)) throw new Error(`unexpected installed CLI help:\n${help}`);
+  if (!/understand what your coding agent is building/i.test(help)) throw new Error(`unexpected installed CLI help:\n${help}`);
 
   const project = path.join(temp, 'project');
   fs.mkdirSync(project, { recursive: true });

@@ -19,7 +19,7 @@ function tempRepo() {
   return dir;
 }
 
-test('hook lifecycle creates debt, footprint, trust findings, and a diff-bound receipt', () => {
+test('hook lifecycle records unverified exposure, footprint, trust findings, and a diff-bound receipt', () => {
   const cwd = tempRepo();
   const sessionId = 'session-test';
   try {
@@ -40,7 +40,10 @@ test('hook lifecycle creates debt, footprint, trust findings, and a diff-bound r
     const receipt = buildReceipt(cwd);
     assert.equal(receipt.schema, 'idleproof.receipt.v1');
     assert.equal(receipt.session.proof.diffSha256, session.proof.diffSha256);
-    assert.ok(receipt.metrics.debt > 0);
+    assert.equal(receipt.metrics.debt, 0, 'mere exposure must not be mislabeled as Knowledge Debt');
+    assert.equal(receipt.metrics.coverageStatus, 'unverified');
+    assert.ok(receipt.metrics.conceptsUnverified > 0, 'unverified concepts should remain visible');
+    assert.ok(receipt.metrics.unverifiedExposure > 0, 'unverified exposure should be measured separately from debt');
     assert.ok(fs.existsSync(projectPaths(cwd).receipt));
   } finally {
     fs.rmSync(cwd, { recursive: true, force: true });

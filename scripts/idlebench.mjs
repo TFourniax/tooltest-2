@@ -52,15 +52,23 @@ for (const item of cases) {
   for (const pattern of item.require || []) assert.match(presented.question, pattern, `${item.name}: missing ${pattern}`);
   assert.ok(presented.question.length <= 240, `${item.name}: question is too long for a wait-window interaction`);
   assert.ok(presented.presentation?.depth, `${item.name}: presentation depth missing`);
+  assert.equal(presented.presentation?.explainFirst, true, `${item.name}: explanation must precede the optional check`);
+  assert.equal(presented.presentation?.checkOptional, true, `${item.name}: understanding check must remain optional`);
+  assert.equal(presented.explanation?.schema, 'idleproof.explanation.v1', `${item.name}: structured explanation missing`);
   passed += 1;
 }
 
 const glance = presentLearningCard({ ...BASE, id:'testing', question:'Quick check?', context:{ phase:'verify', signals:{} } }, { status:'active', estimatedWindow:8 });
 assert.equal(glance.presentation.depth, 'glance');
+assert.equal(glance.presentation.explainFirst, true);
 assert.ok(glance.seconds <= 12);
 
 const deep = presentLearningCard({ ...BASE, id:'testing', question:'Deep check?', context:{ phase:'verify', signals:{} } }, { status:'active', estimatedWindow:50 });
 assert.equal(deep.presentation.depth, 'deep');
-assert.match(deep.lesson, /Next,/);
+assert.equal(deep.presentation.explainFirst, true);
+assert.equal(deep.presentation.checkOptional, true);
+assert.equal(deep.explanation?.schema, 'idleproof.explanation.v1');
+assert.ok(deep.lesson.length > glance.lesson.length, 'deep mode should provide more explanatory context than glance mode');
+assert.match(deep.lesson, /What to keep in mind:/i);
 
-console.log(`IdleBench PASS · ${passed} contextual quality cases + wait-window depth contracts`);
+console.log(`IdleBench PASS · ${passed} contextual quality cases + wait-window Explain-first contracts`);

@@ -91,7 +91,7 @@ try {
   git(project, 'commit', '-qm', 'baseline');
 
   const on = idleproof(bin, project, ['on', '--agent', 'claude', '--no-open'], { timeout:15000 });
-  assert.match(on.stdout, /IdleProof learning cockpit:/i);
+  assert.match(on.stdout, /IdleProof Local cockpit:/i);
   assert.match(on.stdout, /Terminal is free/i);
   let info = serverInfo(project);
   serverPid = info.pid;
@@ -125,12 +125,29 @@ try {
       return { accepted:true };
     }
   `);
-  hook(bin, project, {
+  const delivered = hook(bin, project, {
     session_id:sessionId,
     hook_event_name:'PostToolUse',
     tool_name:'Edit',
     tool_input:{ file_path:path.join(project, 'src', 'stripe.ts') }
   });
+  assert.ok(delivered.stdout.trim(), 'installed Claude hook emitted no Explain-first message after a meaningful edit');
+  const hookEnvelope = JSON.parse(delivered.stdout.trim());
+  const visibleMessage = String(hookEnvelope.systemMessage || '');
+  assert.match(visibleMessage, /IdleProof · what this means in your project/i);
+  assert.match(visibleMessage, /src\/stripe\.ts/i);
+  assert.match(visibleMessage, /handleStripeWebhook|webhooks\/stripe|Stripe/i);
+  assert.match(visibleMessage, /Why it matters:/i);
+  assert.match(visibleMessage, /Understanding checks are optional/i);
+  assert.doesNotMatch(visibleMessage, /undefined|\[object Object\]/i);
+
+  const duplicate = hook(bin, project, {
+    session_id:sessionId,
+    hook_event_name:'PostToolUse',
+    tool_name:'Edit',
+    tool_input:{ file_path:path.join(project, 'src', 'stripe.ts') }
+  });
+  assert.equal(duplicate.stdout.trim(), '', 'installed hook repeated the same explanation without a meaningful context change');
 
   let current = await api(base, '/api/state');
   assert.equal(current.response.status, 200);
@@ -139,6 +156,13 @@ try {
   assert.equal(current.body?.session?.taskSignals?.route, '/api/webhooks/stripe');
   assert.ok((current.body?.session?.taskSignals?.technologies || []).includes('Stripe'));
   assert.ok(current.body?.card, `live task produced no learning card: ${JSON.stringify(current.body?.learning)}`);
+  assert.equal(current.body.card.presentation?.explainFirst, true);
+  assert.equal(current.body.card.presentation?.checkOptional, true);
+  assert.equal(current.body.card.explanation?.schema, 'idleproof.explanation.v1');
+  assert.ok((current.body.card.explanation?.certainty?.limitations || []).length >= 1, 'live explanation hides its certainty boundary');
+  const lesson = String(current.body.card.lesson || '');
+  assert.ok(lesson.length >= 100, `Explain-first lesson is too thin: ${lesson}`);
+  assert.match(lesson, /src\/stripe\.ts|handleStripeWebhook|webhooks\/stripe|Stripe/i);
   const question = String(current.body.card.question || '');
   assert.ok(
     /stripe|webhooks\/stripe|handleStripeWebhook/i.test(question),
@@ -167,7 +191,12 @@ try {
   });
   assert.equal(hostile.response.status, 403, 'installed cockpit accepted a cross-site state-changing request');
 
-  hook(bin, project, { session_id:sessionId, hook_event_name:'Stop' });
+  const handoffHook = hook(bin, project, { session_id:sessionId, hook_event_name:'Stop' });
+  const handoffEnvelope = JSON.parse(handoffHook.stdout.trim());
+  assert.match(String(handoffEnvelope.systemMessage || ''), /task handoff/i);
+  assert.match(String(handoffEnvelope.systemMessage || ''), /does not claim the code is correct/i);
+  assert.match(String(handoffEnvelope.systemMessage || ''), /DiffWitness/i);
+
   const handoff = await api(base, '/api/state');
   assert.equal(handoff.body?.session?.status, 'complete');
   assert.match(String(handoff.body?.session?.proof?.diffSha256 || ''), /^[a-f0-9]{64}$/);
@@ -177,7 +206,7 @@ try {
 
   const status = idleproof(bin, project, ['status']);
   assert.match(status.stdout, /Knowledge debt/i);
-  assert.match(status.stdout, /cognitive/i);
+  assert.match(status.stdout, /understanding/i);
   const doctor = idleproof(bin, project, ['doctor']);
   assert.match(doctor.stdout, /Node >= 20/);
   assert.match(doctor.stdout, /Git repository/);
@@ -190,7 +219,7 @@ try {
   assert.equal(fs.existsSync(path.join(project, '.idleproof', 'server.json')), false);
 
   const restart = idleproof(bin, project, ['start', '--no-open'], { timeout:15000 });
-  assert.match(restart.stdout, /IdleProof learning cockpit:/i);
+  assert.match(restart.stdout, /IdleProof Local cockpit:/i);
   info = serverInfo(project);
   serverPid = info.pid;
   base = `http://127.0.0.1:${info.port}`;
@@ -203,7 +232,7 @@ try {
   idleproof(bin, project, ['stop']);
   serverPid = null;
 
-  console.log(`IdleProof HUMAN SMOKE PASS · exact npm artifact · ${process.platform}/${process.version}`);
+  console.log(`IdleProof HUMAN SMOKE PASS · exact npm artifact · Explain-first delivery · deduplicated hooks · ${process.platform}/${process.version}`);
 } finally {
   if (serverPid) {
     try { process.kill(serverPid, 'SIGTERM'); } catch {}
