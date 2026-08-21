@@ -77,6 +77,8 @@ function validateEndpoint(raw) {
   try { url = new URL(String(raw || '')); }
   catch { throw portalError('IDLEPROOF_PORTAL_ENDPOINT_INVALID', 'Portal endpoint must be a valid http(s) URL.'); }
   if (!['http:', 'https:'].includes(url.protocol)) throw portalError('IDLEPROOF_PORTAL_ENDPOINT_INVALID', 'Portal endpoint must use http or https.');
+  if (url.username || url.password) throw portalError('IDLEPROOF_PORTAL_ENDPOINT_CREDENTIALS', 'Portal endpoint credentials are forbidden; authentication must use the enrollment token header.');
+  if (url.search) throw portalError('IDLEPROOF_PORTAL_ENDPOINT_QUERY', 'Portal endpoint query parameters are forbidden; use a stable API URL without credential-bearing query strings.');
   const loopback = ['localhost', '127.0.0.1', '::1', '[::1]'].includes(url.hostname);
   if (url.protocol === 'http:' && !loopback) throw portalError('IDLEPROOF_PORTAL_TLS_REQUIRED', 'Non-loopback Portal endpoints must use HTTPS.');
   url.hash = '';
@@ -320,7 +322,16 @@ export async function flushPortalQueue(cwd = process.cwd(), { fetchImpl = global
 export async function syncPortal(cwd = process.cwd(), options = {}) {
   const queued = queuePortalSnapshot(cwd);
   const flushed = await flushPortalQueue(cwd, options);
-  return { ...flushed, snapshotId:queued.snapshotId, newlyQueued:queued.queued, queueReason:queued.reason || null, skippedSnapshots:Math.max(queued.skippedSnapshots || 0, flushed.skippedSnapshots || 0) };
+  const currentSnapshotRetained = queued.reason !== 'queue-full';
+  return {
+    ...flushed,
+    ok: flushed.configured === false ? flushed.ok : Boolean(flushed.ok) && currentSnapshotRetained,
+    errorCode: currentSnapshotRetained ? flushed.errorCode : (flushed.errorCode || 'QUEUE_FULL'),
+    snapshotId:queued.snapshotId,
+    newlyQueued:queued.queued,
+    queueReason:queued.reason || null,
+    skippedSnapshots:Math.max(queued.skippedSnapshots || 0, flushed.skippedSnapshots || 0)
+  };
 }
 
 export function schedulePortalSync(cwd = process.cwd()) {
