@@ -56,6 +56,7 @@ jobs:
           node --check ./scripts/idlebench-corpus.mjs
           node --check ./scripts/explainbench.mjs
           node --check ./scripts/explain-torturebench.mjs
+          node --check ./scripts/perf-gate.mjs
           node --check ./public/app.js
           node --check ./public/feature-review.js
       - name: Validate JSON examples and schemas
@@ -69,7 +70,7 @@ jobs:
         run: npm pack --dry-run
 
   quality:
-    name: ExplainBench + adversarial contextual quality gates
+    name: ExplainBench + adversarial quality + performance budgets
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -82,6 +83,8 @@ jobs:
           node ./scripts/explain-torturebench.mjs
           node ./scripts/idlebench.mjs
           node ./scripts/idlebench-corpus.mjs
+      - name: Enforce local hook latency budgets
+        run: node ./scripts/perf-gate.mjs
 
   package-e2e:
     name: installed package commercial-alpha journey (${{ matrix.os }})
