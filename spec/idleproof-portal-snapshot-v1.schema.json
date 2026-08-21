@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://idleproof.dev/spec/idleproof-portal-snapshot-v1.schema.json",
+  "title": "IdleProof Portal Snapshot v1",
+  "type": "object",
+  "required": ["schema", "generatedAt", "project", "task", "change", "understanding", "files", "privacy"],
+  "properties": {
+    "schema": { "const": "idleproof.portal-snapshot.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "project": {
+      "type": "object",
+      "required": ["name", "localId"],
+      "properties": {
+        "name": { "type": "string", "maxLength": 120 },
+        "localId": { "type": "string", "pattern": "^[a-f0-9]{24}$" }
+      },
+      "additionalProperties": false
+    },
+    "task": { "type": "object" },
+    "change": { "type": "object" },
+    "explanation": { "type": ["object", "null"] },
+    "feature": { "type": ["object", "null"] },
+    "understanding": { "type": "object" },
+    "projectMemory": { "type": ["object", "null"] },
+    "files": { "type": "array", "items": { "type": "string", "maxLength": 300 }, "maxItems": 40 },
+    "privacy": {
+      "type": "object",
+      "required": ["sourceCodeIncluded", "rawDiffIncluded", "rawAgentEventsIncluded", "secretsRedacted"],
+      "properties": {
+        "sourceCodeIncluded": { "const": false },
+        "rawDiffIncluded": { "const": false },
+        "rawAgentEventsIncluded": { "const": false },
+        "secretsRedacted": { "const": true }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
