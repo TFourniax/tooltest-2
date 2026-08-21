@@ -1,7 +1,5 @@
 import fs from 'node:fs';
-import readline from 'node:readline/promises';
-import { stdin as input, stdout as output } from 'node:process';
-import { buildCurrentPortalSnapshot, disconnectPortal, portalStatus, syncPortal, writePortalConfig } from './portal-client.mjs';
+import { buildCurrentPortalSnapshot, disconnectPortal, flushPortalQueue, portalStatus, syncPortal, writePortalConfig } from './portal-client.mjs';
 
 function argValue(args, name) {
   const i = args.indexOf(name);
@@ -12,25 +10,24 @@ export function portalCliHelp() {
   return [
     'Portal:',
     '  idleproof portal identity [--json]',
-    '  idleproof portal configure --endpoint URL [--token-stdin|--token-env NAME]',
+    '  idleproof portal configure --endpoint URL --token-stdin',
+    '  idleproof portal configure --endpoint URL --token-env ENV_NAME',
     '  idleproof portal status [--json]',
-    '  idleproof portal snapshot [--json]',
+    '  idleproof portal snapshot',
     '  idleproof portal sync [--json]',
     '  idleproof portal disconnect',
     '',
     'Portal config is project-local under .idleproof/, excluded from software change identity.',
+    'Enrollment tokens are never accepted as command-line arguments, avoiding shell-history/process-list leaks.',
     'A configured enrollment token can only submit privacy-safe snapshots to one Portal project.'
   ].join('\n');
 }
 
-async function readToken(args) {
+function readToken(args) {
   if (args.includes('--token-stdin')) return fs.readFileSync(0, 'utf8').trim();
   const envName = argValue(args, '--token-env');
   if (envName) return String(process.env[envName] || '').trim();
-  if (!process.stdin.isTTY) return fs.readFileSync(0, 'utf8').trim();
-  const rl = readline.createInterface({ input, output });
-  try { return String(await rl.question('Enrollment token (input is visible): ')).trim(); }
-  finally { rl.close(); }
+  throw new Error('Enrollment token must be supplied with --token-stdin or --token-env ENV_NAME; tokens are intentionally never accepted as command-line values.');
 }
 
 function print(value, json = false) {
@@ -42,6 +39,7 @@ export async function runPortalCli(args, { cwd = process.cwd() } = {}) {
   if (args[0] !== 'portal') return false;
   const cmd = args[1] || 'help';
   const json = args.includes('--json');
+  const quiet = args.includes('--quiet');
   if (['help','--help','-h'].includes(cmd)) {
     console.log(portalCliHelp());
     return true;
@@ -53,8 +51,8 @@ export async function runPortalCli(args, { cwd = process.cwd() } = {}) {
   }
   if (cmd === 'configure') {
     const endpoint = argValue(args, '--endpoint');
-    if (!endpoint) throw new Error('Usage: idleproof portal configure --endpoint URL [--token-stdin|--token-env NAME]');
-    const token = await readToken(args);
+    if (!endpoint) throw new Error('Usage: idleproof portal configure --endpoint URL --token-stdin');
+    const token = readToken(args);
     const status = writePortalConfig(cwd, { endpoint, token });
     if (json) print(status, true);
     else {
@@ -62,7 +60,7 @@ export async function runPortalCli(args, { cwd = process.cwd() } = {}) {
       console.log(`  Endpoint: ${status.endpoint}`);
       console.log(`  Project ID: ${status.projectLocalId}`);
       console.log(`  Credential: ••••${status.tokenLast4}`);
-      console.log('  Run `idleproof portal sync` to send the current bounded snapshot.');
+      console.log('  Run `idleproof portal sync` to send the current bounded snapshot. Future completed tasks will queue and deliver automatically in the background.');
     }
     return true;
   }
@@ -81,8 +79,17 @@ export async function runPortalCli(args, { cwd = process.cwd() } = {}) {
     return true;
   }
   if (cmd === 'snapshot') {
-    const snapshot = buildCurrentPortalSnapshot(cwd);
-    print(snapshot, true);
+    print(buildCurrentPortalSnapshot(cwd), true);
+    return true;
+  }
+  if (cmd === 'flush') {
+    const result = await flushPortalQueue(cwd);
+    if (!quiet) {
+      if (json) print(result, true);
+      else if (!result.configured) console.log('IdleProof Portal is not configured.');
+      else if (result.ok) console.log(`✓ Portal queue flushed · ${result.delivered} delivered · ${result.pending} pending`);
+      else console.log(`Portal delivery deferred · ${result.errorCode || result.httpStatus || 'delivery failed'} · ${result.pending} snapshot(s) remain safely queued.`);
+    }
     return true;
   }
   if (cmd === 'sync') {
