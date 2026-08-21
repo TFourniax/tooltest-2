@@ -57,6 +57,8 @@ test('parallel hook processes preserve every independent session without corrupt
     }
     assert.equal(Object.keys(state.sessions).filter((id)=>id.startsWith('parallel-')).length, sessions.length);
   } finally {
-    fs.rmSync(cwd, { recursive:true, force:true });
+    // Windows can keep a just-exited child process' cwd handle alive for a few milliseconds.
+    // Retry only fixture cleanup; all concurrency/state assertions above remain unchanged.
+    fs.rmSync(cwd, { recursive:true, force:true, maxRetries:12, retryDelay:100 });
   }
 });
