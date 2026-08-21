@@ -2,11 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildPlainExplanation } from '../src/explain.mjs';
 
-function explain({ prompt='Do the thing', file='src/odd_name.ts', symbol='doThing', route=null, table=null, technologies=[], dependencies=[], touched=[file], concept=null, phase='implement' }={}) {
+function explain({ prompt='Do the thing', file='src/odd_name.ts', symbol='doThing', route=null, table=null, technologies=[], dependencies=[], relatedFiles=[], touched=[file], concept=null, phase='implement' }={}) {
   return buildPlainExplanation({
     phase,
     concept,
-    session:{ prompt, currentResource:file, touchedFiles:touched, taskSignals:{ file, symbol, route, table, technologies, dependencies } }
+    session:{ prompt, currentResource:file, touchedFiles:touched, taskSignals:{ file, symbol, route, table, technologies, dependencies, relatedFiles } }
   });
 }
 
@@ -42,6 +42,22 @@ test('questions are explicitly optional and explanation stands alone', () => {
   assert.match(out.why,/same time|sequential|overlap|timing/i);
   assert.match(out.doing,/reserveSeat/);
   assert.ok(out.watch.length>0);
+});
+
+test('explains each observed touched file from its own facts', () => {
+  const out=explain({
+    prompt:'Receive a widget and store its event',
+    file:'src/odd/entry.go', symbol:'ReceiveWidget', touched:['src/odd/entry.go','src/odd/storage.py'],
+    relatedFiles:[
+      {file:'src/odd/entry.go',symbol:'ReceiveWidget',route:null,table:null,technologies:[],dependencies:[]},
+      {file:'src/odd/storage.py',symbol:'save_widget',route:null,table:'widget_events',technologies:[],dependencies:[]}
+    ]
+  });
+  assert.match(out.project,/src\/odd\/entry\.go/);
+  assert.match(out.project,/ReceiveWidget/);
+  assert.match(out.project,/src\/odd\/storage\.py/);
+  assert.match(out.project,/save_widget/);
+  assert.match(out.project,/widget_events/);
 });
 
 const CASES = [
