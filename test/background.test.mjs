@@ -8,6 +8,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const BIN = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../bin/idleproof.mjs');
+const LEGACY_DEFAULT_PORT = 4777;
 
 async function freePort() {
   const server = net.createServer();
@@ -18,6 +19,18 @@ async function freePort() {
   const { port } = server.address();
   await new Promise((resolve) => server.close(resolve));
   return port;
+}
+
+async function occupy(port) {
+  const server = net.createServer();
+  const result = await new Promise((resolve, reject) => {
+    server.once('error', (error) => {
+      if (error?.code === 'EADDRINUSE') resolve(false);
+      else reject(error);
+    });
+    server.listen(port, '127.0.0.1', () => resolve(true));
+  });
+  return result ? server : null;
 }
 
 function isAlive(pid) {
@@ -51,6 +64,32 @@ test('background learning cockpit starts, identifies itself, and stops without o
       try { process.kill(pid, 'SIGTERM'); } catch {}
     }
     fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('normal start automatically avoids an occupied legacy default port', async () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'idleproof-auto-port-'));
+  execFileSync('git', ['init', '-q'], { cwd });
+  const blocker = await occupy(LEGACY_DEFAULT_PORT);
+  let pid = null;
+  try {
+    const output = execFileSync(process.execPath, [BIN, 'start', '--no-open'], { cwd, encoding:'utf8', timeout:5000 });
+    assert.match(output, /IdleProof learning cockpit:/);
+    const info = JSON.parse(fs.readFileSync(path.join(cwd, '.idleproof', 'server.json'), 'utf8'));
+    pid = info.pid;
+    assert.ok(Number.isInteger(info.port) && info.port > 0);
+    assert.notEqual(info.port, LEGACY_DEFAULT_PORT, 'automatic start unexpectedly reused the occupied/default port');
+    const health = await fetch(`http://127.0.0.1:${info.port}/api/health`).then((res) => res.json());
+    assert.equal(health.ok, true);
+    assert.equal(health.instanceId, info.instanceId);
+    execFileSync(process.execPath, [BIN, 'stop'], { cwd, encoding:'utf8', timeout:5000 });
+    pid = null;
+  } finally {
+    if (pid) {
+      try { process.kill(pid, 'SIGTERM'); } catch {}
+    }
+    if (blocker) await new Promise((resolve) => blocker.close(resolve));
+    fs.rmSync(cwd, { recursive:true, force:true });
   }
 });
 
