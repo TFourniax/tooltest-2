@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { main } from '../src/cli.mjs';
 import { learningCliHelp, runLearningCli } from '../src/learning-cli.mjs';
 import { runDemo } from '../src/demo.mjs';
+import { repairLocalState } from '../src/recovery.mjs';
 
 const args = process.argv.slice(2);
 
@@ -71,11 +72,45 @@ async function runtimeArgs(cmd) {
   return resolved;
 }
 
+function printRepair(result, repairArgs) {
+  if (repairArgs.includes('--json')) {
+    console.log(JSON.stringify(result,null,2));
+    return;
+  }
+  if (repairArgs.includes('--dry-run')) {
+    console.log(`IdleProof repair plan: ${result.action}`);
+    console.log(`Primary state: ${result.primary.present ? (result.primary.valid ? 'healthy' : result.primary.reason) : 'not created'} · backup: ${result.backup.present ? (result.backup.valid ? 'healthy' : result.backup.reason) : 'not created'}`);
+    console.log(result.recoverable ? 'No destructive fallback is required.' : 'Automatic repair is intentionally unavailable; preserve the files and inspect them manually.');
+    return;
+  }
+  if (result.changed) {
+    console.log('✓ IdleProof state restored from its last verified compatible backup.');
+    if (result.archive) console.log(`  Corrupt primary archived at ${result.archive}`);
+    console.log('  Hooks, policy, provenance and source files were not reset.');
+    return;
+  }
+  if (!result.primary.present && !result.backup.present) {
+    console.log('✓ IdleProof has no local learning state yet; nothing needs repair.');
+    return;
+  }
+  console.log('✓ IdleProof local state is already readable; no repair was needed.');
+}
+
 async function run() {
   const cmd = args[0] || 'help';
   if (['help', '--help', '-h'].includes(cmd)) {
     await main(args);
     process.stdout.write(`${learningCliHelp()}\n`);
+    process.stdout.write('\nRecovery & support:\n  idleproof support [--json|--out FILE]\n  idleproof repair [--dry-run] [--json]\n');
+    return;
+  }
+  if (cmd === 'support') {
+    await import('./idleproof-support.mjs');
+    return;
+  }
+  if (cmd === 'repair') {
+    const result=repairLocalState(process.cwd(),{dryRun:args.includes('--dry-run')});
+    printRepair(result,args.slice(1));
     return;
   }
   if (cmd === 'demo') {
