@@ -9,6 +9,7 @@ import { processHookEvent } from '../src/hook.mjs';
 import { loadState } from '../src/state.mjs';
 
 const BIN = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../bin/idleproof.mjs');
+const cleanupSleep = new Int32Array(new SharedArrayBuffer(4));
 
 function hookProcess(cwd, event) {
   return new Promise((resolve, reject) => {
@@ -17,12 +18,30 @@ function hookProcess(cwd, event) {
     child.stdout.on('data', (chunk)=>{ stdout += chunk; });
     child.stderr.on('data', (chunk)=>{ stderr += chunk; });
     child.once('error', reject);
-    child.once('exit', (code, signal)=>{
+    // `close` is intentionally used instead of `exit`: on Windows the process can
+    // have exited while inherited stdio/cwd handles are still being released.
+    child.once('close', (code, signal)=>{
       if (code !== 0) reject(new Error(`hook child failed code=${code} signal=${signal}\nstdout=${stdout}\nstderr=${stderr}`));
       else resolve({stdout,stderr});
     });
     child.stdin.end(`${JSON.stringify(event)}\n`);
   });
+}
+
+function cleanupFixture(cwd) {
+  for (let attempt=0; attempt<20; attempt+=1) {
+    try {
+      fs.rmSync(cwd, { recursive:true, force:true });
+      return;
+    } catch (error) {
+      if (!['EBUSY','EPERM','ENOTEMPTY'].includes(error.code)) throw error;
+      Atomics.wait(cleanupSleep, 0, 0, 100);
+    }
+  }
+  // Fixture cleanup is not a product invariant. If an external Windows runner
+  // process still owns a transient handle, do not turn already-passed state and
+  // concurrency assertions into a product failure.
+  try { fs.rmSync(cwd, { recursive:true, force:true }); } catch {}
 }
 
 test('parallel hook processes preserve every independent session without corrupting shared state', async () => {
@@ -57,8 +76,6 @@ test('parallel hook processes preserve every independent session without corrupt
     }
     assert.equal(Object.keys(state.sessions).filter((id)=>id.startsWith('parallel-')).length, sessions.length);
   } finally {
-    // Windows can keep a just-exited child process' cwd handle alive for a few milliseconds.
-    // Retry only fixture cleanup; all concurrency/state assertions above remain unchanged.
-    fs.rmSync(cwd, { recursive:true, force:true, maxRetries:12, retryDelay:100 });
+    cleanupFixture(cwd);
   }
 });
