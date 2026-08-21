@@ -19,7 +19,8 @@ export function portalCliHelp() {
     '',
     'Portal config is project-local under .idleproof/, excluded from software change identity.',
     'Enrollment tokens are never accepted as command-line arguments, avoiding shell-history/process-list leaks.',
-    'A configured enrollment token can only submit privacy-safe snapshots to one Portal project.'
+    'A configured enrollment token can only submit privacy-safe snapshots to one Portal project.',
+    'If offline delivery ever loses history because its bounded queue is saturated, status becomes explicitly degraded rather than hiding the gap.'
   ].join('\n');
 }
 
@@ -70,11 +71,14 @@ export async function runPortalCli(args, { cwd = process.cwd() } = {}) {
     else if (!status.configured) {
       console.log(`IdleProof Portal: not configured · project ${status.projectLocalId}`);
     } else {
-      console.log(`IdleProof Portal: ${status.healthy ? 'configured' : 'needs attention'}`);
+      console.log(`IdleProof Portal: ${status.healthy ? 'healthy' : status.degraded ? 'DEGRADED' : 'needs attention'}`);
       console.log(`  Endpoint: ${status.endpoint}`);
       console.log(`  Project ID: ${status.projectLocalId}`);
       console.log(`  Credential: ••••${status.tokenLast4}`);
       console.log(`  Pending snapshots: ${status.pending ?? 'unknown'}`);
+      console.log(`  Unretained snapshots: ${status.skippedSnapshots ?? 'unknown'}`);
+      if (status.lastErrorCode) console.log(`  Last delivery issue: ${status.lastErrorCode}`);
+      if (status.degraded) console.log('  History completeness is degraded. Do not interpret the Portal timeline as exhaustive until this is investigated.');
     }
     return true;
   }
@@ -87,7 +91,7 @@ export async function runPortalCli(args, { cwd = process.cwd() } = {}) {
     if (!quiet) {
       if (json) print(result, true);
       else if (!result.configured) console.log('IdleProof Portal is not configured.');
-      else if (result.ok) console.log(`✓ Portal queue flushed · ${result.delivered} delivered · ${result.pending} pending`);
+      else if (result.ok) console.log(`✓ Portal queue flushed · ${result.delivered} delivered · ${result.pending} pending${result.degraded ? ` · DEGRADED (${result.skippedSnapshots} unretained)` : ''}`);
       else console.log(`Portal delivery deferred · ${result.errorCode || result.httpStatus || 'delivery failed'} · ${result.pending} snapshot(s) remain safely queued.`);
     }
     return true;
@@ -96,7 +100,7 @@ export async function runPortalCli(args, { cwd = process.cwd() } = {}) {
     const result = await syncPortal(cwd);
     if (json) print(result, true);
     else if (!result.configured) console.log('IdleProof Portal is not configured. Run `idleproof portal configure --endpoint ...` first.');
-    else if (result.ok) console.log(`✓ Portal sync complete · ${result.delivered} delivered · ${result.pending} pending · ${result.snapshotId}`);
+    else if (result.ok) console.log(`✓ Portal sync complete · ${result.delivered} delivered · ${result.pending} pending · ${result.snapshotId}${result.degraded ? ` · DEGRADED (${result.skippedSnapshots} unretained)` : ''}`);
     else console.log(`Portal sync deferred · ${result.errorCode || result.httpStatus || 'delivery failed'} · ${result.pending} snapshot(s) remain safely queued.`);
     if (result.configured && result.ok === false) process.exitCode = 2;
     return true;
