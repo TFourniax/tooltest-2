@@ -21,8 +21,8 @@ jobs:
         node: [20, 22, 24]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
       - name: Syntax check critical entrypoints
@@ -73,8 +73,8 @@ jobs:
     name: ExplainBench + adversarial quality + performance budgets
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - name: Run explain-first and optional-learning benchmarks
@@ -94,11 +94,11 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - name: Pack, install, configure and uninstall exact npm artifact
         run: node ./scripts/package-smoke.mjs
-      - name: Exercise first-run, live learning, handoff and restart as a user
+      - name: Exercise first-run, live learning, exact change identity, handoff and restart as a user
         run: node ./scripts/human-smoke.mjs
