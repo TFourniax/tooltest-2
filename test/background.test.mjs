@@ -93,6 +93,29 @@ test('normal start automatically avoids an occupied legacy default port', async 
   }
 });
 
+test('idleproof on auto-detects an existing Codex project instead of silently installing Claude hooks', async () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'idleproof-auto-agent-'));
+  execFileSync('git', ['init', '-q'], { cwd });
+  fs.mkdirSync(path.join(cwd, '.codex'), { recursive:true });
+  let pid = null;
+  try {
+    const output = execFileSync(process.execPath, [BIN, 'on', '--no-open'], { cwd, encoding:'utf8', timeout:8000 });
+    assert.match(output, /Agent adapter auto-detected: codex/i);
+    assert.match(output, /Codex adapter:/i);
+    const info = JSON.parse(fs.readFileSync(path.join(cwd, '.idleproof', 'server.json'), 'utf8'));
+    pid = info.pid;
+    assert.ok(fs.existsSync(path.join(cwd, '.codex', 'hooks.json')), 'Codex hook config was not installed');
+    assert.equal(fs.existsSync(path.join(cwd, '.claude', 'settings.local.json')), false, 'auto-detection unexpectedly modified Claude settings');
+    execFileSync(process.execPath, [BIN, 'stop'], { cwd, encoding:'utf8', timeout:5000 });
+    pid = null;
+  } finally {
+    if (pid) {
+      try { process.kill(pid, 'SIGTERM'); } catch {}
+    }
+    fs.rmSync(cwd, { recursive:true, force:true });
+  }
+});
+
 test('stop never signals an unrelated process referenced by a stale server record', async () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'idleproof-stale-server-'));
   execFileSync('git', ['init', '-q'], { cwd });
