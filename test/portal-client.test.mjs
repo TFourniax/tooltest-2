@@ -102,7 +102,7 @@ test('queued snapshots flush idempotently without persisting the enrollment toke
     const seen = [];
     const fakeFetch = async (url, options) => {
       seen.push({ url:String(url), options, body:JSON.parse(options.body) });
-      return new Response(JSON.stringify({ status:'accepted', snapshotId:snapshot.snapshotId }), {
+      return new Response(JSON.stringify({ schema:'idleproof.portal-ingest-ack.v1', status:'accepted', snapshotId:snapshot.snapshotId }), {
         status:202,
         headers:{ 'content-type':'application/json' }
       });
