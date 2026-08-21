@@ -8,10 +8,11 @@ import { hasClaudeInstall } from './install.mjs';
 import { hasCodexInstall } from './install-codex.mjs';
 import { loadPolicy } from './policy.mjs';
 import { verifyProvenanceChain } from './provenance.mjs';
+import { portalStatus } from './portal-client.mjs';
 
 const FORBIDDEN_KEYS = new Set([
   'prompt','promptRaw','content','sourceCode','source_code','diff','patch','tool_input','toolInput',
-  'cwd','path','file','filename','absolutePath','secret','token','credential','privateKey','publicKey'
+  'cwd','path','file','filename','absolutePath','secret','token','credential','privateKey','publicKey','endpoint','tokenLast4'
 ]);
 
 function sha256(value='') {
@@ -102,6 +103,15 @@ function provenanceSummary(cwd) {
   } catch { return { valid:false, events:0, errors:1 }; }
 }
 
+function portalSummary(cwd) {
+  try {
+    const status=portalStatus(cwd);
+    return { configured:Boolean(status.configured), healthy:Boolean(status.healthy), pending:Number.isInteger(status.pending) ? status.pending : null };
+  } catch {
+    return { configured:null, healthy:false, pending:null };
+  }
+}
+
 export function buildSupportDiagnostic(cwd=process.cwd()) {
   const paths=projectPaths(cwd);
   const state=jsonHealth(paths.state);
@@ -122,6 +132,7 @@ export function buildSupportDiagnostic(cwd=process.cwd()) {
       recoverable:state.parseable===true || backup.parseable===true
     },
     server:serverSummary(cwd),
+    portal:portalSummary(cwd),
     provenance:provenanceSummary(cwd),
     recorder:identitySummary(cwd),
     storage:{ eventsPresent:events.present, eventsBytes:events.bytes },
