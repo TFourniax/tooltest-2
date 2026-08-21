@@ -31,6 +31,8 @@ function ensureSession(state, event) {
       startedAt: now(),
       lastEventAt: now(),
       prompt: '',
+      promptChars: 0,
+      promptSha256: null,
       currentTool: null,
       estimatedWindow: 20,
       touchedFiles: [],
@@ -125,8 +127,13 @@ export function processHookLifecycle(event = {}) {
 
     if (eventName === 'UserPromptSubmit') {
       if (!session.baselineIdentity) session.baselineIdentity = captureBaselineIdentity(cwd);
+      const rawPrompt = String(event.prompt || '');
       session.status = 'active';
-      session.prompt = String(event.prompt || '').slice(0, 1200);
+      // Keep only bounded text for local Explain-first UX; retain exact full-input provenance as
+      // one-way metadata so receipts/Portal do not pretend the truncated text was the original.
+      session.prompt = rawPrompt.slice(0, 1200);
+      session.promptChars = rawPrompt.length;
+      session.promptSha256 = sha256(rawPrompt);
       session.currentTool = 'Thinking';
       session.estimatedWindow = estimateWindow(event);
     }
@@ -248,6 +255,9 @@ function receiptFromState(state, cwd) {
   const chain = verifyProvenanceChain(cwd);
   const policy = loadPolicy(cwd);
   const bom = buildAgentBom(cwd, { write: false });
+  const boundedPrompt = String(session?.prompt || '');
+  const promptChars = Number.isInteger(session?.promptChars) ? session.promptChars : boundedPrompt.length;
+  const promptSha256 = /^[a-f0-9]{64}$/.test(String(session?.promptSha256 || '')) ? session.promptSha256 : sha256(boundedPrompt);
   return {
     schema: 'idleproof.receipt.v1',
     project: state.project,
@@ -257,7 +267,7 @@ function receiptFromState(state, cwd) {
       source: session.source,
       startedAt: session.startedAt,
       completedAt: session.completedAt || null,
-      intent: { sha256: sha256(session.prompt || ''), chars: String(session.prompt || '').length },
+      intent: { sha256: promptSha256, chars: promptChars, retainedChars: boundedPrompt.length },
       files: session.touchedFiles,
       changed: session.changed,
       proof: session.proof,
