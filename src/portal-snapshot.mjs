@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
 const FORBIDDEN_KEYS = new Set(['sourceCode','source_code','content','rawContent','raw_content','diff','patch','tool_input','toolInput','prompt','promptRaw','secret','token','credential']);
+const MAX_SNAPSHOT_BYTES = 64 * 1024;
 const SECRET_PATTERNS = [
   /\bsk-[A-Za-z0-9_-]{12,}\b/g,
   /\bgh[pousr]_[A-Za-z0-9]{20,}\b/g,
@@ -11,6 +12,12 @@ const SECRET_PATTERNS = [
 
 function digest(value = '') {
   return createHash('sha256').update(String(value || '')).digest('hex');
+}
+
+function canonical(value) {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map((item)=>canonical(item)).join(',')}]`;
+  return `{${Object.keys(value).sort().map((key)=>`${JSON.stringify(key)}:${canonical(value[key])}`).join(',')}}`;
 }
 
 function redact(value = '', max = 240) {
@@ -43,6 +50,13 @@ function safeTaskSummary(session=null, explanation=null) {
   return null;
 }
 
+function stableSnapshotId(snapshot) {
+  const stable={...snapshot};
+  delete stable.generatedAt;
+  delete stable.snapshotId;
+  return `ipsnap_${digest(canonical(stable)).slice(0,24)}`;
+}
+
 export function projectLocalId(project = '', seed = '') {
   return createHash('sha256').update(`${project}|${seed}`).digest('hex').slice(0,24);
 }
@@ -56,8 +70,9 @@ export function buildPortalSnapshot({ state={}, session=null, featureModel=null,
   ]).slice(0,40);
   const surfaces=featureModel?.surfaces || {};
   const metrics=state.metrics || {};
-  return {
+  const snapshot={
     schema:'idleproof.portal-snapshot.v1',
+    snapshotId:null,
     generatedAt:new Date().toISOString(),
     project:{ name:redact(state.project || 'project',120), localId:projectLocalId(state.project || 'project', state.createdAt || '') },
     task:{
@@ -66,32 +81,45 @@ export function buildPortalSnapshot({ state={}, session=null, featureModel=null,
       promptChars:rawPrompt.length,
       source:redact(session?.source || 'agent',40),
       status:session?.status || null,
-      changed:session?.changed || {added:0,deleted:0}
+      changed:{
+        added:Math.max(0,Number(session?.changed?.added || 0)),
+        deleted:Math.max(0,Number(session?.changed?.deleted || 0))
+      }
     },
     change:{ changeId:session?.proof?.changeId || null, diffSha256:session?.proof?.diffSha256 || null },
     explanation:explanation ? {
       concept:explanation.concept?.id || null,
       certainty:explanation.certainty?.level || null,
-      files:(explanation.files || []).map((item)=>({ path:cleanPath(item.path), role:item.role, confidence:item.confidence })).filter((item)=>item.path).slice(0,20)
+      files:(explanation.files || []).map((item)=>({ path:cleanPath(item.path), role:redact(item.role,60), confidence:redact(item.confidence,40) })).filter((item)=>item.path).slice(0,20)
     } : null,
     feature:featureModel ? {
-      fingerprint:featureModel.fingerprint || null,
+      fingerprint:redact(featureModel.fingerprint || '',128) || null,
       surfaces:{ routes:cleanList(surfaces.routes,20), tables:cleanList(surfaces.tables,20), technologies:cleanList(surfaces.technologies,20) },
-      story:(featureModel.story || []).map((item)=>({ type:item.type, label:item.type==='file' ? cleanPath(item.label) : redact(item.label,160), role:item.role })).filter((item)=>item.label).slice(0,12),
+      story:(featureModel.story || []).map((item)=>({ type:redact(item.type,40), label:item.type==='file' ? cleanPath(item.label) : redact(item.label,160), role:redact(item.role,60) })).filter((item)=>item.label).slice(0,12),
       tests:(featureModel.tests || []).map(cleanPath).filter(Boolean).slice(0,12)
     } : null,
     understanding:{
-      conceptsSeen:Number(metrics.conceptsSeen || 0),
-      cognitiveCoverage:Number(metrics.coverage || 0),
-      knowledgeDebt:Number(metrics.debt || 0),
-      featuresSeen:Number(metrics.featuresSeen || 0),
-      featureCoverage:Number(metrics.featureCoverage || 0),
-      featureDebt:Number(metrics.featureDebt || 0)
+      conceptsSeen:Math.max(0,Number(metrics.conceptsSeen || 0)),
+      cognitiveCoverage:Math.min(100,Math.max(0,Number(metrics.coverage || 0))),
+      knowledgeDebt:Math.max(0,Number(metrics.debt || 0)),
+      featuresSeen:Math.max(0,Number(metrics.featuresSeen || 0)),
+      featureCoverage:Math.min(100,Math.max(0,Number(metrics.featureCoverage || 0))),
+      featureDebt:Math.max(0,Number(metrics.featureDebt || 0))
     },
-    projectMemory:projectModel ? { stats:projectModel.stats || null, impact:{ blastRadius:Number(projectModel.impact?.blastRadius || 0) } } : null,
+    projectMemory:projectModel ? {
+      stats:projectModel.stats ? {
+        features:Math.max(0,Number(projectModel.stats.features || 0)),
+        files:Math.max(0,Number(projectModel.stats.files || 0)),
+        sharedFiles:Math.max(0,Number(projectModel.stats.sharedFiles || 0)),
+        boundaryNodes:Math.max(0,Number(projectModel.stats.boundaryNodes || 0))
+      } : null,
+      impact:{ blastRadius:Math.max(0,Number(projectModel.impact?.blastRadius || 0)) }
+    } : null,
     files:filePaths,
     privacy:{ sourceCodeIncluded:false, rawDiffIncluded:false, rawAgentEventsIncluded:false, rawPromptIncluded:false, secretsRedacted:true }
   };
+  snapshot.snapshotId=stableSnapshotId(snapshot);
+  return snapshot;
 }
 
 export function assertPortalSnapshotSafe(snapshot) {
@@ -101,11 +129,17 @@ export function assertPortalSnapshotSafe(snapshot) {
     if (value && typeof value==='object') for (const [childKey,child] of Object.entries(value)) visit(child,childKey);
   };
   visit(snapshot);
+  if (!/^ipsnap_[a-f0-9]{24}$/.test(String(snapshot?.snapshotId || ''))) throw new Error('Portal snapshot has no valid idempotency key.');
+  if (stableSnapshotId(snapshot)!==snapshot.snapshotId) throw new Error('Portal snapshot idempotency key does not match its payload.');
   if (
     snapshot?.privacy?.sourceCodeIncluded !== false ||
     snapshot?.privacy?.rawDiffIncluded !== false ||
     snapshot?.privacy?.rawAgentEventsIncluded !== false ||
     snapshot?.privacy?.rawPromptIncluded !== false
   ) throw new Error('Portal snapshot privacy declaration is not fail-closed.');
+  const bytes=Buffer.byteLength(JSON.stringify(snapshot),'utf8');
+  if (bytes>MAX_SNAPSHOT_BYTES) throw new Error(`Portal snapshot exceeds ${MAX_SNAPSHOT_BYTES} byte safety budget.`);
   return true;
 }
+
+export const __portalTest={stableSnapshotId,MAX_SNAPSHOT_BYTES};
