@@ -5,6 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { main } from '../src/cli.mjs';
 import { learningCliHelp, runLearningCli } from '../src/learning-cli.mjs';
+import { portalCliHelp, runPortalCli } from '../src/portal-cli.mjs';
 import { runDemo } from '../src/demo.mjs';
 import { repairLocalState } from '../src/recovery.mjs';
 
@@ -101,6 +102,7 @@ async function run() {
   if (['help', '--help', '-h'].includes(cmd)) {
     await main(args);
     process.stdout.write(`${learningCliHelp()}\n`);
+    process.stdout.write(`\n${portalCliHelp()}\n`);
     process.stdout.write('\nRecovery & support:\n  idleproof support [--json|--out FILE]\n  idleproof repair [--dry-run] [--json]\n');
     return;
   }
@@ -117,6 +119,7 @@ async function run() {
     await runDemo(args.slice(1));
     return;
   }
+  if (await runPortalCli(args)) return;
   if (await runLearningCli(args)) return;
   await main(await runtimeArgs(cmd));
 }
