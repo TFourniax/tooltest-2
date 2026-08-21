@@ -200,8 +200,23 @@ try {
   const handoff = await api(base, '/api/state');
   assert.equal(handoff.body?.session?.status, 'complete');
   assert.match(String(handoff.body?.session?.proof?.diffSha256 || ''), /^[a-f0-9]{64}$/);
+  assert.match(String(handoff.body?.session?.proof?.changeId || ''), /^dwchg_[a-f0-9]{24}$/);
   assert.ok(handoff.body?.featureModel, 'completed task has no feature model for handoff');
   assert.ok((handoff.body?.featureModel?.surfaces?.routes || []).includes('/api/webhooks/stripe'));
+
+  const receiptRun = idleproof(bin, project, ['receipt', '--json']);
+  const receipt = JSON.parse(receiptRun.stdout);
+  assert.equal(receipt.schema, 'idleproof.receipt.v1');
+  assert.equal(receipt.session?.change?.available, true, JSON.stringify(receipt.session?.change));
+  assert.equal(receipt.session?.change?.schema, 'change-envelope-1');
+  assert.match(String(receipt.session?.change?.changeId || ''), /^dwchg_[a-f0-9]{24}$/);
+  assert.equal(receipt.session?.proof?.changeId, receipt.session?.change?.changeId, 'packaged receipt proof/change identities diverged');
+  assert.match(String(receipt.session?.change?.repository?.fingerprint || ''), /^dwrepo_[a-f0-9]{24}$/);
+  assert.match(String(receipt.session?.change?.base?.tree || ''), /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/);
+  assert.match(String(receipt.session?.change?.candidate?.tree || ''), /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/);
+  assert.notEqual(receipt.session?.change?.base?.tree, receipt.session?.change?.candidate?.tree, 'real package journey produced no distinct candidate tree');
+  assert.equal(receipt.session?.change?.base?.dirty, false);
+  assert.equal(receipt.session?.change?.candidate?.dirty, true);
   const persistentDebt = handoff.body?.metrics?.debt;
 
   const status = idleproof(bin, project, ['status']);
@@ -227,12 +242,13 @@ try {
   assert.equal(health.body?.ok, true);
   const restored = await api(base, '/api/state');
   assert.equal(restored.body?.session?.status, 'complete');
+  assert.equal(restored.body?.session?.proof?.changeId, receipt.session?.change?.changeId, 'restart lost the exact change identity');
   assert.equal(restored.body?.metrics?.debt, persistentDebt);
   assert.ok((restored.body?.featureMemory || []).length >= 1, 'second session lost feature memory');
   idleproof(bin, project, ['stop']);
   serverPid = null;
 
-  console.log(`IdleProof HUMAN SMOKE PASS · exact npm artifact · Explain-first delivery · deduplicated hooks · ${process.platform}/${process.version}`);
+  console.log(`IdleProof HUMAN SMOKE PASS · exact npm artifact · Explain-first delivery · deterministic change identity · deduplicated hooks · ${process.platform}/${process.version}`);
 } finally {
   if (serverPid) {
     try { process.kill(serverPid, 'SIGTERM'); } catch {}
