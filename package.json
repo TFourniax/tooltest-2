@@ -3,7 +3,10 @@
   "version": "0.10.0",
   "description": "Local human-understanding layer for coding agents: explain what Claude Code or Codex is building in your actual project.",
   "type": "module",
-  "bin": { "idleproof": "./bin/idleproof.mjs" },
+  "bin": {
+    "idleproof": "./bin/idleproof.mjs",
+    "idleproof-support": "./bin/idleproof-support.mjs"
+  },
   "scripts": {
     "start": "node ./bin/idleproof.mjs serve",
     "demo": "node ./bin/idleproof.mjs demo",
