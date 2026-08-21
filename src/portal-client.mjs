@@ -6,6 +6,7 @@ import { computeMetrics, loadState } from './state.mjs';
 import { assertPortalSnapshotSafe, buildPortalSnapshot, projectLocalId } from './portal-snapshot.mjs';
 
 const CONFIG_SCHEMA = 'idleproof.portal-config.v1';
+const DELIVERY_HEALTH_SCHEMA = 'idleproof.portal-delivery-health.v1';
 const MAX_QUEUE = 200;
 const MAX_RESPONSE_BYTES = 16 * 1024;
 const QUEUE_LOCK_STALE_MS = 10000;
@@ -34,6 +35,12 @@ function atomicJson(file, value) {
   }
 }
 
+function isLockContention(error, file) {
+  if (error?.code === 'EEXIST') return true;
+  if (!['EPERM', 'EACCES'].includes(error?.code)) return false;
+  try { return fs.statSync(file).isFile(); } catch { return false; }
+}
+
 function withQueueLock(cwd, fn) {
   const paths = projectPaths(cwd);
   fs.mkdirSync(paths.dir, { recursive:true });
@@ -45,11 +52,11 @@ function withQueueLock(cwd, fn) {
       fs.writeFileSync(fd, `${process.pid} ${Date.now()}\n`);
       break;
     } catch (error) {
-      if (error.code !== 'EEXIST') throw error;
+      if (!isLockContention(error, paths.portalQueueLock)) throw error;
       try {
         const stat = fs.statSync(paths.portalQueueLock);
         if (Date.now() - stat.mtimeMs > QUEUE_LOCK_STALE_MS) {
-          fs.unlinkSync(paths.portalQueueLock);
+          try { fs.unlinkSync(paths.portalQueueLock); } catch {}
           continue;
         }
       } catch {}
@@ -80,6 +87,58 @@ function validateToken(token) {
   const value = String(token || '').trim();
   if (!/^ipd_[A-Za-z0-9_-]{20,}$/.test(value)) throw portalError('IDLEPROOF_PORTAL_TOKEN_INVALID', 'Portal enrollment token has an invalid format.');
   return value;
+}
+
+function defaultDeliveryHealth() {
+  return {
+    schema:DELIVERY_HEALTH_SCHEMA,
+    degraded:false,
+    skippedSnapshots:0,
+    lastSkippedAt:null,
+    lastSkippedSnapshotId:null,
+    lastErrorCode:null,
+    lastErrorAt:null,
+    lastSuccessAt:null
+  };
+}
+
+function readDeliveryHealth(cwd) {
+  const file = projectPaths(cwd).portalDeliveryHealth;
+  try {
+    const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (!parsed || parsed.schema !== DELIVERY_HEALTH_SCHEMA || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('unsupported delivery health schema');
+    return {
+      ...defaultDeliveryHealth(),
+      ...parsed,
+      degraded:Boolean(parsed.degraded),
+      skippedSnapshots:Number.isInteger(parsed.skippedSnapshots) && parsed.skippedSnapshots >= 0 ? parsed.skippedSnapshots : 0
+    };
+  } catch (error) {
+    if (error.code === 'ENOENT') return defaultDeliveryHealth();
+    throw portalError('IDLEPROOF_PORTAL_HEALTH_CORRUPT', `Cannot read Portal delivery health: ${error.message}`);
+  }
+}
+
+function writeDeliveryHealth(cwd, health) {
+  atomicJson(projectPaths(cwd).portalDeliveryHealth, { ...defaultDeliveryHealth(), ...health, schema:DELIVERY_HEALTH_SCHEMA });
+}
+
+function recordDeliveryError(cwd, code) {
+  return withQueueLock(cwd, () => {
+    const health = readDeliveryHealth(cwd);
+    const next = { ...health, lastErrorCode:String(code || 'DELIVERY_ERROR').slice(0,80), lastErrorAt:new Date().toISOString() };
+    writeDeliveryHealth(cwd, next);
+    return next;
+  });
+}
+
+function recordDeliverySuccess(cwd) {
+  return withQueueLock(cwd, () => {
+    const health = readDeliveryHealth(cwd);
+    const next = { ...health, lastErrorCode:null, lastErrorAt:null, lastSuccessAt:new Date().toISOString() };
+    writeDeliveryHealth(cwd, next);
+    return next;
+  });
 }
 
 export function writePortalConfig(cwd = process.cwd(), { endpoint, token, enabled = true } = {}) {
@@ -155,18 +214,37 @@ function writeQueue(cwd, queue) {
 
 export function queuePortalSnapshot(cwd = process.cwd(), snapshot = null) {
   const config = readPortalConfig(cwd);
-  if (!config?.enabled) return { queued:false, reason:'not-configured', snapshotId:null, pending:0, dropped:0 };
+  if (!config?.enabled) return { queued:false, reason:'not-configured', snapshotId:null, pending:0, skippedSnapshots:0 };
   const safeSnapshot = snapshot || buildCurrentPortalSnapshot(cwd);
   assertPortalSnapshotSafe(safeSnapshot);
   return withQueueLock(cwd, () => {
     const current = readQueue(cwd);
     const existed = current.some((item) => item.snapshotId === safeSnapshot.snapshotId);
-    if (existed) return { queued:false, reason:'duplicate', snapshotId:safeSnapshot.snapshotId, pending:current.length, dropped:0 };
+    if (existed) {
+      const health = readDeliveryHealth(cwd);
+      return { queued:false, reason:'duplicate', snapshotId:safeSnapshot.snapshotId, pending:current.length, skippedSnapshots:health.skippedSnapshots };
+    }
+    if (current.length >= MAX_QUEUE) {
+      const health = readDeliveryHealth(cwd);
+      const nextHealth = {
+        ...health,
+        degraded:true,
+        skippedSnapshots:health.skippedSnapshots + 1,
+        lastSkippedAt:new Date().toISOString(),
+        lastSkippedSnapshotId:safeSnapshot.snapshotId,
+        lastErrorCode:'QUEUE_FULL',
+        lastErrorAt:new Date().toISOString()
+      };
+      writeDeliveryHealth(cwd, nextHealth);
+      // Never silently evict historical snapshots to make room. The coding agent remains
+      // unblocked, but status/support become explicitly degraded because one snapshot could
+      // not be retained for delivery.
+      return { queued:false, reason:'queue-full', snapshotId:safeSnapshot.snapshotId, pending:current.length, skippedSnapshots:nextHealth.skippedSnapshots };
+    }
     const next = [...current, safeSnapshot];
-    const dropped = Math.max(0, next.length - MAX_QUEUE);
-    const bounded = next.slice(-MAX_QUEUE);
-    writeQueue(cwd, bounded);
-    return { queued:true, snapshotId:safeSnapshot.snapshotId, pending:bounded.length, dropped };
+    writeQueue(cwd, next);
+    const health = readDeliveryHealth(cwd);
+    return { queued:true, snapshotId:safeSnapshot.snapshotId, pending:next.length, skippedSnapshots:health.skippedSnapshots };
   });
 }
 
@@ -206,24 +284,38 @@ export async function flushPortalQueue(cwd = process.cwd(), { fetchImpl = global
       });
     } catch (error) {
       clearTimeout(timer);
-      return { configured:true, attempted:delivered + 1, delivered, pending:readQueue(cwd).length, ok:false, errorCode:error?.name === 'AbortError' ? 'TIMEOUT' : 'NETWORK_ERROR' };
+      const errorCode = error?.name === 'AbortError' ? 'TIMEOUT' : 'NETWORK_ERROR';
+      recordDeliveryError(cwd, errorCode);
+      return { configured:true, attempted:delivered + 1, delivered, pending:readQueue(cwd).length, ok:false, errorCode };
     }
     clearTimeout(timer);
-    const body = await boundedResponse(response);
-    if (![200, 202].includes(response.status)) {
-      return { configured:true, attempted:delivered + 1, delivered, pending:readQueue(cwd).length, ok:false, httpStatus:response.status, errorCode:body?.error?.code || 'PORTAL_REJECTED' };
+    let body;
+    try { body = await boundedResponse(response); }
+    catch (error) {
+      recordDeliveryError(cwd, error?.code || 'INVALID_RESPONSE');
+      throw error;
     }
-    if (body?.snapshotId && body.snapshotId !== snapshot.snapshotId) throw portalError('IDLEPROOF_PORTAL_RESPONSE_MISMATCH', 'Portal acknowledged a different snapshotId.');
+    if (![200, 202].includes(response.status)) {
+      const errorCode = body?.error?.code || `HTTP_${response.status}`;
+      recordDeliveryError(cwd, errorCode);
+      return { configured:true, attempted:delivered + 1, delivered, pending:readQueue(cwd).length, ok:false, httpStatus:response.status, errorCode };
+    }
+    if (body?.snapshotId && body.snapshotId !== snapshot.snapshotId) {
+      recordDeliveryError(cwd, 'RESPONSE_MISMATCH');
+      throw portalError('IDLEPROOF_PORTAL_RESPONSE_MISMATCH', 'Portal acknowledged a different snapshotId.');
+    }
     removeQueuedSnapshot(cwd, snapshot.snapshotId);
     delivered += 1;
   }
-  return { configured:true, attempted:delivered, delivered, pending:readQueue(cwd).length, ok:true };
+  if (delivered || initialQueue.length === 0) recordDeliverySuccess(cwd);
+  const delivery = readDeliveryHealth(cwd);
+  return { configured:true, attempted:delivered, delivered, pending:readQueue(cwd).length, ok:true, degraded:delivery.degraded, skippedSnapshots:delivery.skippedSnapshots };
 }
 
 export async function syncPortal(cwd = process.cwd(), options = {}) {
   const queued = queuePortalSnapshot(cwd);
   const flushed = await flushPortalQueue(cwd, options);
-  return { ...flushed, snapshotId:queued.snapshotId, newlyQueued:queued.queued, dropped:queued.dropped || 0 };
+  return { ...flushed, snapshotId:queued.snapshotId, newlyQueued:queued.queued, queueReason:queued.reason || null, skippedSnapshots:Math.max(queued.skippedSnapshots || 0, flushed.skippedSnapshots || 0) };
 }
 
 export function schedulePortalSync(cwd = process.cwd()) {
@@ -249,17 +341,27 @@ export function portalStatus(cwd = process.cwd()) {
   const state = loadState(cwd);
   let config = null;
   try { config = readPortalConfig(cwd); }
-  catch (error) { return { schema:'idleproof.portal-status.v1', configured:false, healthy:false, errorCode:error.code, projectLocalId:projectLocalId(state.project, state.createdAt), pending:null }; }
+  catch (error) { return { schema:'idleproof.portal-status.v1', configured:false, healthy:false, degraded:true, errorCode:error.code, projectLocalId:projectLocalId(state.project, state.createdAt), pending:null, skippedSnapshots:null }; }
   let pending = null;
-  try { pending = readQueue(cwd).length; } catch { pending = null; }
+  let delivery;
+  try {
+    pending = readQueue(cwd).length;
+    delivery = readDeliveryHealth(cwd);
+  } catch (error) {
+    return { schema:'idleproof.portal-status.v1', configured:Boolean(config), healthy:false, degraded:true, enabled:Boolean(config?.enabled), endpoint:config?.endpoint || null, tokenLast4:config?.token?.slice(-4) || null, errorCode:error?.code || 'PORTAL_LOCAL_STATE_INVALID', projectLocalId:projectLocalId(state.project, state.createdAt), pending:null, skippedSnapshots:null };
+  }
   return {
     schema:'idleproof.portal-status.v1',
     configured:Boolean(config),
-    healthy:Boolean(config) && pending !== null,
+    healthy:Boolean(config) && !delivery.degraded && !delivery.lastErrorCode,
+    degraded:Boolean(delivery.degraded),
     enabled:Boolean(config?.enabled),
     endpoint:config?.endpoint || null,
     tokenLast4:config?.token?.slice(-4) || null,
     projectLocalId:projectLocalId(state.project, state.createdAt),
-    pending
+    pending,
+    skippedSnapshots:delivery.skippedSnapshots,
+    lastErrorCode:delivery.lastErrorCode,
+    lastSuccessAt:delivery.lastSuccessAt
   };
 }
