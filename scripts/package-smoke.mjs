@@ -55,6 +55,7 @@ try {
   if (!fs.existsSync(supportBin)) throw new Error('installed IdleProof package does not contain its support diagnostic entrypoint');
   const help = runIdleProof(bin, consumer, '--help');
   if (!/understand what your coding agent is building/i.test(help)) throw new Error(`unexpected installed CLI help:\n${help}`);
+  if (!/idleproof portal configure/.test(help)) throw new Error('installed CLI help does not expose Portal enrollment');
 
   const project = path.join(temp, 'project');
   fs.mkdirSync(project, { recursive: true });
@@ -86,6 +87,34 @@ try {
   const supportSerialized=JSON.stringify(support);
   if (supportSerialized.includes(path.resolve(project))) throw new Error('packaged support diagnostic leaked the absolute project path');
   if (supportSerialized.includes('PRIVATE_UPGRADE_MARKER')) throw new Error('packaged support diagnostic leaked historical prompt content');
+
+  // Portal: the exact installed artifact must expose stable local identity, configure without
+  // putting the token in argv, produce the canonical privacy-safe snapshot, and disconnect
+  // without rewriting historical learning state.
+  const portalIdentity = JSON.parse(runIdleProof(bin, project, 'portal', 'identity', '--json'));
+  if (portalIdentity.schema !== 'idleproof.portal-identity.v1' || !/^[a-f0-9]{24}$/.test(portalIdentity.projectLocalId || '')) {
+    throw new Error('packaged Portal identity command returned an invalid local project id');
+  }
+  const portalToken=`ipd_${'p'.repeat(32)}`;
+  exec(process.execPath, [bin, 'portal', 'configure', '--endpoint', 'http://127.0.0.1:9/api/v1/snapshots', '--token-env', 'IDLEPROOF_PACKAGE_PORTAL_TOKEN'], {
+    cwd:project,
+    env:{ IDLEPROOF_PACKAGE_PORTAL_TOKEN:portalToken }
+  });
+  const portalStatus = JSON.parse(runIdleProof(bin, project, 'portal', 'status', '--json'));
+  if (!portalStatus.configured || portalStatus.projectLocalId !== portalIdentity.projectLocalId) throw new Error('packaged Portal status did not retain enrollment');
+  if (portalStatus.tokenLast4 !== 'pppp') throw new Error('packaged Portal status did not expose only the expected credential suffix');
+  const portalSnapshot = JSON.parse(runIdleProof(bin, project, 'portal', 'snapshot'));
+  if (portalSnapshot.schema !== 'idleproof.portal-snapshot.v1' || !/^ipsnap_[a-f0-9]{24}$/.test(portalSnapshot.snapshotId || '')) throw new Error('packaged Portal snapshot contract is invalid');
+  const portalSerialized=JSON.stringify(portalSnapshot);
+  if (portalSerialized.includes('PRIVATE_UPGRADE_MARKER') || portalSerialized.includes(portalToken)) throw new Error('packaged Portal snapshot leaked private local material');
+  if (portalSnapshot.project?.localId !== portalIdentity.projectLocalId) throw new Error('packaged Portal snapshot and enrollment identity disagree');
+  const enrolledSupport=JSON.parse(runIdleProof(supportBin, project, '--json'));
+  const enrolledSupportSerialized=JSON.stringify(enrolledSupport);
+  if (enrolledSupportSerialized.includes(portalToken) || enrolledSupportSerialized.includes('127.0.0.1:9')) throw new Error('support diagnostic leaked Portal endpoint or enrollment credential');
+  if (enrolledSupport.portal?.configured !== true) throw new Error('support diagnostic did not report configured Portal state');
+  runIdleProof(bin, project, 'portal', 'disconnect');
+  if (JSON.parse(runIdleProof(bin, project, 'portal', 'status', '--json')).configured !== false) throw new Error('packaged Portal disconnect left enrollment configured');
+  if (fs.readFileSync(statePath,'utf8') !== historicalState) throw new Error('Portal enrollment lifecycle changed historical IdleProof state');
 
   // Claude Code: replace stale IdleProof paths, preserve unrelated permissions/hooks,
   // and leave historical IdleProof state byte-for-byte unchanged.
@@ -141,7 +170,7 @@ try {
   if (JSON.stringify(uninstalledCodex).includes('idleproof.mjs')) throw new Error('packaged uninstall left IdleProof Codex hooks behind');
   if (fs.readFileSync(statePath,'utf8') !== historicalState) throw new Error('packaged Codex uninstall changed historical IdleProof state');
 
-  console.log(`IdleProof package smoke passed on ${process.platform}/${process.version} · upgrade-safe Claude + Codex adapters + support diagnostic`);
+  console.log(`IdleProof package smoke passed on ${process.platform}/${process.version} · Portal enrollment + upgrade-safe Claude/Codex adapters + support diagnostic`);
 } finally {
   if (tarball) {
     try { fs.rmSync(tarball, { force: true }); } catch {}
