@@ -5,9 +5,14 @@ import { CONCEPTS } from './catalog.mjs';
 
 export const CURRENT_STATE_VERSION = 2;
 
-const LOCK_STALE_MS = 5000;
-const LOCK_WAIT_MS = 8;
-const LOCK_TIMEOUT_MS = 900;
+// Agent hooks can arrive in bursts from parallel tool calls/subagents. An uncontended
+// lock is still acquired immediately, but a writer now waits long enough for other
+// short atomic mutations instead of dropping an otherwise valid hook after <1s.
+// A stale lock threshold longer than the acquisition timeout prevents a slow but live
+// writer from being unlinked by another process.
+const LOCK_STALE_MS = 15000;
+const LOCK_WAIT_MS = 10;
+const LOCK_TIMEOUT_MS = 7500;
 const sleepBuffer = new Int32Array(new SharedArrayBuffer(4));
 
 function sleep(ms) {
@@ -39,7 +44,7 @@ function acquireLock(cwd) {
       sleep(LOCK_WAIT_MS);
     }
   }
-  throw new Error('IdleProof state is busy; retry the hook event.');
+  throw new Error('IdleProof state stayed busy for 7.5s; refusing to drop or overwrite a concurrent hook event.');
 }
 
 export function freshState(cwd = process.cwd()) {
