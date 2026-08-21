@@ -1,3 +1,5 @@
+import { buildPlainExplanation } from './explain.mjs';
+
 function compact(value = '', max = 180) {
   const text = String(value || '').replace(/\s+/g, ' ').trim();
   if (!text) return '';
@@ -71,11 +73,30 @@ function specializedQuestion(card, fallback) {
   if (card.id === 'concurrency') {
     const target = subject ? ` in ${subject}` : '';
     if (phase === 'implement') return `For the shared state${target}, what must make the critical state transition atomic under concurrent attempts?`;
-    if (phase === 'verify') return `Which concurrent or race-condition test should challenge the same state transition${target} at the same time?`;
+    if (phase === 'verify') return `Which concurrent or race-condition test should challenge the same state transition${target} at nearly the same time?`;
     if (phase === 'handoff') return `Before accepting this concurrent-state change${target}, what timing or interleaving failure could still violate the invariant?`;
   }
 
   return fallback;
+}
+
+function explanationSession(card, session) {
+  const file = card.context?.file || session.currentResource || null;
+  return {
+    ...session,
+    prompt:card.context?.task || session.prompt || '',
+    currentResource:file,
+    touchedFiles:(session.touchedFiles?.length ? session.touchedFiles : [file]).filter(Boolean),
+    taskSignals:card.context?.signals || session.taskSignals || null
+  };
+}
+
+function explanationLesson(explanation, depth) {
+  if (!explanation) return '';
+  const watch = explanation.watch?.length ? ` What to keep in mind: ${explanation.watch.join(' ')}` : '';
+  if (depth === 'glance') return compact(`${explanation.project} ${explanation.why}`, 360);
+  if (depth === 'quick') return `${explanation.project} ${explanation.why}${watch}`.trim();
+  return `${explanation.project} ${explanation.why} ${explanation.expectedOutcome}${watch}`.trim();
 }
 
 export function presentLearningCard(card, session = {}) {
@@ -86,26 +107,35 @@ export function presentLearningCard(card, session = {}) {
   const naturalQuestion = naturalizeQuestion(card.question, target);
   const question = specializedQuestion(card, naturalQuestion);
   const specialized = question !== naturalQuestion;
+  const explanation = buildPlainExplanation({
+    session:explanationSession(card, session),
+    concept:card,
+    phase:card.context?.phase || (session.status === 'complete' ? 'handoff' : 'work')
+  });
+  const explainWhy = explanation?.doing || card.why;
+  const explainLesson = explanationLesson(explanation, depth) || card.lesson;
 
   if (depth === 'glance') {
     return {
       ...card,
       question,
-      why: compact(card.why, 145),
-      lesson: firstSentence(card.lesson),
-      seconds: Math.max(5, Math.min(12, budget || 10)),
-      presentation: { depth, budgetSeconds: budget, label: 'quick glance', specialized }
+      why:compact(explainWhy, 220),
+      lesson:explainLesson,
+      explanation,
+      seconds:Math.max(5, Math.min(12, budget || 10)),
+      presentation:{ depth, budgetSeconds:budget, label:'quick explanation', specialized, explainFirst:true, checkOptional:true }
     };
   }
 
   if (depth === 'deep') {
-    const review = card.review ? ` Next, ${String(card.review).replace(/^./, (c) => c.toLowerCase())}` : '';
     return {
       ...card,
       question,
-      lesson: `${card.lesson}${review}`.trim(),
-      seconds: Math.max(Number(card.seconds || 20), Math.min(60, budget || 40)),
-      presentation: { depth, budgetSeconds: budget, label: 'deeper pass', specialized }
+      why:explainWhy,
+      lesson:explainLesson,
+      explanation,
+      seconds:Math.max(Number(card.seconds || 20), Math.min(60, budget || 40)),
+      presentation:{ depth, budgetSeconds:budget, label:'deeper explanation', specialized, explainFirst:true, checkOptional:true }
     };
   }
 
@@ -113,15 +143,21 @@ export function presentLearningCard(card, session = {}) {
     return {
       ...card,
       question,
-      seconds: Math.max(15, Number(card.seconds || 20)),
-      presentation: { depth, budgetSeconds: budget, label: 'handoff check', specialized }
+      why:explainWhy,
+      lesson:explainLesson,
+      explanation,
+      seconds:Math.max(15, Number(card.seconds || 20)),
+      presentation:{ depth, budgetSeconds:budget, label:'handoff explanation', specialized, explainFirst:true, checkOptional:true }
     };
   }
 
   return {
     ...card,
     question,
-    seconds: Math.max(10, Math.min(Number(card.seconds || 25), budget || Number(card.seconds || 25))),
-    presentation: { depth, budgetSeconds: budget, label: 'quick lesson', specialized }
+    why:explainWhy,
+    lesson:explainLesson,
+    explanation,
+    seconds:Math.max(10, Math.min(Number(card.seconds || 25), budget || Number(card.seconds || 25))),
+    presentation:{ depth, budgetSeconds:budget, label:'plain-language explanation', specialized, explainFirst:true, checkOptional:true }
   };
 }
