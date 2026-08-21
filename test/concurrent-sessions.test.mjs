@@ -7,6 +7,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { processHookEvent } from '../src/hook.mjs';
 import { loadState } from '../src/state.mjs';
+import { verifyProvenanceChain } from '../src/provenance.mjs';
 
 const BIN = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../bin/idleproof.mjs');
 const cleanupSleep = new Int32Array(new SharedArrayBuffer(4));
@@ -44,7 +45,7 @@ function cleanupFixture(cwd) {
   try { fs.rmSync(cwd, { recursive:true, force:true }); } catch {}
 }
 
-test('parallel hook processes preserve every independent session without corrupting shared state', async () => {
+test('parallel hook processes preserve every independent session and provenance event', async () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'idleproof-concurrent-'));
   try {
     execFileSync('git', ['init', '-q'], { cwd });
@@ -71,10 +72,18 @@ test('parallel hook processes preserve every independent session without corrupt
     for (const session_id of sessions) {
       const session = state.sessions[session_id];
       assert.ok(session, `lost session ${session_id}`);
-      assert.ok((session.events || []).length >= 4, `${session_id} lost concurrent events`);
+      assert.ok((session.events || []).length >= 4, `${session_id} lost concurrent state events`);
       assert.ok(session.touchedFiles.some((value)=>value.replaceAll('\\','/').endsWith('app.js')));
     }
     assert.equal(Object.keys(state.sessions).filter((id)=>id.startsWith('parallel-')).length, sessions.length);
+
+    const chain=verifyProvenanceChain(cwd);
+    assert.equal(chain.ok,true,`concurrent provenance chain is invalid: ${(chain.errors || []).join('; ')}`);
+    assert.equal(
+      chain.length,
+      sessions.length + events.length,
+      `expected ${sessions.length + events.length} provenance events but found ${chain.length}`
+    );
   } finally {
     cleanupFixture(cwd);
   }
