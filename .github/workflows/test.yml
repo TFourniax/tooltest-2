@@ -53,6 +53,7 @@ jobs:
           node --check ./src/server.mjs
           node --check ./src/local-http-security.mjs
           node --check ./scripts/package-smoke.mjs
+          node --check ./scripts/portal-package-smoke.mjs
           node --check ./scripts/human-smoke.mjs
           node --check ./scripts/idlebench.mjs
           node --check ./scripts/idlebench-corpus.mjs
@@ -102,5 +103,7 @@ jobs:
           node-version: 22
       - name: Pack, install, configure and uninstall exact npm artifact
         run: node ./scripts/package-smoke.mjs
+      - name: Exercise exact npm artifact over real Portal HTTP transport
+        run: node ./scripts/portal-package-smoke.mjs
       - name: Exercise first-run, live learning, exact change identity, handoff and restart as a user
         run: node ./scripts/human-smoke.mjs
