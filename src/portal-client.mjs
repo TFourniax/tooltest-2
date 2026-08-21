@@ -153,18 +153,20 @@ function writeQueue(cwd, queue) {
   atomicJson(file, queue);
 }
 
-export function queuePortalSnapshot(cwd = process.cwd(), snapshot = buildCurrentPortalSnapshot(cwd)) {
-  assertPortalSnapshotSafe(snapshot);
-  if (!readPortalConfig(cwd)?.enabled) return { queued:false, reason:'not-configured', snapshotId:snapshot.snapshotId, pending:0 };
+export function queuePortalSnapshot(cwd = process.cwd(), snapshot = null) {
+  const config = readPortalConfig(cwd);
+  if (!config?.enabled) return { queued:false, reason:'not-configured', snapshotId:null, pending:0, dropped:0 };
+  const safeSnapshot = snapshot || buildCurrentPortalSnapshot(cwd);
+  assertPortalSnapshotSafe(safeSnapshot);
   return withQueueLock(cwd, () => {
     const current = readQueue(cwd);
-    const existed = current.some((item) => item.snapshotId === snapshot.snapshotId);
-    if (existed) return { queued:false, reason:'duplicate', snapshotId:snapshot.snapshotId, pending:current.length, dropped:0 };
-    const next = [...current, snapshot];
+    const existed = current.some((item) => item.snapshotId === safeSnapshot.snapshotId);
+    if (existed) return { queued:false, reason:'duplicate', snapshotId:safeSnapshot.snapshotId, pending:current.length, dropped:0 };
+    const next = [...current, safeSnapshot];
     const dropped = Math.max(0, next.length - MAX_QUEUE);
     const bounded = next.slice(-MAX_QUEUE);
     writeQueue(cwd, bounded);
-    return { queued:true, snapshotId:snapshot.snapshotId, pending:bounded.length, dropped };
+    return { queued:true, snapshotId:safeSnapshot.snapshotId, pending:bounded.length, dropped };
   });
 }
 
