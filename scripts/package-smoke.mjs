@@ -60,6 +60,22 @@ try {
   fs.mkdirSync(project, { recursive: true });
   git(project, 'init', '-q');
 
+  // Seed local history from a hypothetical previous installation. Upgrading adapter
+  // paths must never rewrite or reset this learning state.
+  const stateDir=path.join(project,'.idleproof');
+  fs.mkdirSync(stateDir,{recursive:true});
+  const statePath=path.join(stateDir,'state.json');
+  const historicalState=JSON.stringify({
+    version:2,
+    project:'upgrade-fixture',
+    createdAt:'2026-01-01T00:00:00Z',
+    updatedAt:'2026-01-02T00:00:00Z',
+    preferences:{level:'adaptive',mode:'learn',sponsorCards:false},
+    sessions:{old:{id:'old',prompt:'PRIVATE_UPGRADE_MARKER',events:[]}},
+    features:{},ledger:{}
+  },null,2)+'\n';
+  fs.writeFileSync(statePath,historicalState,{encoding:'utf8',mode:0o600});
+
   // The support command must work from the exact installed artifact and keep its privacy contract.
   const support = JSON.parse(runIdleProof(supportBin, project, '--json'));
   if (support.schema !== 'idleproof.support-diagnostic.v1') throw new Error('packaged support diagnostic returned an unexpected schema');
@@ -67,14 +83,20 @@ try {
   for (const [key,value] of Object.entries(support.privacy || {})) {
     if (value !== false) throw new Error(`packaged support diagnostic privacy flag is not fail-closed: ${key}`);
   }
-  if (JSON.stringify(support).includes(path.resolve(project))) throw new Error('packaged support diagnostic leaked the absolute project path');
+  const supportSerialized=JSON.stringify(support);
+  if (supportSerialized.includes(path.resolve(project))) throw new Error('packaged support diagnostic leaked the absolute project path');
+  if (supportSerialized.includes('PRIVATE_UPGRADE_MARKER')) throw new Error('packaged support diagnostic leaked historical prompt content');
 
-  // Claude Code: preserve unrelated permissions/hooks and remove only IdleProof on uninstall.
+  // Claude Code: replace stale IdleProof paths, preserve unrelated permissions/hooks,
+  // and leave historical IdleProof state byte-for-byte unchanged.
   fs.mkdirSync(path.join(project, '.claude'), { recursive: true });
   const settingsPath = path.join(project, '.claude', 'settings.local.json');
   fs.writeFileSync(settingsPath, JSON.stringify({
     permissions: { allow: ['Bash(git status:*)'] },
-    hooks: { Stop: [{ hooks: [{ type: 'command', command: 'echo existing' }] }] }
+    hooks: { Stop: [
+      { hooks: [{ type: 'command', command: 'echo existing' }] },
+      { hooks: [{ type: 'command', command: 'node /old-idleproof/idleproof.mjs hook', timeout: 5 }] }
+    ] }
   }, null, 2));
 
   runIdleProof(bin, project, 'install', 'claude');
@@ -82,33 +104,44 @@ try {
   if (installedClaude.permissions?.allow?.[0] !== 'Bash(git status:*)') throw new Error('packaged installer changed existing Claude permissions');
   if (!containsIdleProofHook(installedClaude, ' hook')) throw new Error('packaged installer did not register IdleProof Claude hooks');
   if (!installedClaude.hooks.Stop.some((entry) => entry.hooks?.[0]?.command === 'echo existing')) throw new Error('packaged installer removed an existing Claude hook');
+  if (JSON.stringify(installedClaude).includes('/old-idleproof/')) throw new Error('packaged Claude upgrade left an obsolete IdleProof executable path');
+  if (installedClaude.hooks.Stop.filter((entry)=>containsIdleProofHook(entry,' hook')).length !== 1) throw new Error('packaged Claude upgrade duplicated the IdleProof Stop hook');
+  if (fs.readFileSync(statePath,'utf8') !== historicalState) throw new Error('packaged Claude upgrade changed historical IdleProof state');
 
   runIdleProof(bin, project, 'uninstall', 'claude');
   const uninstalledClaude = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
   if (!uninstalledClaude.hooks?.Stop?.some((entry) => entry.hooks?.[0]?.command === 'echo existing')) throw new Error('packaged uninstall removed a pre-existing Claude hook');
   if (JSON.stringify(uninstalledClaude).includes('idleproof.mjs')) throw new Error('packaged uninstall left IdleProof Claude hooks behind');
+  if (fs.readFileSync(statePath,'utf8') !== historicalState) throw new Error('packaged Claude uninstall changed historical IdleProof state');
 
-  // Codex: preserve an unrelated project hook and keep project-local hook config excluded from Git.
+  // Codex: replace stale paths, preserve an unrelated project hook and keep local hook config excluded from Git.
   fs.mkdirSync(path.join(project, '.codex'), { recursive: true });
   const codexPath = path.join(project, '.codex', 'hooks.json');
   fs.writeFileSync(codexPath, JSON.stringify({
     description: 'existing project hooks',
-    hooks: { Stop: [{ hooks: [{ type: 'command', command: 'echo codex-existing', timeout: 1 }] }] }
+    hooks: { Stop: [
+      { hooks: [{ type: 'command', command: 'echo codex-existing', timeout: 1 }] },
+      { hooks: [{ type:'command', command:'node /old-idleproof/idleproof.mjs hook-codex', timeout:5 }] }
+    ] }
   }, null, 2));
 
   runIdleProof(bin, project, 'install', 'codex');
   const installedCodex = JSON.parse(fs.readFileSync(codexPath, 'utf8'));
   if (!containsIdleProofHook(installedCodex, 'hook-codex')) throw new Error('packaged installer did not register IdleProof Codex hooks');
   if (!installedCodex.hooks.Stop.some((entry) => entry.hooks?.[0]?.command === 'echo codex-existing')) throw new Error('packaged installer removed an existing Codex hook');
+  if (JSON.stringify(installedCodex).includes('/old-idleproof/')) throw new Error('packaged Codex upgrade left an obsolete IdleProof executable path');
+  if (installedCodex.hooks.Stop.filter((entry)=>containsIdleProofHook(entry,'hook-codex')).length !== 1) throw new Error('packaged Codex upgrade duplicated the IdleProof Stop hook');
   const exclude = fs.readFileSync(path.join(project, '.git', 'info', 'exclude'), 'utf8');
   if (!exclude.split(/\r?\n/).some((line) => line.trim() === '.codex/hooks.json')) throw new Error('packaged Codex install did not exclude local hook config from Git');
+  if (fs.readFileSync(statePath,'utf8') !== historicalState) throw new Error('packaged Codex upgrade changed historical IdleProof state');
 
   runIdleProof(bin, project, 'uninstall', 'codex');
   const uninstalledCodex = JSON.parse(fs.readFileSync(codexPath, 'utf8'));
   if (!uninstalledCodex.hooks?.Stop?.some((entry) => entry.hooks?.[0]?.command === 'echo codex-existing')) throw new Error('packaged uninstall removed a pre-existing Codex hook');
   if (JSON.stringify(uninstalledCodex).includes('idleproof.mjs')) throw new Error('packaged uninstall left IdleProof Codex hooks behind');
+  if (fs.readFileSync(statePath,'utf8') !== historicalState) throw new Error('packaged Codex uninstall changed historical IdleProof state');
 
-  console.log(`IdleProof package smoke passed on ${process.platform}/${process.version} · Claude + Codex adapters + support diagnostic`);
+  console.log(`IdleProof package smoke passed on ${process.platform}/${process.version} · upgrade-safe Claude + Codex adapters + support diagnostic`);
 } finally {
   if (tarball) {
     try { fs.rmSync(tarball, { force: true }); } catch {}
