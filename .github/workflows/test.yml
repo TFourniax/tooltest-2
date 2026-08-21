@@ -27,6 +27,7 @@ jobs:
           node-version: ${{ matrix.node }}
       - name: Syntax check critical entrypoints
         run: |
+          node --check ./bin/idleproof.mjs
           node --check ./src/cli.mjs
           node --check ./src/learning-cli.mjs
           node --check ./src/demo.mjs
@@ -46,6 +47,7 @@ jobs:
           node --check ./src/server.mjs
           node --check ./src/local-http-security.mjs
           node --check ./scripts/package-smoke.mjs
+          node --check ./scripts/human-smoke.mjs
           node --check ./scripts/idlebench.mjs
           node --check ./public/app.js
           node --check ./public/feature-review.js
@@ -71,7 +73,7 @@ jobs:
         run: node ./scripts/idlebench.mjs
 
   package-e2e:
-    name: installed package journey (${{ matrix.os }})
+    name: installed package commercial-alpha journey (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
@@ -84,3 +86,5 @@ jobs:
           node-version: 22
       - name: Pack, install, configure and uninstall exact npm artifact
         run: node ./scripts/package-smoke.mjs
+      - name: Exercise first-run, live learning, handoff and restart as a user
+        run: node ./scripts/human-smoke.mjs
