@@ -14,6 +14,7 @@ import { evaluatePolicy, loadPolicy, policyDecisionOutput } from './policy.mjs';
 import { appendProvenanceEvent, buildAgentBom, sha256, verifyProvenanceChain } from './provenance.mjs';
 import { createAttestation } from './attest.mjs';
 import { cachedFeatureModel, rememberFeature } from './feature-memory.mjs';
+import { buildHookDelivery } from './delivery.mjs';
 
 function now() {
   return new Date().toISOString();
@@ -105,6 +106,7 @@ export function processHookLifecycle(event = {}) {
   }
 
   policyDecision = strictRecorderFailClosed(event, policyDecision, provenanceError, cwd);
+  let surfacedExplanation = null;
 
   const state = mutateState(cwd, (state) => {
     const session = ensureSession(state, event);
@@ -186,6 +188,14 @@ export function processHookLifecycle(event = {}) {
       } : null;
     }
 
+    const delivery = buildHookDelivery(cwd, state, session, eventName);
+    if (delivery) {
+      session.lastSurfacedExplanationKey = delivery.key;
+      session.lastExplanationAt = now();
+      session.taskSignals = delivery.signals;
+      surfacedExplanation = delivery.message;
+    }
+
     trimSessions(state);
     return state;
   });
@@ -198,6 +208,12 @@ export function processHookLifecycle(event = {}) {
     catch (error) { attestationError = error.message; }
   }
 
+  const hookOutput = policyDecision
+    ? policyDecisionOutput(event, policyDecision)
+    : surfacedExplanation
+      ? { systemMessage: surfacedExplanation }
+      : null;
+
   return {
     state,
     policyDecision,
@@ -205,7 +221,7 @@ export function processHookLifecycle(event = {}) {
     provenanceError,
     attestation,
     attestationError,
-    hookOutput: policyDecision ? policyDecisionOutput(event, policyDecision) : null
+    hookOutput
   };
 }
 
