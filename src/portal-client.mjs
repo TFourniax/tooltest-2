@@ -3,6 +3,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { PACKAGE_ROOT, projectPaths } from './paths.mjs';
 import { computeMetrics, loadState } from './state.mjs';
+import { validatePortalIngestAck } from './portal-ingest-ack.mjs';
 import { assertPortalSnapshotSafe, buildPortalSnapshot, projectLocalId } from './portal-snapshot.mjs';
 
 const CONFIG_SCHEMA = 'idleproof.portal-config.v1';
@@ -292,17 +293,21 @@ export async function flushPortalQueue(cwd = process.cwd(), { fetchImpl = global
     let body;
     try { body = await boundedResponse(response); }
     catch (error) {
-      recordDeliveryError(cwd, error?.code || 'INVALID_RESPONSE');
-      throw error;
+      const errorCode = error?.code || 'INVALID_RESPONSE';
+      recordDeliveryError(cwd, errorCode);
+      return { configured:true, attempted:delivered + 1, delivered, pending:readQueue(cwd).length, ok:false, httpStatus:response.status, errorCode };
     }
     if (![200, 202].includes(response.status)) {
       const errorCode = body?.error?.code || `HTTP_${response.status}`;
       recordDeliveryError(cwd, errorCode);
       return { configured:true, attempted:delivered + 1, delivered, pending:readQueue(cwd).length, ok:false, httpStatus:response.status, errorCode };
     }
-    if (body?.snapshotId && body.snapshotId !== snapshot.snapshotId) {
-      recordDeliveryError(cwd, 'RESPONSE_MISMATCH');
-      throw portalError('IDLEPROOF_PORTAL_RESPONSE_MISMATCH', 'Portal acknowledged a different snapshotId.');
+    try {
+      validatePortalIngestAck(body, snapshot.snapshotId);
+    } catch (error) {
+      const errorCode = error?.code || 'IDLEPROOF_PORTAL_ACK_INVALID';
+      recordDeliveryError(cwd, errorCode);
+      return { configured:true, attempted:delivered + 1, delivered, pending:readQueue(cwd).length, ok:false, httpStatus:response.status, errorCode };
     }
     removeQueuedSnapshot(cwd, snapshot.snapshotId);
     delivered += 1;
