@@ -1,19 +1,20 @@
 {
   "name": "idleproof",
   "version": "0.10.0",
-  "description": "Local learning and understanding layer for coding agents: learn the task while Claude Code or Codex builds it.",
+  "description": "Local human-understanding layer for coding agents: explain what Claude Code or Codex is building in your actual project.",
   "type": "module",
   "bin": { "idleproof": "./bin/idleproof.mjs" },
   "scripts": {
     "start": "node ./bin/idleproof.mjs serve",
     "demo": "node ./bin/idleproof.mjs demo",
     "test": "node --test",
-    "check": "node ./bin/idleproof.mjs doctor"
+    "check": "node ./bin/idleproof.mjs doctor",
+    "explainbench": "node ./scripts/explainbench.mjs"
   },
   "engines": { "node": ">=20" },
   "keywords": [
-    "coding-agent", "vibe-coding", "claude-code", "codex", "developer-learning",
-    "contextual-learning", "microlearning", "knowledge-debt", "human-in-the-loop", "ai-coding"
+    "coding-agent", "vibe-coding", "claude-code", "codex", "developer-understanding",
+    "code-explanation", "contextual-learning", "knowledge-debt", "human-in-the-loop", "ai-coding"
   ],
   "license": "MIT",
   "files": ["bin", "src", "public", "docs", "spec", "examples", "action.yml", "README.md", "SECURITY.md", "LICENSE"],
