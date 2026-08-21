@@ -27,6 +27,7 @@ export function projectPaths(cwd = process.cwd()) {
     approvals: path.join(dir, 'approvals.json'),
     portalConfig: path.join(dir, 'portal.json'),
     portalQueue: path.join(dir, 'portal-queue.json'),
+    portalQueueLock: path.join(dir, 'portal-queue.lock'),
     policy: path.join(root, 'idleproof.policy.json'),
     claudeSettings: path.join(root, '.claude', 'settings.local.json'),
     codexHooks: path.join(root, '.codex', 'hooks.json')
