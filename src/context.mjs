@@ -3,6 +3,7 @@ import path from 'node:path';
 import { inferFileRole } from './semantics.mjs';
 
 const MAX_CONTEXT_BYTES = 128 * 1024;
+const MAX_RELATED_FILES = 8;
 const cache = new Map();
 
 const TECHNOLOGIES = [
@@ -29,7 +30,7 @@ function safeFile(cwd, candidate) {
   try {
     const stat = fs.statSync(absolute);
     if (!stat.isFile() || stat.size > MAX_CONTEXT_BYTES) return null;
-    return { absolute, stat, relative: path.relative(root, absolute).replaceAll('\\', '/') };
+    return { absolute, stat, relative:path.relative(root, absolute).replaceAll('\\', '/') };
   } catch { return null; }
 }
 
@@ -107,7 +108,7 @@ function chooseSymbol(symbols, prompt) {
   const scored = symbols.map((symbol, index) => {
     const parts = String(symbol).replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
     const hits = parts.filter((part) => tokens.has(part)).length;
-    return { symbol, score: hits * 10 - index * 0.01 };
+    return { symbol, score:hits * 10 - index * 0.01 };
   }).sort((a, b) => b.score - a.score);
   return scored[0].symbol;
 }
@@ -124,15 +125,12 @@ function preferredContextFile(session = {}) {
   return reading ? (live || touched) : (touched || live);
 }
 
-export function extractTaskSignals(cwd = process.cwd(), session = {}) {
-  const file = preferredContextFile(session);
+function inspectTaskFile(cwd, file, prompt) {
   const safe = safeFile(cwd, file);
-  const prompt = String(session.prompt || '');
   if (!safe) {
     const fallback = { file:file || null, symbol:null, route:null, table:null, technologies:technologiesFrom(prompt), dependencies:[], symbols:[] };
     return { ...fallback, fileRole:inferFileRole(file || '', fallback) };
   }
-
   const cacheKey = `${safe.absolute}|${safe.stat.mtimeMs}|${safe.stat.size}|${prompt}`;
   if (cache.has(cacheKey)) return cache.get(cacheKey);
 
@@ -162,6 +160,16 @@ export function extractTaskSignals(cwd = process.cwd(), session = {}) {
   };
   const signal = { ...base, fileRole:inferFileRole(safe.relative, base) };
   cache.set(cacheKey, signal);
-  if (cache.size > 100) cache.delete(cache.keys().next().value);
+  if (cache.size > 160) cache.delete(cache.keys().next().value);
   return signal;
+}
+
+export function extractTaskSignals(cwd = process.cwd(), session = {}) {
+  const prompt = String(session.prompt || '');
+  const currentFile = preferredContextFile(session);
+  const current = inspectTaskFile(cwd, currentFile, prompt);
+  const candidates = unique([currentFile, ...(session.touchedFiles || []).slice(-MAX_RELATED_FILES)]).filter(Boolean).slice(-MAX_RELATED_FILES);
+  const relatedFiles = candidates.map((file) => inspectTaskFile(cwd, file, prompt));
+  const allTechnologies = unique([...(current.technologies || []), ...relatedFiles.flatMap((item) => item.technologies || [])]).slice(0, 16);
+  return { ...current, technologies:allTechnologies, relatedFiles };
 }
