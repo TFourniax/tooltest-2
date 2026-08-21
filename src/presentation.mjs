@@ -68,6 +68,13 @@ function specializedQuestion(card, fallback) {
     if (phase === 'verify') return `After this ${stack} configuration change, where should you check for accidental secret exposure?`;
   }
 
+  if (card.id === 'concurrency') {
+    const target = subject ? ` in ${subject}` : '';
+    if (phase === 'implement') return `For the shared state${target}, what must make the critical state transition atomic under concurrent attempts?`;
+    if (phase === 'verify') return `Which concurrent or race-condition test should challenge the same state transition${target} at the same time?`;
+    if (phase === 'handoff') return `Before accepting this concurrent-state change${target}, what timing or interleaving failure could still violate the invariant?`;
+  }
+
   return fallback;
 }
 
