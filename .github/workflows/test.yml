@@ -33,6 +33,8 @@ jobs:
           node --check ./src/demo.mjs
           node --check ./src/hook.mjs
           node --check ./src/context.mjs
+          node --check ./src/semantics.mjs
+          node --check ./src/explain.mjs
           node --check ./src/feature-model.mjs
           node --check ./src/feature-memory.mjs
           node --check ./src/feature-review.mjs
@@ -50,6 +52,7 @@ jobs:
           node --check ./scripts/human-smoke.mjs
           node --check ./scripts/idlebench.mjs
           node --check ./scripts/idlebench-corpus.mjs
+          node --check ./scripts/explainbench.mjs
           node --check ./public/app.js
           node --check ./public/feature-review.js
       - name: Validate JSON examples and schemas
@@ -63,15 +66,16 @@ jobs:
         run: npm pack --dry-run
 
   quality:
-    name: IdleBench contextual quality gate
+    name: ExplainBench + contextual quality gates
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Run deterministic learning-quality benchmark
+      - name: Run explain-first and optional-learning benchmarks
         run: |
+          node ./scripts/explainbench.mjs
           node ./scripts/idlebench.mjs
           node ./scripts/idlebench-corpus.mjs
 
