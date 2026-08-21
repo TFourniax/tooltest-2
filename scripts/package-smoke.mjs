@@ -48,14 +48,26 @@ try {
   npm(['init', '-y'], { cwd: consumer });
   npm(['install', '--ignore-scripts', '--no-audit', '--no-fund', tarball], { cwd: consumer, timeout: 60000 });
 
-  const bin = path.join(consumer, 'node_modules', 'idleproof', 'bin', 'idleproof.mjs');
+  const packageRoot = path.join(consumer, 'node_modules', 'idleproof');
+  const bin = path.join(packageRoot, 'bin', 'idleproof.mjs');
+  const supportBin = path.join(packageRoot, 'bin', 'idleproof-support.mjs');
   if (!fs.existsSync(bin)) throw new Error('installed IdleProof package does not contain its CLI entrypoint');
+  if (!fs.existsSync(supportBin)) throw new Error('installed IdleProof package does not contain its support diagnostic entrypoint');
   const help = runIdleProof(bin, consumer, '--help');
   if (!/understand what your coding agent is building/i.test(help)) throw new Error(`unexpected installed CLI help:\n${help}`);
 
   const project = path.join(temp, 'project');
   fs.mkdirSync(project, { recursive: true });
   git(project, 'init', '-q');
+
+  // The support command must work from the exact installed artifact and keep its privacy contract.
+  const support = JSON.parse(runIdleProof(supportBin, project, '--json'));
+  if (support.schema !== 'idleproof.support-diagnostic.v1') throw new Error('packaged support diagnostic returned an unexpected schema');
+  if (support.product?.version !== '0.10.0') throw new Error(`packaged support diagnostic version mismatch: ${support.product?.version}`);
+  for (const [key,value] of Object.entries(support.privacy || {})) {
+    if (value !== false) throw new Error(`packaged support diagnostic privacy flag is not fail-closed: ${key}`);
+  }
+  if (JSON.stringify(support).includes(path.resolve(project))) throw new Error('packaged support diagnostic leaked the absolute project path');
 
   // Claude Code: preserve unrelated permissions/hooks and remove only IdleProof on uninstall.
   fs.mkdirSync(path.join(project, '.claude'), { recursive: true });
@@ -96,10 +108,10 @@ try {
   if (!uninstalledCodex.hooks?.Stop?.some((entry) => entry.hooks?.[0]?.command === 'echo codex-existing')) throw new Error('packaged uninstall removed a pre-existing Codex hook');
   if (JSON.stringify(uninstalledCodex).includes('idleproof.mjs')) throw new Error('packaged uninstall left IdleProof Codex hooks behind');
 
-  console.log(`IdleProof package smoke passed on ${process.platform}/${process.version} · Claude + Codex adapters`);
+  console.log(`IdleProof package smoke passed on ${process.platform}/${process.version} · Claude + Codex adapters + support diagnostic`);
 } finally {
   if (tarball) {
     try { fs.rmSync(tarball, { force: true }); } catch {}
   }
-  fs.rmSync(temp, { recursive: true, force: true });
+  try { fs.rmSync(temp, { recursive: true, force: true, maxRetries:10, retryDelay:100 }); } catch {}
 }
