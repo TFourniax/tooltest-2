@@ -12,8 +12,11 @@ import { projectPaths } from './paths.mjs';
 import { classifyCapabilities } from './capabilities.mjs';
 
 const ZERO_HASH = '0'.repeat(64);
-const LOCK_STALE_MS = 5000;
-const LOCK_TIMEOUT_MS = 1000;
+// Provenance is append-only and must not silently lose a hook merely because many
+// agents/subagents report at once. Uncontended acquisition remains immediate; the
+// longer bounded wait only applies during genuine concurrent writer bursts.
+const LOCK_STALE_MS = 15000;
+const LOCK_TIMEOUT_MS = 7500;
 const sleepBuffer = new Int32Array(new SharedArrayBuffer(4));
 const eventCache = new Map();
 const verificationCache = new Map();
@@ -24,7 +27,7 @@ export function canonicalJson(value) { if (value === null || typeof value !== 'o
 export function sha256(value) { const bytes = Buffer.isBuffer(value) ? value : Buffer.from(String(value)); return createHash('sha256').update(bytes).digest('hex'); }
 function readJson(file, fallback) { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch (error) { if (error.code === 'ENOENT') return fallback; throw error; } }
 function writeJson(file, value, mode = 0o600) { fs.mkdirSync(path.dirname(file), { recursive: true }); const temp = `${file}.${process.pid}.${Date.now()}.tmp`; fs.writeFileSync(temp, `${JSON.stringify(value, null, 2)}\n`, { encoding: 'utf8', mode }); fs.renameSync(temp, file); }
-function acquireLock(cwd) { const file = projectPaths(cwd).provenanceLock; fs.mkdirSync(path.dirname(file), { recursive: true }); const started = Date.now(); while (Date.now() - started < LOCK_TIMEOUT_MS) { try { const fd = fs.openSync(file, 'wx', 0o600); fs.writeFileSync(fd, `${process.pid} ${Date.now()}\n`); return () => { try { fs.closeSync(fd); } catch {} try { fs.unlinkSync(file); } catch {} }; } catch (error) { if (error.code !== 'EEXIST') throw error; try { if (Date.now() - fs.statSync(file).mtimeMs > LOCK_STALE_MS) fs.unlinkSync(file); } catch {} sleep(10); } } throw new Error('IdleProof provenance ledger is busy; retry.'); }
+function acquireLock(cwd) { const file = projectPaths(cwd).provenanceLock; fs.mkdirSync(path.dirname(file), { recursive: true }); const started = Date.now(); while (Date.now() - started < LOCK_TIMEOUT_MS) { try { const fd = fs.openSync(file, 'wx', 0o600); fs.writeFileSync(fd, `${process.pid} ${Date.now()}\n`); return () => { try { fs.closeSync(fd); } catch {} try { fs.unlinkSync(file); } catch {} }; } catch (error) { if (error.code !== 'EEXIST') throw error; try { if (Date.now() - fs.statSync(file).mtimeMs > LOCK_STALE_MS) { fs.unlinkSync(file); continue; } } catch {} sleep(10); } } throw new Error('IdleProof provenance ledger stayed busy for 7.5s; refusing to drop a concurrent trace event.'); }
 function relativeTarget(cwd, candidate) { if (!candidate || typeof candidate !== 'string') return null; const root = path.resolve(cwd); const absolute = path.resolve(root, candidate); if (absolute.startsWith(`${root}${path.sep}`)) return path.relative(root, absolute).replaceAll('\\', '/'); return candidate.replaceAll('\\', '/').slice(0, 500); }
 function executable(command = '') { const text = String(command || '').trim(); return text.match(/^(?:env\s+[^\s]+\s+|sudo\s+)?([^\s]+)/)?.[1] || null; }
 
