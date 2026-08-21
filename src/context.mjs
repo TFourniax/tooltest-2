@@ -38,6 +38,26 @@ function unique(values) {
   return [...new Set(values.filter(Boolean))];
 }
 
+function stripCommentEvidence(text = '') {
+  // Comments are useful to humans but are weak evidence for what code actually does. Remove the
+  // common comment-only forms before extracting symbols/routes/tables/technology signals so an old
+  // note cannot silently become an IdleProof "fact". Strings and executable lines stay untouched.
+  const withoutBlocks = String(text)
+    .replace(/\/\*[\s\S]*?\*\//g, '\n')
+    .replace(/<!--[\s\S]*?-->/g, '\n');
+  return withoutBlocks.split(/\r?\n/).map((line) => {
+    const trimmed = line.trimStart();
+    if (trimmed.startsWith('//')) return '';
+    if (trimmed.startsWith('--')) return '';
+    if (trimmed.startsWith('#')) {
+      // Preserve shebangs, Rust attributes and C/C++ preprocessor directives.
+      if (/^#!|^#\[|^#\s*(?:include|define|if|ifdef|ifndef|elif|else|endif|pragma|error)\b/.test(trimmed)) return line;
+      return '';
+    }
+    return line;
+  }).join('\n');
+}
+
 function symbolsFromText(text) {
   const symbols = [];
   const patterns = [
@@ -144,16 +164,17 @@ function inspectTaskFile(cwd, file, prompt) {
     return { ...fallback, fileRole:inferFileRole(safe.relative, fallback) };
   }
 
-  const symbols = symbolsFromText(text);
-  const routes = routesFromText(`${prompt}\n${text}`);
-  const tables = tablesFromText(`${prompt}\n${text}`);
-  const dependencies = dependenciesFromText(text);
+  const evidenceText = stripCommentEvidence(text);
+  const symbols = symbolsFromText(evidenceText);
+  const routes = routesFromText(`${prompt}\n${evidenceText}`);
+  const tables = tablesFromText(`${prompt}\n${evidenceText}`);
+  const dependencies = dependenciesFromText(evidenceText);
   const base = {
     file:safe.relative,
     symbol:chooseSymbol(symbols, prompt),
     route:routes[0] || null,
     table:tables[0] || null,
-    technologies:unique(technologiesFrom(`${prompt}\n${text}`)).slice(0, 12),
+    technologies:unique(technologiesFrom(`${prompt}\n${evidenceText}`)).slice(0, 12),
     dependencies,
     symbols:symbols.slice(0, 12),
     symbolCount:symbols.length
