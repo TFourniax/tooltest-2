@@ -90,8 +90,6 @@ try {
   git(project, 'add', '.');
   git(project, 'commit', '-qm', 'baseline');
 
-  // First-run experience from the exact package: install adapter + background cockpit. No --port is
-  // supplied on purpose; normal users should never fail merely because the legacy default is busy.
   const on = idleproof(bin, project, ['on', '--agent', 'claude', '--no-open'], { timeout:15000 });
   assert.match(on.stdout, /IdleProof learning cockpit:/i);
   assert.match(on.stdout, /Terminal is free/i);
@@ -137,7 +135,7 @@ try {
   let current = await api(base, '/api/state');
   assert.equal(current.response.status, 200);
   assert.equal(current.body?.session?.status, 'active');
-  assert.match(String(current.body?.session?.task || ''), /handleStripeWebhook/i);
+  assert.match(String(current.body?.learning?.task || ''), /handleStripeWebhook/i);
   assert.equal(current.body?.session?.taskSignals?.route, '/api/webhooks/stripe');
   assert.ok((current.body?.session?.taskSignals?.technologies || []).includes('Stripe'));
   assert.ok(current.body?.card, `live task produced no learning card: ${JSON.stringify(current.body?.learning)}`);
@@ -148,7 +146,6 @@ try {
   );
   assert.ok(question.length <= 240, 'live question is too long for the wait-window experience');
 
-  // Browser-like same-origin write must work, and snoozing must not masquerade as a wrong answer.
   const conceptId = current.body.card.id;
   const beforeDebt = current.body.metrics?.debt;
   const snooze = await api(base, '/api/snooze', {
@@ -163,7 +160,6 @@ try {
   assert.ok(current.body?.ledger?.[conceptId]?.snoozedUntil, 'snoozed concept did not persist');
   assert.equal(current.body?.metrics?.debt, beforeDebt, 'snooze unexpectedly changed Knowledge Debt as if it were an answer');
 
-  // The same local server must reject a browser cross-site write.
   const hostile = await api(base, '/api/preferences', {
     method:'POST',
     headers:{ origin:'https://attacker.example', 'sec-fetch-site':'cross-site' },
@@ -193,8 +189,6 @@ try {
   serverPid = null;
   assert.equal(fs.existsSync(path.join(project, '.idleproof', 'server.json')), false);
 
-  // Restart after a completed task: the server gets a new authenticated instance, while the user's
-  // learning memory survives. This models the second-day experience rather than only first launch.
   const restart = idleproof(bin, project, ['start', '--no-open'], { timeout:15000 });
   assert.match(restart.stdout, /IdleProof learning cockpit:/i);
   info = serverInfo(project);
