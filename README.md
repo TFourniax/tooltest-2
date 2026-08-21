@@ -2,130 +2,113 @@
 
 **Your coding agent should make you faster — not make you a stranger to your own product.**
 
-IdleProof is a free, local learning layer for Claude Code, Codex and terminal-based coding agents. It watches the task the agent is performing and turns natural wait windows into short lessons and one-tap questions about **the code being changed right now**.
+IdleProof is the human-understanding layer for agentic software development. It observes what Claude Code or Codex is doing, inspects bounded project-local context, and explains **what the agent is changing, why it matters, where it lives in your project, and what could go wrong**.
+
+The default experience is explanation-first. Technical checks are optional.
 
 ```text
-Claude Code is editing src/stripe.ts
+YOU
+"Receive a widget and store its event"
 
-LIVE TASK LESSON · HTTP & API contracts
-≈ 24 sec · quick lesson
+        ↓ coding agent works
 
-Task: “Make handleStripeWebhook idempotent and verify the Stripe webhook signature.”
-Observed locally:
-  symbol      handleStripeWebhook
-  route       /api/webhooks/stripe
-  technology  Stripe
+IDLEPROOF LOCAL
 
-If Stripe retries /api/webhooks/stripe in handleStripeWebhook,
-what property must this handler preserve?
+What the agent is doing
+The agent is changing the project to carry out
+“Receive a widget and store its event”.
 
-[ Idempotency ]
-[ Font weight ]
-[ Source-map size ]
+Where this happens in your project
+`src/odd/entry.go`
+  observed symbol: `ReceiveWidget`
 
-[ not now · 10 min ]
+`src/odd/storage.py`
+  observed symbol: `save_widget`
+  stored data: `widget_events`
+
+Why it matters
+The first file handles part of the incoming work. The second one
+persists information that can outlive the current process.
+
+What to keep in mind
+If persistence happens twice, fails halfway through, or is retried,
+the stored state still needs to remain correct.
+
+[ check my understanding · optional ]
 ```
 
-The goal is not to slow vibe coding down. The goal is to let people keep the speed of coding agents **without progressively losing the mental model of the software they own**.
+IdleProof keeps the **real project names**. If your file is called `weird_invoice_orchestrator_v7.py`, the explanation calls it `weird_invoice_orchestrator_v7.py`. If the available evidence does not justify a business role, IdleProof says so rather than inventing one.
 
-## The product loop
+---
+
+## Explain now. Remember later.
+
+IdleProof is designed as an open-core product with two distinct jobs.
+
+### IdleProof Local / Community
+
+The immediate product. Runs on the developer's machine.
+
+- observe Claude Code / Codex lifecycle events;
+- capture the current task;
+- inspect bounded project-local files;
+- retain exact filenames, functions/classes, routes, tables and dependencies when observed;
+- explain the current task in plain language;
+- show the current feature map;
+- surface deterministic risks and local evidence;
+- offer optional understanding checks;
+- require no hosted model API for the core path;
+- keep source code local by default.
+
+Local answers:
+
+> **What is my agent doing right now, and what does that mean in my project?**
+
+### IdleProof Portal / Pro
+
+The longitudinal product. The Portal implementation is intentionally outside this Community repository.
+
+It is designed to add:
+
+- persistent project history;
+- Feature and Project Mental Models over time;
+- Knowledge Debt history;
+- understanding drift after a feature changes;
+- spaced recall and optional personalized checks;
+- multi-project and multi-device visibility;
+- team/ownership views;
+- DiffWitness proof history;
+- Debt Ledger history;
+- aggregated change intelligence.
+
+Portal answers:
+
+> **What has my agent built over the last weeks or months, what has changed, what was actually proven, and what do I still understand?**
+
+The public runtime defines a versioned `idleproof.portal-snapshot.v1` boundary for this future sync. The snapshot is structured metadata: the contract explicitly excludes source code, raw diffs and raw agent-event payloads and redacts common secret patterns before data can cross the boundary.
+
+---
+
+## Why explanation comes before the quiz
+
+A vibecoder cannot answer a useful technical question about something they have never been taught.
+
+IdleProof therefore follows this order:
 
 ```text
-agent receives a task
-        ↓
-IdleProof observes task + lifecycle + semantic action + local code context
-        ↓
-detects the concepts that matter now
-        ↓
-selects the highest-value learning opportunity
-        ↓
-adapts depth to the actual wait window
-        ↓
-specializes the question to the current task / symbol / route / table
-        ↓
-one-tap understanding check — or “not now”
-        ↓
-updates the user's project knowledge map
-        ↓
-next task adapts to demonstrated mastery
+1. What is the agent doing?
+2. What does that mean in plain language?
+3. Which exact parts of this project are involved?
+4. What consequence or risk matters?
+5. What should the owner remember?
+6. Optional: check that the explanation was understood.
 ```
 
-IdleProof distinguishes planning, inspection, implementation, verification, recovery, reasoning and handoff. The same concept is therefore taught differently depending on what the agent is actually doing.
+A user who never opens an understanding check should still get the core value of IdleProof.
 
-At handoff, the interaction changes from “learn this while the agent works” to “before you accept this change, verify that you understand this boundary.”
+Not answering a question is not treated as proof that the user failed to understand something.
 
-## Questions about *this* task, not generic coding trivia
-
-IdleProof does not ask generic questions simply because you happen to use JavaScript.
-
-It can ground a lesson in:
-
-- the current task;
-- the coding agent and lifecycle event;
-- semantic activity such as `test.execute`, `build.execute`, `database.migration` or `code.modify`;
-- the file currently being read or changed;
-- locally extracted functions/classes;
-- detected API routes;
-- detected SQL tables;
-- stack signals such as Stripe, Supabase, OAuth/OIDC, PostgreSQL, React, Next.js, Prisma, Redis, Playwright and others;
-- the real Git change at handoff;
-- concepts previously encountered in this project;
-- the user's demonstrated confidence on those concepts;
-- risk, so auth, secrets, migrations and production changes matter more than trivia.
-
-For example, a generic HTTP lesson can become:
-
-```text
-If Stripe retries /api/webhooks/stripe in handleStripeWebhook,
-what property must this handler preserve?
-```
-
-An OAuth lesson can become:
-
-```text
-After OAuth identifies the user in authorizeAdmin,
-where must the permission check for the protected action still happen?
-```
-
-A migration lesson can target the actual table being changed and ask about rolling-deploy compatibility or rollback behavior.
-
-This task specialization is deterministic and local. **The core learning experience does not require a paid LLM API.**
-
-## It uses the time the agent actually gives you
-
-IdleProof does not assume every wait is 30 seconds.
-
-It adapts the lesson to the estimated window:
-
-```text
-~5–12 sec   → quick glance
-~13–35 sec  → quick lesson
->35 sec      → deeper pass + concrete review move
-task done    → handoff check
-```
-
-A short tool call gets a principle plus one tap. A longer build/test can carry a little more explanation and a concrete review action. The product should fit inside the agent workflow, not compete with it.
-
-## “Not now” is not a wrong answer
-
-Learning must not become another notification system users learn to hate.
-
-Every live lesson can be snoozed:
-
-```text
-not now · 10 min
-```
-
-IdleProof then:
-
-- does **not** lower confidence;
-- does **not** count a wrong answer;
-- temporarily removes that concept from selection;
-- immediately offers another relevant concept from the same task if one exists;
-- pauses learning only if every currently useful concept is snoozed;
-- lets the user resume immediately.
-
-The agent keeps working either way.
+---
 
 ## Install
 
@@ -138,161 +121,237 @@ npm install
 npm link
 ```
 
-Then, inside a project you work on with Claude Code or Codex:
+Inside a project:
 
 ```bash
 idleproof on
 ```
 
-IdleProof installs the requested project-local hooks, starts its localhost learning cockpit and returns your terminal immediately. Continue using your coding agent normally.
+IdleProof detects an existing Claude Code or Codex project adapter when possible, installs project-local hooks without replacing unrelated settings, starts the localhost cockpit and returns control to the terminal.
 
-The UI is served on `127.0.0.1`; source code does not need to be sent to an IdleProof service.
+The cockpit binds to `127.0.0.1`. If the default port is occupied, `idleproof on`/`start` can select another local port automatically unless the user explicitly requested a fixed port.
 
-## What a live card knows
+---
 
-A live turn can now produce context like:
+## What IdleProof observes
 
-```json
-{
-  "task": "Make handleStripeWebhook idempotent and verify the Stripe webhook signature",
-  "phase": "implement",
-  "file": "src/stripe.ts",
-  "target": "handleStripeWebhook in src/stripe.ts",
-  "tool": "Bash",
-  "capabilities": ["code.modify"],
-  "signals": {
-    "symbol": "handleStripeWebhook",
-    "route": "/api/webhooks/stripe",
-    "technologies": ["Stripe"]
-  },
-  "source": "claude"
-}
-```
+IdleProof combines evidence rather than depending on one hard-coded list of business cases.
 
-The local context extractor is deliberately narrow: it reads only a project-local current file, refuses paths outside the project root, caps inspected files at 128 KiB, avoids binary files and returns signals rather than source code.
+Current signals include:
 
-The current task also gets a learning journey:
+- the user's real task;
+- agent lifecycle and semantic action (`code.modify`, `test.execute`, `database.migration`, etc.);
+- exact touched-file paths;
+- functions/classes/symbols extracted from several common language families;
+- API/HTTP routes when statically observable;
+- SQL/ORM data surfaces when statically observable;
+- external package/module references;
+- recognized frameworks and services;
+- multiple files touched during the same task;
+- the Git change at handoff;
+- related files in a bounded static Feature Model.
 
-```text
-Authentication & sessions    learn-now   20%
-HTTP & API contracts         building    52%
-Testing strategy             mastered    84%
-```
+The context extractor currently recognizes useful structures across JavaScript/TypeScript, Python, Go, Rust, Java/Kotlin/C#-style declarations, Ruby/PHP-like functions, SQL/config files and other text files. Unknown extensions do not crash the product: IdleProof falls back to exact file-level facts and bounded inference.
 
-This is deliberately not a certification system. It is a memory of exposure and demonstrated recall designed to help the user decide what deserves attention.
+The point is not to claim perfect semantic compilation for every language. The point is to extract enough **verifiable local facts** to explain a very large variety of real tasks without hallucinating a fake architecture.
 
-## Spaced recall instead of repetition
+---
 
-IdleProof keeps a local learning ledger and avoids immediately repeating the same question just because a concept remains important.
+## Facts vs inference
 
-Current review intervals expand with demonstrated confidence, from minutes for a weak concept to roughly a day for a strongly demonstrated one. Current-task relevance, risk, uncertainty, recent exposure and recent answers all influence which concept appears next.
+IdleProof deliberately separates what it observed from what it inferred.
 
-## Knowledge Debt
-
-IdleProof maintains a local cognitive ledger.
-
-A simplified version of the current metric is:
+Examples:
 
 ```text
-Knowledge Debt = Σ(risk × bounded exposure × uncertainty)
+Observed
+- file `src/odd/storage.py`
+- symbol `save_widget`
+- table `widget_events`
+
+Inferred
+- this file is probably close to persistence/data responsibilities
 ```
 
-If your agent repeatedly modifies a high-risk domain that you never successfully review, the debt rises. If you demonstrate understanding over time, cognitive coverage rises.
+If a file called `src/x7/frobnicator.zzz` has no useful structural signal, IdleProof does **not** rename it “payment service”, “controller”, or anything else. It explains that the file was touched and that its exact business responsibility is not supported by the available evidence yet.
 
-The metric is a learning signal — **not proof that a person is competent and not proof that the code is correct**.
+That conservative behavior is part of the product contract.
 
-## Task-aware handoff
+---
 
-When the agent completes a turn, IdleProof captures the real Git change and can surface:
+## Example: a non-hard-coded integration
 
-- concepts touched by the task;
-- which ones are already mastered vs still weak;
-- the files and symbols behind the lesson;
-- a short review action tied to the actual change;
-- deterministic findings worth noticing;
-- the diff digest for the completed change.
+The system does not need a bespoke template for every provider.
 
-The intended final interaction is simple:
+Suppose the project contains:
 
 ```text
-TASK COMPLETE
-
-4 important concepts encountered
-1 mastered
-1 building
-2 still worth reviewing
-
-Next best review: Authentication & sessions
+src/vendor/strange_bridge.mjs
 ```
 
-## Built-in learning domains
+and the file references:
 
-The curated catalog currently covers:
+```text
+@unknown-co/signing-kit
+```
 
-- authentication & authorization;
-- SQL & transactions;
+IdleProof can say that `strange_bridge.mjs` is the observed file, that `signWithVendor` is the symbol being changed, and that the file references `@unknown-co/signing-kit` — even if that vendor has never appeared in IdleProof's built-in technology catalog.
+
+Known concepts such as authentication, concurrency, caching, migrations or API retries add a plain-language explanation when detected, but exact project evidence remains the anchor.
+
+---
+
+## Current Feature Model
+
+IdleProof Local can build a bounded static map of the feature currently being touched:
+
+```text
+actual route/file
+      ↓
+actual imported file
+      ↓
+actual service/data surface
+      ↓
+external dependency / table
+      ↓
+related test
+```
+
+This map is useful context, **not a runtime call graph**. The UI says so explicitly.
+
+Historical feature memory, feature drift, Project Mental Model history and long-term Knowledge Debt belong to the Portal product rather than the Local cockpit.
+
+---
+
+## Optional understanding checks
+
+Checks remain useful after an explanation, especially for someone who wants to learn or retain the system.
+
+They are collapsed by default in the Local cockpit behind actions such as:
+
+```text
+check my understanding · optional
+check this feature map · optional
+```
+
+The current deterministic learning catalog covers areas such as:
+
+- authentication/authorization;
+- persistent data and transactions;
 - migrations;
-- async JavaScript;
+- asynchronous work;
 - React state/effects;
-- TypeScript boundaries;
+- TypeScript/runtime boundaries;
 - testing;
 - secrets;
-- HTTP/API contracts;
+- HTTP/API behavior;
 - dependencies;
-- Git/change boundaries;
+- change scope;
 - CI/CD;
-- concurrency;
+- concurrency/shared state;
 - accessibility;
 - caching.
 
-Each domain has phase-aware applied questions for implementation, verification and handoff in addition to the underlying concept card.
+These concepts enrich the explanation; they do not define the universe of tasks IdleProof can describe.
 
-## Under the hood
+---
 
-IdleProof already contains more infrastructure than the learning UI needs because reliable context matters. These primitives stay secondary to the free learning experience:
+## Privacy and the Portal boundary
 
-- Claude Code and Codex lifecycle adapters;
-- semantic capability normalization;
-- local runtime safety policy with allow / observe / ask / deny;
-- a privacy-conscious append-only Flight Recorder;
-- hash-chain integrity checks;
-- local signed change evidence;
-- Agent Bill of Materials;
-- CODEOWNERS-aware responsibility mapping;
-- policy replay.
+Source code is processed locally by the Community runtime.
 
-Those systems help IdleProof know *what the agent is actually doing* and protect high-risk boundaries. They are not the primary product promise.
+The portable provenance trace intentionally stores narrow metadata/digests rather than raw prompt/tool payloads. Local state can retain compact task context because that is needed to explain the project to its owner.
 
-## Privacy
+For future Portal synchronization, the Community runtime already defines a privacy-oriented snapshot contract with fields for task summary, exact project-relative paths, feature surfaces, proof digest and understanding metrics. It explicitly declares:
 
-The learning cockpit is local-only by default.
+```json
+{
+  "sourceCodeIncluded": false,
+  "rawDiffIncluded": false,
+  "rawAgentEventsIncluded": false,
+  "secretsRedacted": true
+}
+```
 
-The provenance recorder intentionally avoids storing raw prompt/tool payloads in its portable trace. It retains narrow metadata and digests instead. The local learning state may retain a compact task prompt because that context is what makes the lesson useful; it remains in the project's local `.idleproof` state.
+The Portal backend should accept this narrow contract rather than requiring repository source ingestion by default.
 
-Local task-signal extraction does not upload source code. See `SECURITY.md` for the exact trust boundaries.
+See `SECURITY.md` and `spec/idleproof-portal-snapshot-v1.schema.json` for boundaries.
 
-## Free by design
+---
 
-IdleProof is MIT-licensed and designed to work without a hosted model bill. The distribution goal is simple: it should be easy enough that a vibecoder can install it once and then forget about the plumbing.
+## DiffWitness and Debt Ledger
 
-IdleProof's own job is narrow:
+IdleProof explains. DiffWitness proves.
 
-> **Learn what your coding agent is building while it builds it.**
+```text
+IdleProof
+"This change modifies `reserveInventory` and stored reservations.
+The important risk is two buyers changing the same stock at once."
 
-## Current limits
+DiffWitness
+"Here is the executable evidence showing which mutations are necessary
+for the discriminating behavior we tested."
 
-IdleProof can only observe lifecycle surfaces exposed by the underlying coding agent. It is not a sandbox, SAST replacement, formal verifier, malware detector, or proof that generated code is safe.
+Debt Ledger
+"Here are the obligations this change introduced or left unresolved."
+```
 
-Concept detection and free-form specialization are still intentionally heuristic/curated rather than unrestricted model generation. That keeps the default path local, deterministic and zero-cost while the project develops richer task decomposition and adaptive learning.
+The long-term Portal is designed to join those three views by stable change identity without turning explanation into proof or proof into a vague AI review.
 
-## Development
+---
+
+## Reliability boundaries
+
+IdleProof is intentionally fail-safe and bounded:
+
+- project-local path traversal is refused;
+- inspected files have size/count limits;
+- binary files are skipped;
+- localhost HTTP writes enforce Host/Origin/cross-site protections;
+- local state uses atomic writes and last-known-good recovery;
+- stale server/PID records are checked before processes are acted on;
+- hook installation preserves unrelated Claude/Codex settings;
+- provenance is hash-chained and tampering is visible;
+- static explanations never claim runtime proof;
+- unfamiliar projects degrade to exact observed facts rather than invented certainty.
+
+IdleProof is not an OS sandbox, SAST replacement, formal verifier or guarantee that generated code is correct. DiffWitness and real tests cover a different trust question.
+
+---
+
+## Quality gates
+
+The project is tested as a product, not only as a library.
+
+Current gates include:
+
+- Node 20/22/24 on Linux, macOS and Windows;
+- exact `npm pack` artifact installation/uninstallation;
+- first-run Local journey with real CLI hooks;
+- port collision and crash/restart recovery;
+- state/provenance corruption recovery behavior;
+- ExplainBench: 30 cross-domain scenarios including unusual filenames, unknown SDKs, Go/Rust/Java/C++/Swift-style cases, jobs, queues, migrations, infra, storage, search, uploads, CLI and config;
+- explicit anti-hallucination assertions;
+- contextual learning-quality checks;
+- privacy-contract tests for Portal snapshots.
+
+Run locally:
 
 ```bash
 npm test
+node scripts/explainbench.mjs
+node scripts/idlebench.mjs
+node scripts/idlebench-corpus.mjs
 npm pack --dry-run
 ```
 
-CI validates Node.js 20 and 22. The current suite covers contextual learning, semantic activity, local code signals, wait-window adaptation, task specialization, spaced recall, snoozing, hooks, provenance, policy, packaging and the localhost cockpit.
+---
+
+## Repository / commercial boundary
+
+This repository contains the IdleProof Local / Community runtime and public interoperability contracts. It is currently MIT-licensed.
+
+The hosted Portal, longitudinal intelligence and commercial service implementation are intended to live in a separate proprietary codebase. Keeping that implementation separate is deliberate: Community should remain independently useful while paid value comes from durable project memory, longitudinal intelligence and hosted/team workflows rather than crippling the immediate local explanation.
 
 ## License
 
