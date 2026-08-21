@@ -12,6 +12,7 @@ import {
   queuePortalSnapshot,
   writePortalConfig
 } from '../src/portal-client.mjs';
+import { __portalTest } from '../src/portal-snapshot.mjs';
 import { projectPaths } from '../src/paths.mjs';
 
 function fixture() {
@@ -114,6 +115,7 @@ test('queued snapshots flush idempotently without persisting the enrollment toke
     assert.equal(seen[0].options.headers.authorization, `Bearer ${token}`);
     assert.equal(seen[0].body.snapshotId, snapshot.snapshotId);
     assert.equal(fs.existsSync(queuePath), false);
+    assert.equal(portalStatus(cwd).healthy, true);
   } finally { cleanup(cwd); }
 });
 
@@ -131,6 +133,45 @@ test('network failure fails open for the coding agent and preserves the bounded 
     assert.equal(result.errorCode, 'NETWORK_ERROR');
     assert.equal(result.pending, 1);
     assert.equal(JSON.parse(fs.readFileSync(projectPaths(cwd).portalQueue, 'utf8')).length, 1);
+    const status = portalStatus(cwd);
+    assert.equal(status.healthy, false);
+    assert.equal(status.lastErrorCode, 'NETWORK_ERROR');
+    assert.equal(status.skippedSnapshots, 0);
+  } finally { cleanup(cwd); }
+});
+
+test('queue saturation never silently evicts history and marks Portal delivery degraded', () => {
+  const cwd = fixture();
+  try {
+    writePortalConfig(cwd, { endpoint:'http://127.0.0.1:8787/api/v1/snapshots', token:`ipd_${'f'.repeat(32)}` });
+    const base = buildCurrentPortalSnapshot(cwd);
+    const fullQueue = Array.from({ length:200 }, (_, index) => {
+      const item = structuredClone(base);
+      item.task.summary = `Offline task ${index}`;
+      item.snapshotId = __portalTest.stableSnapshotId(item);
+      return item;
+    });
+    const paths = projectPaths(cwd);
+    fs.writeFileSync(paths.portalQueue, `${JSON.stringify(fullQueue, null, 2)}\n`, { encoding:'utf8', mode:0o600 });
+
+    const overflow = structuredClone(base);
+    overflow.task.summary = 'The task that must not silently replace history';
+    overflow.snapshotId = __portalTest.stableSnapshotId(overflow);
+    const result = queuePortalSnapshot(cwd, overflow);
+    assert.equal(result.queued, false);
+    assert.equal(result.reason, 'queue-full');
+    assert.equal(result.pending, 200);
+    assert.equal(result.skippedSnapshots, 1);
+
+    const persisted = JSON.parse(fs.readFileSync(paths.portalQueue, 'utf8'));
+    assert.equal(persisted.length, 200);
+    assert.deepEqual(persisted.map((item) => item.snapshotId), fullQueue.map((item) => item.snapshotId));
+    assert.equal(persisted.some((item) => item.snapshotId === overflow.snapshotId), false);
+    const status = portalStatus(cwd);
+    assert.equal(status.healthy, false);
+    assert.equal(status.degraded, true);
+    assert.equal(status.skippedSnapshots, 1);
+    assert.equal(status.lastErrorCode, 'QUEUE_FULL');
   } finally { cleanup(cwd); }
 });
 
