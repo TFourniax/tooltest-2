@@ -37,6 +37,8 @@ jobs:
           node --check ./src/explain.mjs
           node --check ./src/edition.mjs
           node --check ./src/portal-snapshot.mjs
+          node --check ./src/portal-ingest-ack.mjs
+          node --check ./src/portal-client.mjs
           node --check ./src/feature-model.mjs
           node --check ./src/feature-memory.mjs
           node --check ./src/feature-review.mjs
@@ -61,7 +63,7 @@ jobs:
           node --check ./public/feature-review.js
       - name: Validate JSON examples and schemas
         run: |
-          node -e "for (const f of ['examples/idleproof.policy.json','spec/idleproof-policy.schema.json','spec/agentic-development-provenance.schema.json','spec/change-envelope-v1.schema.json','spec/idleproof-portal-snapshot-v1.schema.json']) JSON.parse(require('fs').readFileSync(f,'utf8'))"
+          node -e "for (const f of ['examples/idleproof.policy.json','spec/idleproof-policy.schema.json','spec/agentic-development-provenance.schema.json','spec/change-envelope-v1.schema.json','spec/idleproof-portal-snapshot-v1.schema.json','spec/idleproof-portal-ingest-ack-v1.schema.json']) JSON.parse(require('fs').readFileSync(f,'utf8'))"
       - name: Smoke CLI
         run: node ./bin/idleproof.mjs --help
       - name: Run unit and product-journey tests
