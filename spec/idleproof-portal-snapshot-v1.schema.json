@@ -16,8 +16,28 @@
       },
       "additionalProperties": false
     },
-    "task": { "type": "object" },
-    "change": { "type": "object" },
+    "task": {
+      "type": "object",
+      "required": ["summary", "promptDigest", "promptChars", "source", "status", "changed"],
+      "properties": {
+        "summary": { "type": ["string", "null"], "maxLength": 300 },
+        "promptDigest": { "type": ["string", "null"], "pattern": "^sha256:[a-f0-9]{64}$" },
+        "promptChars": { "type": "integer", "minimum": 0 },
+        "source": { "type": "string", "maxLength": 40 },
+        "status": { "type": ["string", "null"] },
+        "changed": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "change": {
+      "type": "object",
+      "required": ["changeId", "diffSha256"],
+      "properties": {
+        "changeId": { "type": ["string", "null"], "pattern": "^dwchg_[a-f0-9]{24}$" },
+        "diffSha256": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" }
+      },
+      "additionalProperties": false
+    },
     "explanation": { "type": ["object", "null"] },
     "feature": { "type": ["object", "null"] },
     "understanding": { "type": "object" },
@@ -25,11 +45,12 @@
     "files": { "type": "array", "items": { "type": "string", "maxLength": 300 }, "maxItems": 40 },
     "privacy": {
       "type": "object",
-      "required": ["sourceCodeIncluded", "rawDiffIncluded", "rawAgentEventsIncluded", "secretsRedacted"],
+      "required": ["sourceCodeIncluded", "rawDiffIncluded", "rawAgentEventsIncluded", "rawPromptIncluded", "secretsRedacted"],
       "properties": {
         "sourceCodeIncluded": { "const": false },
         "rawDiffIncluded": { "const": false },
         "rawAgentEventsIncluded": { "const": false },
+        "rawPromptIncluded": { "const": false },
         "secretsRedacted": { "const": true }
       },
       "additionalProperties": false
