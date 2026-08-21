@@ -55,6 +55,7 @@ jobs:
           node --check ./scripts/idlebench.mjs
           node --check ./scripts/idlebench-corpus.mjs
           node --check ./scripts/explainbench.mjs
+          node --check ./scripts/explain-torturebench.mjs
           node --check ./public/app.js
           node --check ./public/feature-review.js
       - name: Validate JSON examples and schemas
@@ -68,7 +69,7 @@ jobs:
         run: npm pack --dry-run
 
   quality:
-    name: ExplainBench + contextual quality gates
+    name: ExplainBench + adversarial contextual quality gates
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -78,6 +79,7 @@ jobs:
       - name: Run explain-first and optional-learning benchmarks
         run: |
           node ./scripts/explainbench.mjs
+          node ./scripts/explain-torturebench.mjs
           node ./scripts/idlebench.mjs
           node ./scripts/idlebench-corpus.mjs
 
