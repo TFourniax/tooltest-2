@@ -37,3 +37,22 @@ test('unknown extension still returns bounded metadata instead of crashing', () 
   assert.equal(s.file,'src/custom/frob.logic');
   assert.ok(s.fileRole);
 });
+
+test('inspects multiple touched files and keeps file-specific facts separated', () => {
+  const cwd=fs.mkdtempSync(path.join(os.tmpdir(),'idleproof-context-multi-'));
+  try {
+    fs.mkdirSync(path.join(cwd,'src','odd'),{recursive:true});
+    fs.writeFileSync(path.join(cwd,'src','odd','entry.go'),`package odd\nfunc ReceiveWidget() {}`);
+    fs.writeFileSync(path.join(cwd,'src','odd','storage.py'),`def save_widget():\n    db.query(\"INSERT INTO widget_events(id) VALUES (1)\")\n`);
+    const s=extractTaskSignals(cwd,{
+      prompt:'Receive a widget and store the event',
+      currentResource:'src/odd/entry.go', touchedFiles:['src/odd/storage.py','src/odd/entry.go'], currentCapabilities:['code.modify']
+    });
+    const entry=s.relatedFiles.find((item)=>item.file==='src/odd/entry.go');
+    const storage=s.relatedFiles.find((item)=>item.file==='src/odd/storage.py');
+    assert.equal(entry.symbol,'ReceiveWidget');
+    assert.equal(storage.symbol,'save_widget');
+    assert.equal(storage.table,'widget_events');
+    assert.equal(s.file,'src/odd/entry.go');
+  } finally { fs.rmSync(cwd,{recursive:true,force:true}); }
+});
