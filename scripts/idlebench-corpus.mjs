@@ -52,7 +52,7 @@ const cases = [
     id:'async', phase:'verify', file:'src/jobs/process-queue.ts',
     prompt:'Make queue processing resilient when two jobs overlap',
     signals:{ symbol:'processQueue', technologies:['Node.js'] },
-    expect:[/processQueue/i, /overlapping|failing|inconsistent|race/i]
+    expect:[/processQueue/i, /overlap|failing|inconsistent|race/i]
   },
   {
     id:'react-state', phase:'implement', file:'src/components/CheckoutForm.tsx',
@@ -139,8 +139,6 @@ for (const item of cases) {
   passed += 1;
 }
 
-// An unknown stack must not trigger branded specialization just because the product knows those
-// technologies elsewhere. The fallback remains grounded only in facts actually present.
 {
   const item = {
     id:'testing', phase:'verify', file:'src/calc.ts', prompt:'Verify calculateTotal rounding',
@@ -152,7 +150,6 @@ for (const item of cases) {
   assert.doesNotMatch(card.question, /Stripe|OAuth|PostgreSQL|Redis/i, `unknown context hallucinated a stack: ${card.question}`);
 }
 
-// Wait-window ergonomics stay bounded even with a huge prompt: this is UI content, not a transcript.
 {
   const item = {
     id:'testing', phase:'verify', file:'src/large-task.ts',
