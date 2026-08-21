@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { processHookLifecycle } from '../src/hook.mjs';
+import { buildReceipt, processHookLifecycle } from '../src/hook.mjs';
 import { loadState, computeMetrics } from '../src/state.mjs';
 import { buildPortalSnapshot, assertPortalSnapshotSafe, __portalTest } from '../src/portal-snapshot.mjs';
 import { extractTaskSignals } from '../src/context.mjs';
@@ -22,11 +23,12 @@ function repo() {
   return cwd;
 }
 
-test('multi-megabyte prompt and tool payload remain bounded and never enter provenance or Portal raw',()=>{
+test('multi-megabyte prompt and tool payload remain bounded while exact one-way provenance survives',()=>{
   const cwd=repo();
   const marker='SHOULD_NEVER_ENTER_RECORDER_OR_PORTAL_7f4e';
   const hugePrompt=`Change processOpaque safely. ${marker} `+'p'.repeat(2_000_000);
   const hugeToolContent=`${marker}\n`+'x'.repeat(2_000_000);
+  const expectedPromptSha=createHash('sha256').update(hugePrompt).digest('hex');
   const session_id='huge-input-session';
   try {
     processHookLifecycle({cwd,session_id,source:'claude',hook_event_name:'UserPromptSubmit',prompt:hugePrompt});
@@ -39,6 +41,8 @@ test('multi-megabyte prompt and tool payload remain bounded and never enter prov
     const session=state.sessions[session_id];
     assert.ok(session);
     assert.ok(session.prompt.length<=1200,`durable prompt retention grew to ${session.prompt.length}`);
+    assert.equal(session.promptChars,hugePrompt.length);
+    assert.equal(session.promptSha256,expectedPromptSha);
     assert.ok((session.events||[]).every((event)=>!JSON.stringify(event).includes(marker)),'raw marker leaked into durable session events');
 
     const eventsPath=path.join(cwd,'.idleproof','events.jsonl');
@@ -49,6 +53,12 @@ test('multi-megabyte prompt and tool payload remain bounded and never enter prov
     assert.equal(records.length,2);
     assert.ok(records.every((record)=>/^([a-f0-9]{64})$/.test(record.event.payloadDigest)),'payload digest missing');
     assert.ok(records.some((record)=>record.event.inputBytes>2_000_000),'provenance lost the fact that a huge payload was observed');
+
+    const receipt=buildReceipt(cwd);
+    assert.equal(receipt.session.intent.sha256,expectedPromptSha);
+    assert.equal(receipt.session.intent.chars,hugePrompt.length);
+    assert.equal(receipt.session.intent.retainedChars,session.prompt.length);
+    assert.ok(!JSON.stringify(receipt).includes(marker),'raw prompt leaked into receipt');
 
     const taskSignals=extractTaskSignals(cwd,session);
     const explanation=buildPlainExplanation({session:{...session,taskSignals},phase:'implement'});
@@ -61,8 +71,8 @@ test('multi-megabyte prompt and tool payload remain bounded and never enter prov
     const serialized=JSON.stringify(snapshot);
     assert.ok(!serialized.includes(marker),'raw marker leaked into Portal snapshot');
     assert.ok(Buffer.byteLength(serialized,'utf8')<__portalTest.MAX_SNAPSHOT_BYTES);
-    assert.equal(snapshot.task.promptChars,session.prompt.length,'Portal reports bounded local task context rather than pretending to retain raw prompt size');
-    assert.match(snapshot.task.promptDigest,/^sha256:[a-f0-9]{64}$/);
+    assert.equal(snapshot.task.promptChars,hugePrompt.length);
+    assert.equal(snapshot.task.promptDigest,`sha256:${expectedPromptSha}`);
   } finally {
     fs.rmSync(cwd,{recursive:true,force:true,maxRetries:12,retryDelay:100});
   }
