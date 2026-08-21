@@ -7,7 +7,6 @@ import { execFileSync } from 'node:child_process';
 const TRANSIENT_DIRS = new Set(['__pycache__', '.pytest_cache', '.mypy_cache', '.ruff_cache', '.hypothesis']);
 const TRANSIENT_SUFFIXES = new Set(['.pyc', '.pyo']);
 const TRANSIENT_FILES = new Set(['.coverage']);
-const LOCAL_PRODUCT_PATHS = new Set(['.claude/settings.local.json', '.codex/hooks.json']);
 
 function git(cwd, args, { env = process.env, input = undefined, timeout = 5000 } = {}) {
   return execFileSync('git', args, {
@@ -37,12 +36,19 @@ function normalized(relative = '') {
   return String(relative).replaceAll('\\', '/').replace(/^\.\//, '');
 }
 
+function repoRoot(cwd) {
+  const root = git(cwd, ['rev-parse', '--show-toplevel']).trim();
+  if (!root) throw new Error('repository root unavailable');
+  return path.resolve(root);
+}
+
 function isTransientUntracked(relative) {
   const value = normalized(relative);
   if (!value) return false;
-  if (value === '.idleproof' || value.startsWith('.idleproof/')) return true;
-  if (LOCAL_PRODUCT_PATHS.has(value)) return true;
-  const parts = value.split('/');
+  const parts = value.split('/').filter(Boolean);
+  if (parts.includes('.idleproof')) return true;
+  if (parts.length >= 2 && parts.at(-2) === '.claude' && parts.at(-1) === 'settings.local.json') return true;
+  if (parts.length >= 2 && parts.at(-2) === '.codex' && parts.at(-1) === 'hooks.json') return true;
   if (parts.some((part) => TRANSIENT_DIRS.has(part))) return true;
   const name = parts.at(-1) || '';
   if (TRANSIENT_FILES.has(name)) return true;
@@ -51,7 +57,8 @@ function isTransientUntracked(relative) {
 }
 
 function repositoryFingerprint(cwd) {
-  const roots = git(cwd, ['rev-list', '--max-parents=0', 'HEAD'])
+  const root=repoRoot(cwd);
+  const roots = git(root, ['rev-list', '--max-parents=0', 'HEAD'])
     .split(/\r?\n/)
     .map((value) => value.trim())
     .filter(Boolean)
@@ -71,7 +78,8 @@ export function changeId({ repository, baseTree, candidateTree }) {
 }
 
 function meaningfulDirty(cwd) {
-  const raw = git(cwd, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
+  const root=repoRoot(cwd);
+  const raw = git(root, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
   const entries = raw.split('\0').filter(Boolean);
   for (const entry of entries) {
     const status = entry.slice(0, 2);
@@ -83,10 +91,11 @@ function meaningfulDirty(cwd) {
 }
 
 function snapshotTree(cwd) {
-  const head = git(cwd, ['rev-parse', '--verify', 'HEAD']).trim();
+  const root=repoRoot(cwd);
+  const head = git(root, ['rev-parse', '--verify', 'HEAD']).trim();
   if (!head) throw new Error('repository has no HEAD commit');
-  const headTree = git(cwd, ['rev-parse', '--verify', 'HEAD^{tree}']).trim();
-  const untracked = git(cwd, ['ls-files', '--others', '--exclude-standard', '-z'])
+  const headTree = git(root, ['rev-parse', '--verify', 'HEAD^{tree}']).trim();
+  const untracked = git(root, ['ls-files', '--others', '--exclude-standard', '-z'])
     .split('\0')
     .filter(Boolean)
     .filter(isTransientUntracked);
@@ -94,26 +103,30 @@ function snapshotTree(cwd) {
   const indexFile = path.join(tempDir, 'index');
   const env = { ...process.env, GIT_INDEX_FILE: indexFile };
   try {
-    git(cwd, ['read-tree', head], { env });
-    git(cwd, ['add', '-A', '--', '.'], { env, timeout: 15000 });
+    git(root, ['read-tree', head], { env });
+    // Snapshot the entire repository, not only the package/subdirectory where IdleProof was started.
+    // This keeps change-envelope identity byte-compatible with DiffWitness for monorepo tasks that
+    // legitimately touch sibling packages or root-level files.
+    git(root, ['add', '-A', '--', '.'], { env, timeout: 15000 });
     for (const relative of [...new Set(untracked)]) {
-      try { git(cwd, ['reset', '--quiet', head, '--', normalized(relative)], { env }); }
+      try { git(root, ['reset', '--quiet', head, '--', normalized(relative)], { env }); }
       catch { /* best-effort exclusion; write-tree still remains fail-closed below */ }
     }
-    const tree = git(cwd, ['write-tree'], { env }).trim();
+    const tree = git(root, ['write-tree'], { env }).trim();
     if (!tree) throw new Error('Git did not produce a worktree tree');
     return { tree, sha: tree === headTree ? head : null, head, headTree, dirty: tree !== headTree };
   } finally {
-    fs.rmSync(tempDir, { recursive: true, force: true });
+    fs.rmSync(tempDir, { recursive: true, force: true, maxRetries: 8, retryDelay: 50 });
   }
 }
 
 export function captureBaselineIdentity(cwd = process.cwd()) {
   try {
-    const head = git(cwd, ['rev-parse', '--verify', 'HEAD']).trim();
-    const tree = git(cwd, ['rev-parse', '--verify', 'HEAD^{tree}']).trim();
-    const repository = repositoryFingerprint(cwd);
-    if (meaningfulDirty(cwd)) {
+    const root=repoRoot(cwd);
+    const head = git(root, ['rev-parse', '--verify', 'HEAD']).trim();
+    const tree = git(root, ['rev-parse', '--verify', 'HEAD^{tree}']).trim();
+    const repository = repositoryFingerprint(root);
+    if (meaningfulDirty(root)) {
       return {
         available: false,
         reason: 'preexisting-dirty-worktree',
@@ -159,4 +172,4 @@ export function finalizeChangeIdentity(cwd = process.cwd(), baseline = null) {
   }
 }
 
-export const __test = { canonical, isTransientUntracked, repositoryFingerprint };
+export const __test = { canonical, isTransientUntracked, repositoryFingerprint, repoRoot };
