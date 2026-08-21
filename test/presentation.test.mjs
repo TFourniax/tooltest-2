@@ -32,7 +32,7 @@ test('glance mode stays concise while preserving the Explain-first certainty bou
   assert.doesNotMatch(result.lesson, /^Authentication proves identity\.$/);
   assert.match(result.question, /changes authorizeAdmin in src\/auth\/session\.ts/);
   assert.doesNotMatch(result.question, /changes the code in authorizeAdmin/);
-  assert.ok(result.why.length <= 220);
+  assert.ok(result.why.length <= 145);
 });
 
 test('deep mode adds meaningful explanation instead of reverting to a canned review sentence', () => {

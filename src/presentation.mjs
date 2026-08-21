@@ -119,7 +119,7 @@ export function presentLearningCard(card, session = {}) {
     return {
       ...card,
       question,
-      why:compact(explainWhy, 220),
+      why:compact(explainWhy, 145),
       lesson:explainLesson,
       explanation,
       seconds:Math.max(5, Math.min(12, budget || 10)),
