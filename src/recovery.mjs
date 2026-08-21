@@ -40,7 +40,10 @@ export function inspectRecovery(cwd=process.cwd()) {
   const backup=readCandidate(paths.stateBackup);
   let action='none';
   let recoverable=false;
-  if (primary.valid) {
+  if (!primary.present && !backup.present) {
+    action='none';
+    recoverable=true;
+  } else if (primary.valid) {
     action='none';
     recoverable=true;
   } else if (primary.reason==='newer-version') {
