@@ -106,9 +106,16 @@ function provenanceSummary(cwd) {
 function portalSummary(cwd) {
   try {
     const status=portalStatus(cwd);
-    return { configured:Boolean(status.configured), healthy:Boolean(status.healthy), pending:Number.isInteger(status.pending) ? status.pending : null };
+    return {
+      configured:Boolean(status.configured),
+      healthy:Boolean(status.healthy),
+      degraded:Boolean(status.degraded),
+      pending:Number.isInteger(status.pending) ? status.pending : null,
+      skippedSnapshots:Number.isInteger(status.skippedSnapshots) ? status.skippedSnapshots : null,
+      lastErrorCode:typeof status.lastErrorCode==='string' ? status.lastErrorCode.slice(0,80) : null
+    };
   } catch {
-    return { configured:null, healthy:false, pending:null };
+    return { configured:null, healthy:false, degraded:true, pending:null, skippedSnapshots:null, lastErrorCode:'STATUS_UNAVAILABLE' };
   }
 }
 
