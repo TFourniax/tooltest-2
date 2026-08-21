@@ -84,5 +84,36 @@ async function poll() {
   }
 }
 
+// Explain-first UX: a user should receive the explanation without being forced into a quiz.
+// The main app keeps the check up to date; this layer only decides whether it is visible.
+function installOptionalLiveCheck() {
+  const learningCard = document.getElementById('learningCard');
+  const liveQuestion = document.getElementById('question');
+  const liveChallenge = liveQuestion?.closest('.challenge');
+  const lesson = document.getElementById('cardLesson');
+  if (!learningCard || !liveQuestion || !liveChallenge || !lesson) return;
+
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'text-button';
+  button.id = 'revealUnderstandingCheck';
+  button.textContent = 'check my understanding · optional';
+  lesson.insertAdjacentElement('afterend', button);
+
+  let key = '';
+  let revealed = false;
+  const sync = () => {
+    const nextKey = liveQuestion.textContent.trim();
+    if (nextKey !== key) { key = nextKey; revealed = false; }
+    const available = Boolean(nextKey && document.querySelector('#answers .answer'));
+    liveChallenge.hidden = available && !revealed;
+    button.hidden = !available || revealed;
+  };
+  button.addEventListener('click', () => { revealed = true; sync(); liveQuestion.focus?.(); });
+  new MutationObserver(sync).observe(liveChallenge, { childList:true, subtree:true, characterData:true });
+  sync();
+}
+
+installOptionalLiveCheck();
 poll();
 setInterval(poll, 5000);
