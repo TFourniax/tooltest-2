@@ -39,6 +39,8 @@ jobs:
           node --check ./src/portal-snapshot.mjs
           node --check ./src/portal-ingest-ack.mjs
           node --check ./src/portal-client.mjs
+          node --check ./src/portal-assurance.mjs
+          node --check ./src/portal-cli.mjs
           node --check ./src/feature-model.mjs
           node --check ./src/feature-memory.mjs
           node --check ./src/feature-review.mjs
