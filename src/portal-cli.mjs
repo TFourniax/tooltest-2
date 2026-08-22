@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { buildCurrentPortalSnapshot, disconnectPortal, flushPortalQueue, portalStatus, syncPortal, writePortalConfig } from './portal-client.mjs';
+import { readChangeEnvelope, syncPortalAssurance } from './portal-assurance.mjs';
 
 function argValue(args, name) {
   const i = args.indexOf(name);
@@ -15,11 +16,13 @@ export function portalCliHelp() {
     '  idleproof portal status [--json]',
     '  idleproof portal snapshot',
     '  idleproof portal sync [--json]',
+    '  idleproof portal assurance --envelope FILE [--json]',
     '  idleproof portal disconnect',
     '',
     'Portal config is project-local under .idleproof/, excluded from software change identity.',
     'Enrollment tokens are never accepted as command-line arguments, avoiding shell-history/process-list leaks.',
     'A configured enrollment token can only submit privacy-safe snapshots to one Portal project.',
+    'DiffWitness assurance is accepted only when its exact dwchg_ identity matches the completed IdleProof change.',
     'If offline delivery ever loses history because its bounded queue is saturated, status becomes explicitly degraded rather than hiding the gap.'
   ].join('\n');
 }
@@ -103,6 +106,20 @@ export async function runPortalCli(args, { cwd = process.cwd() } = {}) {
     else if (result.ok) console.log(`✓ Portal sync complete · ${result.delivered} delivered · ${result.pending} pending · ${result.snapshotId}${result.degraded ? ` · DEGRADED (${result.skippedSnapshots} unretained)` : ''}`);
     else console.log(`Portal sync deferred · ${result.errorCode || result.httpStatus || 'delivery failed'} · ${result.pending} snapshot(s) remain safely queued.`);
     if (result.configured && result.ok === false) process.exitCode = 2;
+    return true;
+  }
+  if (cmd === 'assurance') {
+    const file=argValue(args,'--envelope');
+    if (!file) throw new Error('Usage: idleproof portal assurance --envelope FILE');
+    const envelope=readChangeEnvelope(file,cwd);
+    const result=await syncPortalAssurance(cwd,envelope);
+    if (!quiet) {
+      if (json) print(result,true);
+      else if (!result.configured) console.log(`✓ Assurance verified for ${result.changeId}; Portal is not configured, so nothing was uploaded.`);
+      else if (result.ok) console.log(`✓ Portal assurance synced · ${result.changeId} · ${result.delivered} delivered · ${result.pending} pending`);
+      else console.log(`Portal assurance deferred · ${result.errorCode || result.httpStatus || 'delivery failed'} · ${result.pending} snapshot(s) remain safely queued.`);
+    }
+    if (result.configured && result.ok === false) process.exitCode=2;
     return true;
   }
   if (cmd === 'disconnect') {
