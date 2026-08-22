@@ -25,13 +25,13 @@
         "promptDigest": { "type": ["string", "null"], "pattern": "^sha256:[a-f0-9]{64}$" },
         "promptChars": { "type": "integer", "minimum": 0 },
         "source": { "type": "string", "maxLength": 40 },
-        "status": { "type": ["string", "null"] },
+        "status": { "type": ["string", "null"], "maxLength": 80 },
         "changed": {
           "type": "object",
           "required": ["added", "deleted"],
           "properties": {
-            "added": { "type": "number", "minimum": 0 },
-            "deleted": { "type": "number", "minimum": 0 }
+            "added": { "type": "integer", "minimum": 0 },
+            "deleted": { "type": "integer", "minimum": 0 }
           },
           "additionalProperties": false
         }
@@ -45,6 +45,38 @@
         "changeId": { "type": ["string", "null"], "pattern": "^dwchg_[a-f0-9]{24}$" },
         "diffSha256": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" }
       },
+      "additionalProperties": false
+    },
+    "assurance": {
+      "type": ["object", "null"],
+      "required": ["schema", "proof", "softwareDebt"],
+      "properties": {
+        "schema": { "const": "idleproof.change-assurance.v1" },
+        "proof": {
+          "type": ["object", "null"],
+          "required": ["claim", "accepted", "certificateId"],
+          "properties": {
+            "claim": { "enum": ["causal", "preservation", "validation", "not-required", "inconclusive", "unknown"] },
+            "accepted": { "type": "boolean" },
+            "certificateId": { "type": "string", "minLength": 6, "maxLength": 128 }
+          },
+          "additionalProperties": false
+        },
+        "softwareDebt": {
+          "type": ["object", "null"],
+          "required": ["points", "obligations", "budgetPassed"],
+          "properties": {
+            "points": { "type": "integer", "minimum": 0, "maximum": 1000000000 },
+            "obligations": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+            "budgetPassed": { "type": ["boolean", "null"] }
+          },
+          "additionalProperties": false
+        }
+      },
+      "anyOf": [
+        { "properties": { "proof": { "type": "object" } } },
+        { "properties": { "softwareDebt": { "type": "object" } } }
+      ],
       "additionalProperties": false
     },
     "explanation": { "type": ["object", "null"] },
