@@ -44,8 +44,10 @@ test('Codex JSON items map to bounded lifecycle metadata without command output'
 });
 
 test('hook-independent Codex exec bridge records a real git change and receipt', async (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(),'idleproof-codex-bridge-'));
-  t.after(() => fs.rmSync(root,{recursive:true,force:true}));
+  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(),'idleproof-codex-fixture-'));
+  const root = path.join(fixtureRoot,'candidate');
+  fs.mkdirSync(root);
+  t.after(() => fs.rmSync(fixtureRoot,{recursive:true,force:true}));
   git(root,'init','-q');
   git(root,'config','user.email','codex-bridge@idleproof.local');
   git(root,'config','user.name','Codex Bridge Test');
@@ -53,7 +55,10 @@ test('hook-independent Codex exec bridge records a real git change and receipt',
   git(root,'add','app.js');
   git(root,'commit','-qm','baseline');
 
-  const fake = path.join(root,'fake-codex.mjs');
+  // Keep the fake executable outside the candidate repository. A tool binary appearing as an
+  // untracked source file before SessionStart is correctly treated by change-identity as
+  // pre-existing dirty software and must not be attributed to the agent turn.
+  const fake = path.join(fixtureRoot,'fake-codex.mjs');
   fs.writeFileSync(fake, `
 import fs from 'node:fs';
 const cwd=process.cwd();
