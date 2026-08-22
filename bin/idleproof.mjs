@@ -4,6 +4,7 @@ import net from 'node:net';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { main } from '../src/cli.mjs';
+import { runCodexBridgeCli } from '../src/codex-bridge.mjs';
 import { learningCliHelp, runLearningCli } from '../src/learning-cli.mjs';
 import { portalCliHelp, runPortalCli } from '../src/portal-cli.mjs';
 import { runDemo } from '../src/demo.mjs';
@@ -103,6 +104,7 @@ async function run() {
     await main(args);
     process.stdout.write(`${learningCliHelp()}\n`);
     process.stdout.write(`\n${portalCliHelp()}\n`);
+    process.stdout.write('\nCodex resilient mode:\n  idleproof codex [--model MODEL] [--sandbox read-only|workspace-write] -- <task>\n  Uses Codex exec JSON telemetry when native project hooks are unavailable; never enables danger-full-access.\n');
     process.stdout.write('\nRecovery & support:\n  idleproof support [--json|--out FILE]\n  idleproof repair [--dry-run] [--json]\n');
     return;
   }
@@ -117,6 +119,10 @@ async function run() {
   }
   if (cmd === 'demo') {
     await runDemo(args.slice(1));
+    return;
+  }
+  if (cmd === 'codex') {
+    await runCodexBridgeCli(args.slice(1));
     return;
   }
   if (await runPortalCli(args)) return;
