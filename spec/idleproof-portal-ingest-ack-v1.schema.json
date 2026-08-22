@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://idleproof.dev/spec/idleproof-portal-ingest-ack-v1.schema.json",
+  "title": "IdleProof Portal ingestion acknowledgement v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "status", "snapshotId"],
+  "properties": {
+    "schema": { "const": "idleproof.portal-ingest-ack.v1" },
+    "status": { "enum": ["accepted", "duplicate"] },
+    "snapshotId": { "type": "string", "pattern": "^ipsnap_[a-f0-9]{24}$" }
+  }
+}

@@ -1,0 +1,111 @@
+name: test
+
+on:
+  push:
+    branches: [main, "agent/idleproof-human-ci"]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: idleproof-test-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [20, 22, 24]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Syntax check critical entrypoints
+        run: |
+          node --check ./bin/idleproof.mjs
+          node --check ./src/cli.mjs
+          node --check ./src/learning-cli.mjs
+          node --check ./src/demo.mjs
+          node --check ./src/hook.mjs
+          node --check ./src/context.mjs
+          node --check ./src/semantics.mjs
+          node --check ./src/explain.mjs
+          node --check ./src/edition.mjs
+          node --check ./src/portal-snapshot.mjs
+          node --check ./src/portal-ingest-ack.mjs
+          node --check ./src/portal-client.mjs
+          node --check ./src/portal-assurance.mjs
+          node --check ./src/portal-cli.mjs
+          node --check ./src/feature-model.mjs
+          node --check ./src/feature-memory.mjs
+          node --check ./src/feature-review.mjs
+          node --check ./src/project-model.mjs
+          node --check ./src/learning.mjs
+          node --check ./src/presentation.mjs
+          node --check ./src/snooze.mjs
+          node --check ./src/policy.mjs
+          node --check ./src/provenance.mjs
+          node --check ./src/attest.mjs
+          node --check ./src/state.mjs
+          node --check ./src/server.mjs
+          node --check ./src/local-http-security.mjs
+          node --check ./scripts/package-smoke.mjs
+          node --check ./scripts/portal-package-smoke.mjs
+          node --check ./scripts/human-smoke.mjs
+          node --check ./scripts/idlebench.mjs
+          node --check ./scripts/idlebench-corpus.mjs
+          node --check ./scripts/explainbench.mjs
+          node --check ./scripts/explain-torturebench.mjs
+          node --check ./scripts/perf-gate.mjs
+          node --check ./public/app.js
+          node --check ./public/feature-review.js
+      - name: Validate JSON examples and schemas
+        run: |
+          node -e "for (const f of ['examples/idleproof.policy.json','spec/idleproof-policy.schema.json','spec/agentic-development-provenance.schema.json','spec/change-envelope-v1.schema.json','spec/idleproof-portal-snapshot-v1.schema.json','spec/idleproof-portal-ingest-ack-v1.schema.json']) JSON.parse(require('fs').readFileSync(f,'utf8'))"
+      - name: Smoke CLI
+        run: node ./bin/idleproof.mjs --help
+      - name: Run unit and product-journey tests
+        run: npm test
+      - name: Validate npm package contents
+        run: npm pack --dry-run
+
+  quality:
+    name: ExplainBench + adversarial quality + performance budgets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Run explain-first and optional-learning benchmarks
+        run: |
+          node ./scripts/explainbench.mjs
+          node ./scripts/explain-torturebench.mjs
+          node ./scripts/idlebench.mjs
+          node ./scripts/idlebench-corpus.mjs
+      - name: Enforce local hook latency budgets
+        run: node ./scripts/perf-gate.mjs
+
+  package-e2e:
+    name: installed package commercial-alpha journey (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Pack, install, configure and uninstall exact npm artifact
+        run: node ./scripts/package-smoke.mjs
+      - name: Exercise exact npm artifact over real Portal HTTP transport
+        run: node ./scripts/portal-package-smoke.mjs
+      - name: Exercise first-run, live learning, exact change identity, handoff and restart as a user
+        run: node ./scripts/human-smoke.mjs

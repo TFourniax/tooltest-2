@@ -1,0 +1,25 @@
+name: IdleProof Verify
+description: Verify an IdleProof DSSE/in-toto agentic-development attestation against a pinned recorder public key.
+branding:
+  icon: shield
+  color: green
+inputs:
+  attestation:
+    description: Path to the IdleProof DSSE attestation inside the caller workspace.
+    required: false
+    default: .idleproof/attestation.dsse.json
+  public-key:
+    description: Path to the trusted recorder/organization public key PEM. Pin this in the repository or provision it from your trust system.
+    required: true
+outputs:
+  verified:
+    description: Set to true when the attestation signature and predicate verify against the pinned key.
+    value: ${{ steps.verify.outputs.verified }}
+runs:
+  using: composite
+  steps:
+    - id: verify
+      shell: bash
+      run: |
+        node "$GITHUB_ACTION_PATH/bin/idleproof.mjs" verify "${{ inputs.attestation }}" --key "${{ inputs.public-key }}"
+        echo "verified=true" >> "$GITHUB_OUTPUT"
