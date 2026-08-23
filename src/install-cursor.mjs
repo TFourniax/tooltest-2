@@ -42,17 +42,20 @@ function writeAtomic(file, value) {
   } finally { try { fs.rmSync(temp,{force:true}); } catch {} }
 }
 
-function resolveBin(binPath) {
+function resolveRunner(binPath) {
   if (typeof binPath !== 'string' || !binPath.trim()) throw new Error('IdleProof Cursor installer requires its CLI path.');
   const resolved=path.resolve(binPath);
   let stat;
   try { stat=fs.statSync(resolved); } catch { throw new Error(`IdleProof CLI entrypoint does not exist: ${resolved}`); }
   if (!stat.isFile()) throw new Error(`IdleProof CLI entrypoint is not a file: ${resolved}`);
-  return resolved;
+  const runner=path.resolve(path.dirname(resolved),'../src/cursor-hook-cli.mjs');
+  try { stat=fs.statSync(runner); } catch { throw new Error(`IdleProof Cursor hook runtime does not exist: ${runner}`); }
+  if (!stat.isFile()) throw new Error(`IdleProof Cursor hook runtime is not a file: ${runner}`);
+  return runner;
 }
 
 function isIdleProofHook(entry) {
-  return typeof entry?.command === 'string' && entry.command.includes('idleproof.mjs') && entry.command.includes('hook-cursor');
+  return typeof entry?.command === 'string' && entry.command.includes('cursor-hook-cli.mjs');
 }
 
 function addLocalGitExclude(cwd, relativePath) {
@@ -75,12 +78,11 @@ export function installCursor({ cwd=process.cwd(), binPath }={}) {
   if (config.version != null && config.version !== 1) throw new Error(`Unsupported Cursor hooks schema version: ${String(config.version)}`);
   config.version=1;
   config.hooks ||= {};
-  const resolvedBin=resolveBin(binPath);
-  const command=`\"${process.execPath}\" \"${resolvedBin}\" hook-cursor`;
+  const runner=resolveRunner(binPath);
   for (const [event,matcher] of EVENTS) {
     config.hooks[event] ||= [];
     config.hooks[event]=config.hooks[event].filter((entry)=>!isIdleProofHook(entry));
-    const entry={ command };
+    const entry={ command:`\"${process.execPath}\" \"${runner}\" ${event}` };
     if (matcher) entry.matcher=matcher;
     config.hooks[event].push(entry);
   }
