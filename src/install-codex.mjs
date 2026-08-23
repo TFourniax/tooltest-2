@@ -4,15 +4,15 @@ import { projectPaths } from './paths.mjs';
 
 const TOOL_MATCHER = '^(?:Bash|apply_patch|Edit|Write|Read|WebSearch|WebFetch|mcp__.*|.+)$';
 const EVENTS = [
-  ['SessionStart', null, 3],
-  ['UserPromptSubmit', null, 5],
+  ['SessionStart', null, 8],
+  ['UserPromptSubmit', null, 8],
   ['PreToolUse', TOOL_MATCHER, 5],
   ['PermissionRequest', TOOL_MATCHER, 5],
   ['PostToolUse', TOOL_MATCHER, 5],
-  ['SubagentStart', null, 3],
-  ['SubagentStop', null, 5],
-  ['Stop', null, 5],
-  ['SessionEnd', null, 3]
+  ['SubagentStart', null, 5],
+  ['SubagentStop', null, 8],
+  ['Stop', null, 910],
+  ['SessionEnd', null, 8]
 ];
 
 function readJson(file) {
@@ -71,7 +71,7 @@ export function installCodex({ cwd = process.cwd(), binPath }) {
   const paths = projectPaths(cwd);
   fs.mkdirSync(path.dirname(paths.codexHooks), { recursive: true });
   const config = readJson(paths.codexHooks);
-  config.description ||= 'Project-local Codex hooks. IdleProof entries can be removed with `idleproof uninstall codex`.';
+  config.description ||= 'Project-local Codex hooks. Defitness entries can be removed with `defitness uninstall`.';
   config.hooks ||= {};
   const resolvedBin = resolveBin(binPath);
   const runner=hookRunner(resolvedBin);
@@ -82,7 +82,7 @@ export function installCodex({ cwd = process.cwd(), binPath }) {
   for (const [event, matcher, timeout] of EVENTS) {
     config.hooks[event] ||= [];
     config.hooks[event] = config.hooks[event].filter((entry) => !isIdleProofHook(entry));
-    const entry = { hooks: [{ type: 'command', command, timeout, statusMessage: 'IdleProof · agentic control plane' }] };
+    const entry = { hooks: [{ type: 'command', command, timeout, statusMessage: 'Defitness · understand · prove · owe' }] };
     if (matcher) entry.matcher = matcher;
     config.hooks[event].push(entry);
   }
@@ -113,3 +113,5 @@ export function hasCodexInstall(cwd = process.cwd()) {
   const config = readJson(codexHooks);
   return Object.values(config.hooks || {}).some((entries) => (entries || []).some(isIdleProofHook));
 }
+
+export const __codexInstallTest={EVENTS};
