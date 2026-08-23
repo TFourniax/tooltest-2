@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import process from 'node:process';
 import { processHookLifecycle } from './hook.mjs';
+import { queueMatchingDiffWitnessAssurance } from './ide-assurance.mjs';
 import { projectPaths } from './paths.mjs';
 
 const EVENT_MAP = {
@@ -86,6 +87,10 @@ async function run() {
     tool_name:internalTool(input.tool_name)
   };
   const lifecycle=processHookLifecycle(event);
+
+  if (['Stop','SessionEnd','SubagentStop'].includes(eventName)) {
+    queueMatchingDiffWitnessAssurance(cwd);
+  }
 
   if (nativeName==='sessionStart') {
     process.stdout.write(`${JSON.stringify(sessionStartOutput(sessionId))}\n`);
