@@ -4,6 +4,7 @@ const FORBIDDEN_KEYS = new Set(['sourceCode','source_code','content','rawContent
 const MAX_SNAPSHOT_BYTES = 64 * 1024;
 const PROOF_CLAIMS = new Set(['causal','preservation','validation','not-required','inconclusive','unknown']);
 const EPISTEMIC = new Set(['DECLARED','INFERRED','OBSERVED','VERIFIED','UNKNOWN']);
+const REPOSITORY_FINGERPRINT_RE = /^dwrepo_[a-f0-9]{24}$/;
 const SECRET_PATTERNS = [
   /\bsk-[A-Za-z0-9_-]{12,}\b/g,
   /\bgh[pousr]_[A-Za-z0-9]{20,}\b/g,
@@ -230,11 +231,12 @@ export function buildPortalSnapshot({ state={}, session=null, featureModel=null,
   const surfaces=featureModel?.surfaces || {};
   const metrics=state.metrics || {};
   const continuity=safeContinuityMemory(projectModel?.continuity || null);
+  const repositoryFingerprint=REPOSITORY_FINGERPRINT_RE.test(String(projectModel?.repositoryFingerprint || '')) ? String(projectModel.repositoryFingerprint) : null;
   const snapshot={
     schema:'idleproof.portal-snapshot.v1',
     snapshotId:null,
     generatedAt:new Date().toISOString(),
-    project:{ name:redact(state.project || 'project',120), localId:projectLocalId(state.project || 'project', state.createdAt || '') },
+    project:{ name:redact(state.project || 'project',120), localId:projectLocalId(state.project || 'project', state.createdAt || ''), repositoryFingerprint },
     task:{
       summary:safeTaskSummary(session,explanation),
       promptDigest:prompt.digest,
@@ -294,6 +296,7 @@ export function assertPortalSnapshotSafe(snapshot) {
   assertAssuranceSafe(snapshot?.assurance ?? null);
   if (!/^ipsnap_[a-f0-9]{24}$/.test(String(snapshot?.snapshotId || ''))) throw new Error('Portal snapshot has no valid idempotency key.');
   if (stableSnapshotId(snapshot)!==snapshot.snapshotId) throw new Error('Portal snapshot idempotency key does not match its payload.');
+  if (snapshot?.project?.repositoryFingerprint != null && !REPOSITORY_FINGERPRINT_RE.test(String(snapshot.project.repositoryFingerprint))) throw new Error('Portal snapshot repository fingerprint is invalid.');
   if (
     snapshot?.privacy?.sourceCodeIncluded !== false ||
     snapshot?.privacy?.rawDiffIncluded !== false ||
@@ -305,4 +308,4 @@ export function assertPortalSnapshotSafe(snapshot) {
   return true;
 }
 
-export const __portalTest={stableSnapshotId,MAX_SNAPSHOT_BYTES,assertAssuranceSafe,safeContinuityMemory};
+export const __portalTest={stableSnapshotId,MAX_SNAPSHOT_BYTES,assertAssuranceSafe,safeContinuityMemory,REPOSITORY_FINGERPRINT_RE};
