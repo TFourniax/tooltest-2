@@ -29,8 +29,11 @@ export function projectPaths(cwd = process.cwd()) {
     portalQueue: path.join(dir, 'portal-queue.json'),
     portalQueueLock: path.join(dir, 'portal-queue.lock'),
     portalDeliveryHealth: path.join(dir, 'portal-delivery.json'),
+    cursorTaskContext: path.join(dir, 'cursor-current-task.md'),
     policy: path.join(root, 'idleproof.policy.json'),
     claudeSettings: path.join(root, '.claude', 'settings.local.json'),
-    codexHooks: path.join(root, '.codex', 'hooks.json')
+    codexHooks: path.join(root, '.codex', 'hooks.json'),
+    cursorHooks: path.join(root, '.cursor', 'hooks.json'),
+    cursorRule: path.join(root, '.cursor', 'rules', 'idleproof-continuity.mdc')
   };
 }
