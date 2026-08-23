@@ -43,13 +43,18 @@ function resolveBin(binPath) {
   return resolved;
 }
 
+function hookRunner(resolvedBin) {
+  const candidate=path.join(path.dirname(resolvedBin),'idleproof-hook.mjs');
+  try { if (fs.statSync(candidate).isFile()) return candidate; } catch {}
+  return null;
+}
+
 function isIdleProofHook(entry) {
-  return (entry?.hooks || []).some((hook) =>
-    hook?.type === 'command' &&
-    typeof hook.command === 'string' &&
-    hook.command.includes('idleproof.mjs') &&
-    hook.command.includes('hook-codex')
-  );
+  return (entry?.hooks || []).some((hook) => {
+    if (hook?.type !== 'command' || typeof hook.command !== 'string') return false;
+    return (hook.command.includes('idleproof-hook.mjs') && hook.command.includes(' codex')) ||
+      (hook.command.includes('idleproof.mjs') && hook.command.includes('hook-codex'));
+  });
 }
 
 function addLocalGitExclude(cwd, relativePath) {
@@ -69,7 +74,10 @@ export function installCodex({ cwd = process.cwd(), binPath }) {
   config.description ||= 'Project-local Codex hooks. IdleProof entries can be removed with `idleproof uninstall codex`.';
   config.hooks ||= {};
   const resolvedBin = resolveBin(binPath);
-  const command = `\"${process.execPath}\" \"${resolvedBin}\" hook-codex`;
+  const runner=hookRunner(resolvedBin);
+  const command = runner
+    ? `\"${process.execPath}\" \"${runner}\" codex`
+    : `\"${process.execPath}\" \"${resolvedBin}\" hook-codex`;
 
   for (const [event, matcher, timeout] of EVENTS) {
     config.hooks[event] ||= [];
