@@ -6,6 +6,9 @@ import { computeMetrics, loadState } from './state.mjs';
 import { repositoryFingerprint } from './change-identity.mjs';
 import { validatePortalIngestAck } from './portal-ingest-ack.mjs';
 import { assertPortalSnapshotSafe, buildPortalSnapshot, projectLocalId } from './portal-snapshot.mjs';
+import { buildProjectModel } from './project-model.mjs';
+import { loadContinuityContext } from './continuity.mjs';
+import { taskContextQuery } from './task.mjs';
 
 const CONFIG_SCHEMA = 'idleproof.portal-config.v1';
 const DELIVERY_HEALTH_SCHEMA = 'idleproof.portal-delivery-health.v1';
@@ -111,6 +114,35 @@ export function resolvePortalProjectSeed(cwd = process.cwd(), state = null, conf
   // upgrade never produces PROJECT_SCOPE_MISMATCH against an already-enrolled device.
   if (currentConfig) return String(currentState.createdAt || '');
   return stableProjectSeed(cwd, currentState);
+}
+
+function allLearnedFiles(state) {
+  const files=[];
+  for (const feature of Object.values(state?.features || {})) {
+    for (const item of feature?.story || []) {
+      if (item?.type === 'file' && item?.label) files.push(String(item.label).replaceAll('\\','/'));
+    }
+  }
+  return [...new Set(files)];
+}
+
+export function buildPortalProjectModel(cwd, state, session, featureModel) {
+  const mental=buildProjectModel(state,session || {},featureModel || null);
+  let continuity=null;
+  try {
+    const query=taskContextQuery(session) || session?.task?.anchor || '';
+    if (query) continuity=loadContinuityContext(cwd,query,{timeoutMs:1500});
+  } catch { continuity=null; }
+  return {
+    stats:{
+      features:Number(mental?.stats?.learnedFeatures || 0),
+      files:allLearnedFiles(state).length,
+      sharedFiles:Number(mental?.topology?.hotspots?.length || 0),
+      boundaryNodes:Number(mental?.topology?.sharedBoundaries?.length || 0)
+    },
+    impact:{ blastRadius:Number(mental?.impact?.blastRadius || 0) },
+    continuity
+  };
 }
 
 function defaultDeliveryHealth() {
@@ -226,11 +258,13 @@ export function buildCurrentPortalSnapshot(cwd = process.cwd()) {
   let config = null;
   try { config = readPortalConfig(cwd); } catch {}
   const projectIdentitySeed = resolvePortalProjectSeed(cwd, state, config);
+  const featureModel=session?.featureModel || null;
+  const projectModel=buildPortalProjectModel(cwd,state,session,featureModel);
   const snapshot = buildPortalSnapshot({
     state:{ ...state, metrics, createdAt:projectIdentitySeed },
     session,
-    featureModel:session?.featureModel || null,
-    projectModel:null,
+    featureModel,
+    projectModel,
     explanation:null
   });
   assertPortalSnapshotSafe(snapshot);
