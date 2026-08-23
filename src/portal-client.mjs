@@ -3,6 +3,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { PACKAGE_ROOT, projectPaths } from './paths.mjs';
 import { computeMetrics, loadState } from './state.mjs';
+import { repositoryFingerprint } from './change-identity.mjs';
 import { validatePortalIngestAck } from './portal-ingest-ack.mjs';
 import { assertPortalSnapshotSafe, buildPortalSnapshot, projectLocalId } from './portal-snapshot.mjs';
 
@@ -13,6 +14,7 @@ const MAX_RESPONSE_BYTES = 16 * 1024;
 const QUEUE_LOCK_STALE_MS = 10000;
 const QUEUE_LOCK_TIMEOUT_MS = 3000;
 const QUEUE_LOCK_WAIT_MS = 10;
+const PROJECT_ID_SEED_RE = /^dwrepo_[a-f0-9]{24}$/;
 const sleepBuffer = new Int32Array(new SharedArrayBuffer(4));
 
 function portalError(code, message) {
@@ -92,6 +94,25 @@ function validateToken(token) {
   return value;
 }
 
+function stableProjectSeed(cwd, state) {
+  try { return repositoryFingerprint(cwd); }
+  catch { return String(state?.createdAt || ''); }
+}
+
+export function resolvePortalProjectSeed(cwd = process.cwd(), state = null, config = undefined) {
+  const currentState = state || loadState(cwd);
+  let currentConfig = config;
+  if (currentConfig === undefined) {
+    try { currentConfig = readPortalConfig(cwd); }
+    catch { currentConfig = null; }
+  }
+  if (currentConfig?.projectIdentitySeed) return currentConfig.projectIdentitySeed;
+  // Existing v1 configs predate the stable repository seed. Keep their exact local id so an
+  // upgrade never produces PROJECT_SCOPE_MISMATCH against an already-enrolled device.
+  if (currentConfig) return String(currentState.createdAt || '');
+  return stableProjectSeed(cwd, currentState);
+}
+
 function defaultDeliveryHealth() {
   return {
     schema:DELIVERY_HEALTH_SCHEMA,
@@ -146,7 +167,23 @@ function recordDeliverySuccess(cwd) {
 
 export function writePortalConfig(cwd = process.cwd(), { endpoint, token, enabled = true } = {}) {
   const paths = projectPaths(cwd);
-  const config = { schema:CONFIG_SCHEMA, enabled:Boolean(enabled), endpoint:validateEndpoint(endpoint), token:validateToken(token), updatedAt:new Date().toISOString() };
+  const state = loadState(cwd);
+  let existing = null;
+  if (fs.existsSync(paths.portalConfig)) existing = readPortalConfig(cwd);
+  const projectIdentitySeed = existing
+    ? (existing.projectIdentitySeed || String(state.createdAt || ''))
+    : stableProjectSeed(cwd, state);
+  const config = {
+    schema:CONFIG_SCHEMA,
+    enabled:Boolean(enabled),
+    endpoint:validateEndpoint(endpoint),
+    token:validateToken(token),
+    projectIdentitySeed:PROJECT_ID_SEED_RE.test(projectIdentitySeed) ? projectIdentitySeed : undefined,
+    updatedAt:new Date().toISOString()
+  };
+  // A legacy enrollment intentionally omits projectIdentitySeed; omission is the compatibility
+  // marker that keeps using state.createdAt until the user disconnects and explicitly re-enrolls.
+  if (!config.projectIdentitySeed) delete config.projectIdentitySeed;
   atomicJson(paths.portalConfig, config);
   return portalStatus(cwd);
 }
@@ -160,7 +197,16 @@ export function readPortalConfig(cwd = process.cwd()) {
     throw portalError('IDLEPROOF_PORTAL_CONFIG_CORRUPT', `Cannot read Portal config: ${error.message}`);
   }
   if (!parsed || parsed.schema !== CONFIG_SCHEMA || typeof parsed !== 'object' || Array.isArray(parsed)) throw portalError('IDLEPROOF_PORTAL_CONFIG_CORRUPT', 'Portal config has an unsupported schema.');
-  return { schema:CONFIG_SCHEMA, enabled:parsed.enabled !== false, endpoint:validateEndpoint(parsed.endpoint), token:validateToken(parsed.token), updatedAt:parsed.updatedAt || null };
+  const projectIdentitySeed = parsed.projectIdentitySeed == null ? null : String(parsed.projectIdentitySeed);
+  if (projectIdentitySeed != null && !PROJECT_ID_SEED_RE.test(projectIdentitySeed)) throw portalError('IDLEPROOF_PORTAL_CONFIG_CORRUPT', 'Portal config has an invalid project identity seed.');
+  return {
+    schema:CONFIG_SCHEMA,
+    enabled:parsed.enabled !== false,
+    endpoint:validateEndpoint(parsed.endpoint),
+    token:validateToken(parsed.token),
+    projectIdentitySeed,
+    updatedAt:parsed.updatedAt || null
+  };
 }
 
 export function disconnectPortal(cwd = process.cwd()) {
@@ -177,8 +223,11 @@ export function buildCurrentPortalSnapshot(cwd = process.cwd()) {
   const state = loadState(cwd);
   const session = latestSession(state);
   const metrics = computeMetrics(state);
+  let config = null;
+  try { config = readPortalConfig(cwd); } catch {}
+  const projectIdentitySeed = resolvePortalProjectSeed(cwd, state, config);
   const snapshot = buildPortalSnapshot({
-    state:{ ...state, metrics },
+    state:{ ...state, metrics, createdAt:projectIdentitySeed },
     session,
     featureModel:session?.featureModel || null,
     projectModel:null,
@@ -357,14 +406,18 @@ export function portalStatus(cwd = process.cwd()) {
   const state = loadState(cwd);
   let config = null;
   try { config = readPortalConfig(cwd); }
-  catch (error) { return { schema:'idleproof.portal-status.v1', configured:false, healthy:false, degraded:true, errorCode:error.code, projectLocalId:projectLocalId(state.project, state.createdAt), pending:null, skippedSnapshots:null }; }
+  catch (error) {
+    const seed=resolvePortalProjectSeed(cwd,state,null);
+    return { schema:'idleproof.portal-status.v1', configured:false, healthy:false, degraded:true, errorCode:error.code, projectLocalId:projectLocalId(state.project, seed), pending:null, skippedSnapshots:null };
+  }
+  const seed=resolvePortalProjectSeed(cwd,state,config);
   let pending = null;
   let delivery;
   try {
     pending = readQueue(cwd).length;
     delivery = readDeliveryHealth(cwd);
   } catch (error) {
-    return { schema:'idleproof.portal-status.v1', configured:Boolean(config), healthy:false, degraded:true, enabled:Boolean(config?.enabled), endpoint:config?.endpoint || null, tokenLast4:config?.token?.slice(-4) || null, errorCode:error?.code || 'PORTAL_LOCAL_STATE_INVALID', projectLocalId:projectLocalId(state.project, state.createdAt), pending:null, skippedSnapshots:null };
+    return { schema:'idleproof.portal-status.v1', configured:Boolean(config), healthy:false, degraded:true, enabled:Boolean(config?.enabled), endpoint:config?.endpoint || null, tokenLast4:config?.token?.slice(-4) || null, errorCode:error?.code || 'PORTAL_LOCAL_STATE_INVALID', projectLocalId:projectLocalId(state.project, seed), pending:null, skippedSnapshots:null };
   }
   return {
     schema:'idleproof.portal-status.v1',
@@ -374,7 +427,7 @@ export function portalStatus(cwd = process.cwd()) {
     enabled:Boolean(config?.enabled),
     endpoint:config?.endpoint || null,
     tokenLast4:config?.token?.slice(-4) || null,
-    projectLocalId:projectLocalId(state.project, state.createdAt),
+    projectLocalId:projectLocalId(state.project, seed),
     pending,
     skippedSnapshots:delivery.skippedSnapshots,
     lastErrorCode:delivery.lastErrorCode,
