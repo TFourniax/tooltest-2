@@ -3,16 +3,18 @@ import path from 'node:path';
 import { projectPaths } from './paths.mjs';
 
 const EVENTS = [
-  ['SessionStart', null],
-  ['UserPromptSubmit', null],
-  ['PreToolUse', '.*'],
-  ['PermissionRequest', '.*'],
-  ['PostToolUse', '.*'],
-  ['PostToolUseFailure', '.*'],
-  ['SubagentStart', null],
-  ['SubagentStop', null],
-  ['Stop', null],
-  ['SessionEnd', null]
+  ['SessionStart', null, 8],
+  ['UserPromptSubmit', null, 8],
+  ['PreToolUse', '.*', 5],
+  ['PermissionRequest', '.*', 5],
+  ['PostToolUse', '.*', 5],
+  ['PostToolUseFailure', '.*', 5],
+  ['SubagentStart', null, 5],
+  ['SubagentStop', null, 8],
+  // Defitness executes deterministic DiffWitness Proof/Debt finalization in this Stop hook. Keep
+  // the same bounded 15-minute ceiling as the proof engine instead of terminating it after 5s.
+  ['Stop', null, 910],
+  ['SessionEnd', null, 8]
 ];
 
 function readJson(file) {
@@ -68,10 +70,10 @@ export function installClaude({ cwd = process.cwd(), binPath }) {
     ? `\"${process.execPath}\" \"${runner}\" claude`
     : `\"${process.execPath}\" \"${resolvedBin}\" hook`;
 
-  for (const [event, matcher] of EVENTS) {
+  for (const [event, matcher, timeout] of EVENTS) {
     settings.hooks[event] ||= [];
     settings.hooks[event] = settings.hooks[event].filter((entry) => !isIdleProofHook(entry));
-    const entry = { hooks: [{ type: 'command', command, timeout: 5 }] };
+    const entry = { hooks: [{ type: 'command', command, timeout }] };
     if (matcher) entry.matcher = matcher;
     settings.hooks[event].push(entry);
   }
@@ -84,12 +86,15 @@ export function uninstallClaude({ cwd = process.cwd() }) {
   const paths = projectPaths(cwd);
   const settings = readJson(paths.claudeSettings);
   if (!settings.hooks) return false;
+  let changed=false;
   for (const event of Object.keys(settings.hooks)) {
+    const before=settings.hooks[event]?.length || 0;
     settings.hooks[event] = (settings.hooks[event] || []).filter((entry) => !isIdleProofHook(entry));
+    changed ||= settings.hooks[event].length !== before;
     if (!settings.hooks[event].length) delete settings.hooks[event];
   }
-  writeJsonAtomic(paths.claudeSettings, settings);
-  return true;
+  if (changed) writeJsonAtomic(paths.claudeSettings, settings);
+  return changed;
 }
 
 export function hasClaudeInstall(cwd = process.cwd()) {
@@ -97,3 +102,5 @@ export function hasClaudeInstall(cwd = process.cwd()) {
   const settings = readJson(claudeSettings);
   return Object.values(settings.hooks || {}).some((entries) => entries.some(isIdleProofHook));
 }
+
+export const __claudeInstallTest={EVENTS};
