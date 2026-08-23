@@ -43,8 +43,18 @@ function resolveBin(binPath) {
   return resolved;
 }
 
+function hookRunner(resolvedBin) {
+  const candidate=path.join(path.dirname(resolvedBin),'idleproof-hook.mjs');
+  try { if (fs.statSync(candidate).isFile()) return candidate; } catch {}
+  return null;
+}
+
 function isIdleProofHook(entry) {
-  return (entry?.hooks || []).some((hook) => typeof hook.command === 'string' && hook.command.includes('idleproof.mjs') && hook.command.includes(' hook'));
+  return (entry?.hooks || []).some((hook) => {
+    if (typeof hook.command !== 'string') return false;
+    return (hook.command.includes('idleproof-hook.mjs') && hook.command.includes(' claude')) ||
+      (hook.command.includes('idleproof.mjs') && hook.command.includes(' hook'));
+  });
 }
 
 export function installClaude({ cwd = process.cwd(), binPath }) {
@@ -53,7 +63,10 @@ export function installClaude({ cwd = process.cwd(), binPath }) {
   const settings = readJson(paths.claudeSettings);
   settings.hooks ||= {};
   const resolvedBin = resolveBin(binPath);
-  const command = `\"${process.execPath}\" \"${resolvedBin}\" hook`;
+  const runner=hookRunner(resolvedBin);
+  const command = runner
+    ? `\"${process.execPath}\" \"${runner}\" claude`
+    : `\"${process.execPath}\" \"${resolvedBin}\" hook`;
 
   for (const [event, matcher] of EVENTS) {
     settings.hooks[event] ||= [];
