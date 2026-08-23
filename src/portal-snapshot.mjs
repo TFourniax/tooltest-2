@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 const FORBIDDEN_KEYS = new Set(['sourceCode','source_code','content','rawContent','raw_content','diff','patch','tool_input','toolInput','prompt','promptRaw','secret','token','credential']);
 const MAX_SNAPSHOT_BYTES = 64 * 1024;
 const PROOF_CLAIMS = new Set(['causal','preservation','validation','not-required','inconclusive','unknown']);
+const EPISTEMIC = new Set(['DECLARED','INFERRED','OBSERVED','VERIFIED','UNKNOWN']);
 const SECRET_PATTERNS = [
   /\bsk-[A-Za-z0-9_-]{12,}\b/g,
   /\bgh[pousr]_[A-Za-z0-9]{20,}\b/g,
@@ -38,6 +39,91 @@ function cleanList(values,max=20) { return unique((values||[]).map((value)=>reda
 function boundedInteger(value, label, max=2_147_483_647) {
   if (!Number.isInteger(value) || value < 0 || value > max) throw new Error(`${label} must be a bounded non-negative integer.`);
   return value;
+}
+
+function epistemic(value) {
+  const normalized=String(value || 'UNKNOWN').toUpperCase();
+  return EPISTEMIC.has(normalized) ? normalized : 'UNKNOWN';
+}
+
+function continuityEntity(item={}) {
+  const id=redact(item.id || item.debt_id || '',96) || null;
+  const label=redact(item.label || item.title || '',240) || null;
+  if (!id && !label) return null;
+  return { id, status:epistemic(item.epistemicStatus || item.epistemic_status), label };
+}
+
+function continuityComponent(item={}) {
+  const path=cleanPath(item.path || '');
+  if (!path) return null;
+  return {
+    id:redact(item.id || '',96) || null,
+    status:epistemic(item.epistemicStatus || item.epistemic_status),
+    path,
+    provider:redact(item.provider || '',60) || null
+  };
+}
+
+function continuityRelation(item={}) {
+  const predicate=redact(item.predicate || '',80);
+  const sourceId=redact(item.sourceId || item.source_id || item.source?.id || '',96);
+  const targetId=redact(item.targetId || item.target_id || item.target?.id || '',96);
+  if (!predicate || (!sourceId && !targetId)) return null;
+  return { predicate, sourceId:sourceId || null, targetId:targetId || null, status:epistemic(item.epistemicStatus || item.epistemic_status) };
+}
+
+function continuityDebt(item={}) {
+  const id=redact(item.debt_id || item.id || '',96);
+  if (!id) return null;
+  return {
+    id,
+    status:redact(item.status || 'open',32),
+    epistemicStatus:epistemic(item.epistemic_status || item.epistemicStatus),
+    introducedChangeId:/^dwchg_[a-f0-9]{24}$/.test(String(item.introduced_change_id || item.introducedChangeId || '')) ? String(item.introduced_change_id || item.introducedChangeId) : null,
+    lastChangeId:/^dwchg_[a-f0-9]{24}$/.test(String(item.last_change_id || item.lastChangeId || '')) ? String(item.last_change_id || item.lastChangeId) : null
+  };
+}
+
+function continuityChange(item={}) {
+  const changeId=String(item.changeId || item.change_id || '');
+  if (!/^dwchg_[a-f0-9]{24}$/.test(changeId)) return null;
+  const proof=item.proof && typeof item.proof==='object' ? item.proof : null;
+  const debt=item.softwareDebt && typeof item.softwareDebt==='object' ? item.softwareDebt : null;
+  return {
+    changeId,
+    files:(item.files || []).map(cleanPath).filter(Boolean).slice(0,8),
+    proof:proof ? {
+      claim:PROOF_CLAIMS.has(String(proof.claim || '')) ? String(proof.claim) : 'unknown',
+      accepted:typeof proof.accepted==='boolean' ? proof.accepted : null,
+      epistemicStatus:epistemic(proof.epistemicStatus || proof.epistemic_status)
+    } : null,
+    softwareDebt:debt ? {
+      points:Number.isInteger(debt.points) && debt.points>=0 ? Math.min(debt.points,1_000_000_000) : null,
+      obligations:Number.isInteger(debt.obligations) && debt.obligations>=0 ? Math.min(debt.obligations,1_000_000) : null,
+      budgetPassed:[true,false,null].includes(debt.budgetPassed) ? debt.budgetPassed : null
+    } : null
+  };
+}
+
+function safeContinuityMemory(value) {
+  if (!value || typeof value!=='object' || Array.isArray(value) || value.schema_version!=='continuity-context-1') return null;
+  const contextId=String(value.context_id || '');
+  if (!/^dwctx_[a-f0-9]{24}$/.test(contextId)) return null;
+  const entities=(items,max)=> (Array.isArray(items)?items:[]).map(continuityEntity).filter(Boolean).slice(0,max);
+  return {
+    schema:'idleproof.portal-continuity.v1',
+    contextId,
+    eventHead:/^[a-f0-9]{64}$/.test(String(value.state?.eventHead || '')) ? value.state.eventHead : null,
+    structureTree:/^[a-f0-9]{40,64}$/.test(String(value.state?.structureTree || '')) ? value.state.structureTree : null,
+    objectives:entities(value.objectives,8),
+    decisions:entities(value.decisions,8),
+    invariants:entities(value.invariants,8),
+    failedApproaches:entities(value.failedApproaches,8),
+    components:(Array.isArray(value.components)?value.components:[]).map(continuityComponent).filter(Boolean).slice(0,12),
+    relations:(Array.isArray(value.relations)?value.relations:[]).map(continuityRelation).filter(Boolean).slice(0,16),
+    knownDebt:(Array.isArray(value.knownDebt)?value.knownDebt:[]).map(continuityDebt).filter(Boolean).slice(0,12),
+    recentChanges:(Array.isArray(value.recentRelatedChanges)?value.recentRelatedChanges:[]).map(continuityChange).filter(Boolean).slice(0,8)
+  };
 }
 
 function safeTaskSummary(session=null, explanation=null) {
@@ -143,6 +229,7 @@ export function buildPortalSnapshot({ state={}, session=null, featureModel=null,
   ]).slice(0,40);
   const surfaces=featureModel?.surfaces || {};
   const metrics=state.metrics || {};
+  const continuity=safeContinuityMemory(projectModel?.continuity || null);
   const snapshot={
     schema:'idleproof.portal-snapshot.v1',
     snapshotId:null,
@@ -187,7 +274,8 @@ export function buildPortalSnapshot({ state={}, session=null, featureModel=null,
         sharedFiles:Math.max(0,Number(projectModel.stats.sharedFiles || 0)),
         boundaryNodes:Math.max(0,Number(projectModel.stats.boundaryNodes || 0))
       } : null,
-      impact:{ blastRadius:Math.max(0,Number(projectModel.impact?.blastRadius || 0)) }
+      impact:{ blastRadius:Math.max(0,Number(projectModel.impact?.blastRadius || 0)) },
+      continuity
     } : null,
     files:filePaths,
     privacy:{ sourceCodeIncluded:false, rawDiffIncluded:false, rawAgentEventsIncluded:false, rawPromptIncluded:false, secretsRedacted:true }
@@ -217,4 +305,4 @@ export function assertPortalSnapshotSafe(snapshot) {
   return true;
 }
 
-export const __portalTest={stableSnapshotId,MAX_SNAPSHOT_BYTES,assertAssuranceSafe};
+export const __portalTest={stableSnapshotId,MAX_SNAPSHOT_BYTES,assertAssuranceSafe,safeContinuityMemory};
