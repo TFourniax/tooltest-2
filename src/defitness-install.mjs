@@ -46,7 +46,14 @@ function assertGitRepository(cwd){
 
 function snapshots(cwd){
   const paths=projectPaths(cwd);
-  const candidates=[paths.claudeSettings,paths.codexHooks,paths.cursorHooks,paths.cursorRule,paths.defitnessConfig];
+  const candidates=[
+    paths.claudeSettings,
+    paths.codexHooks,
+    paths.cursorHooks,
+    paths.cursorRule,
+    paths.defitnessConfig,
+    path.join(cwd,'.git','info','exclude')
+  ];
   return new Map(candidates.map((file)=>{
     try{return [file,{exists:true,content:fs.readFileSync(file)}];}catch(error){if(error.code==='ENOENT')return [file,{exists:false,content:null}];throw error;}
   }));
@@ -74,21 +81,21 @@ function uninstallAdapter(cwd,adapter){
   return false;
 }
 
-export function installDefitness({cwd=process.cwd(),agent='auto',diffWitnessCommand='dw'}={}){
+export function installDefitness({cwd=process.cwd(),agent='auto',diffWitnessCommand='dw',probe=probeDiffWitness}={}){
   assertGitRepository(cwd);
   const requested=normalizeAgent(agent);
   const adapters=requested||detectAdapters(cwd);
-  const proof=probeDiffWitness(cwd,diffWitnessCommand);
-  if(!proof.ok){
-    throw new Error(`DiffWitness is required before Defitness can be armed. ${proof.message || proof.errorCode || 'Install a compatible diffwitness package first.'}`);
+  const proof=probe(cwd,diffWitnessCommand);
+  if(!proof?.ok){
+    throw new Error(`DiffWitness is required before Defitness can be armed. ${proof?.message || proof?.errorCode || 'Install a compatible diffwitness package first.'}`);
   }
 
   const before=snapshots(cwd);
   const installed=[];
   try{
     // Write the fail-closed requirement only after the DiffWitness capability probe passes. The
-    // whole operation is rolled back if any adapter refuses an existing incompatible config.
-    writeDefitnessConfig(cwd,{adapters,diffWitnessCommand:proof.command});
+    // entire project-local adapter surface and Git excludes are rolled back on any later failure.
+    writeDefitnessConfig(cwd,{adapters,diffWitnessCommand:proof.command || diffWitnessCommand});
     for(const adapter of adapters){
       installAdapter(cwd,adapter);
       installed.push(adapter);
@@ -97,7 +104,7 @@ export function installDefitness({cwd=process.cwd(),agent='auto',diffWitnessComm
     restore(before);
     throw error;
   }
-  return {schema:'defitness.install-result.v1',installed:true,adapters:installed,diffWitnessCommand:proof.command,config:projectPaths(cwd).defitnessConfig};
+  return {schema:'defitness.install-result.v1',installed:true,adapters:installed,diffWitnessCommand:proof.command || diffWitnessCommand,config:projectPaths(cwd).defitnessConfig};
 }
 
 export function uninstallDefitness({cwd=process.cwd()}={}){
@@ -109,22 +116,22 @@ export function uninstallDefitness({cwd=process.cwd()}={}){
   return {schema:'defitness.uninstall-result.v1',installed:false,removed};
 }
 
-export function defitnessStatus(cwd=process.cwd()){
+export function defitnessStatus(cwd=process.cwd(),{probe=probeDiffWitness}={}){
   let config=null;
   let configError=null;
   try{config=readDefitnessConfig(cwd);}catch(error){configError=String(error.message||error);}
   const adapters={claude:hasClaudeInstall(cwd),codex:hasCodexInstall(cwd),cursor:hasCursorInstall(cwd)};
-  const proof=config&&!configError?probeDiffWitness(cwd,config.diffWitnessCommand):{ok:false,command:config?.diffWitnessCommand||null};
+  const proof=config&&!configError?probe(cwd,config.diffWitnessCommand):{ok:false,command:config?.diffWitnessCommand||null};
   const configured=Boolean(config)&&!configError;
   const adapterReady=configured&&config.adapters.every((name)=>adapters[name]===true);
   return {
     schema:'defitness.status.v1',
     configured,
-    healthy:configured&&adapterReady&&proof.ok,
+    healthy:configured&&adapterReady&&Boolean(proof?.ok),
     configError,
     adapters,
     expectedAdapters:config?.adapters||[],
-    diffWitness:{ok:Boolean(proof.ok),command:proof.command||config?.diffWitnessCommand||null,errorCode:proof.errorCode||null}
+    diffWitness:{ok:Boolean(proof?.ok),command:proof?.command||config?.diffWitnessCommand||null,errorCode:proof?.errorCode||null}
   };
 }
 
