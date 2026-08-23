@@ -3,14 +3,17 @@ import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { main } from '../src/cli.mjs';
 import { runCodexBridgeCli } from '../src/codex-bridge.mjs';
 import { learningCliHelp, runLearningCli } from '../src/learning-cli.mjs';
 import { portalCliHelp, runPortalCli } from '../src/portal-cli.mjs';
 import { runDemo } from '../src/demo.mjs';
 import { repairLocalState } from '../src/recovery.mjs';
+import { installCursor, uninstallCursor } from '../src/install-cursor.mjs';
 
 const args = process.argv.slice(2);
+const BIN_PATH = fileURLToPath(import.meta.url);
 
 function freeLoopbackPort() {
   return new Promise((resolve, reject) => {
@@ -41,21 +44,21 @@ function commandAvailable(command) {
 }
 
 function detectAgent(cwd = process.cwd()) {
-  // Existing project conventions are stronger evidence than whatever happens to be globally on PATH.
-  // This intentionally does not inspect or transmit user configuration content.
-  const projectClaude = fs.existsSync(path.join(cwd, '.claude'));
-  const projectCodex = fs.existsSync(path.join(cwd, '.codex'));
-  if (projectClaude && projectCodex) return 'all';
-  if (projectCodex) return 'codex';
-  if (projectClaude) return 'claude';
+  const projectSignals = [
+    ['claude', fs.existsSync(path.join(cwd,'.claude'))],
+    ['codex', fs.existsSync(path.join(cwd,'.codex'))],
+    ['cursor', fs.existsSync(path.join(cwd,'.cursor'))]
+  ].filter(([,present])=>present).map(([name])=>name);
+  if (projectSignals.length > 1) return 'all';
+  if (projectSignals.length === 1) return projectSignals[0];
 
-  const hasClaude = commandAvailable('claude');
-  const hasCodex = commandAvailable('codex');
-  if (hasClaude && hasCodex) return 'all';
-  if (hasCodex) return 'codex';
-  if (hasClaude) return 'claude';
-
-  // Preserve the historical default when no signal exists, while making the choice explicit in output.
+  const available = [
+    ['claude', commandAvailable('claude')],
+    ['codex', commandAvailable('codex')],
+    ['cursor', commandAvailable('cursor')]
+  ].filter(([,present])=>present).map(([name])=>name);
+  if (available.length > 1) return 'all';
+  if (available.length === 1) return available[0];
   return 'claude';
 }
 
@@ -67,11 +70,23 @@ async function runtimeArgs(cmd) {
     console.log(`✓ Agent adapter auto-detected: ${agent}`);
   }
   if (['on', 'start'].includes(cmd) && !resolved.includes('--port')) {
-    // Normal users should not have to understand ports. Pick a free loopback port for background
-    // mode; an explicit --port remains strict and is never silently changed.
     resolved.push('--port', String(await freeLoopbackPort()));
   }
   return resolved;
+}
+
+function optionValue(values,key) {
+  const index=values.indexOf(key);
+  return index>=0 && values[index+1] != null ? values[index+1] : null;
+}
+
+function withoutAgentOption(values) {
+  const result=[];
+  for (let i=0;i<values.length;i+=1) {
+    if (values[i]==='--agent') { i+=1; continue; }
+    result.push(values[i]);
+  }
+  return result;
 }
 
 function printRepair(result, repairArgs) {
@@ -104,6 +119,7 @@ async function run() {
     await main(args);
     process.stdout.write(`${learningCliHelp()}\n`);
     process.stdout.write(`\n${portalCliHelp()}\n`);
+    process.stdout.write('\nIDE adapters:\n  idleproof on --agent claude|codex|cursor|all\n  Cursor local mode uses native hooks plus a local always-on continuity rule; source/project identity stays unchanged.\n');
     process.stdout.write('\nCodex resilient mode:\n  idleproof codex [--model MODEL] [--sandbox read-only|workspace-write] -- <task>\n  Uses Codex exec JSON telemetry when native project hooks are unavailable; never enables danger-full-access.\n');
     process.stdout.write('\nRecovery & support:\n  idleproof support [--json|--out FILE]\n  idleproof repair [--dry-run] [--json]\n');
     return;
@@ -125,9 +141,40 @@ async function run() {
     await runCodexBridgeCli(args.slice(1));
     return;
   }
+  if (cmd === 'install' && args[1] === 'cursor') {
+    const installed=installCursor({cwd:process.cwd(),binPath:BIN_PATH});
+    console.log(`✓ Cursor adapter: ${path.relative(process.cwd(),installed.hooks)}`);
+    console.log(`✓ Cursor continuity rule: ${path.relative(process.cwd(),installed.rule)}`);
+    return;
+  }
+  if (cmd === 'uninstall' && args[1] === 'cursor') {
+    console.log(uninstallCursor({cwd:process.cwd()}) ? '✓ Cursor IdleProof adapter removed.' : 'No Cursor IdleProof adapter found.');
+    return;
+  }
+  if (cmd === 'install' && args[1] === 'all') installCursor({cwd:process.cwd(),binPath:BIN_PATH});
+  if (cmd === 'uninstall' && args[1] === 'all') uninstallCursor({cwd:process.cwd()});
   if (await runPortalCli(args)) return;
   if (await runLearningCli(args)) return;
-  await main(await runtimeArgs(cmd));
+
+  const resolved=await runtimeArgs(cmd);
+  if (cmd === 'on') {
+    const agent=String(optionValue(resolved,'--agent')||'').toLowerCase();
+    if (agent === 'cursor') {
+      const installed=installCursor({cwd:process.cwd(),binPath:BIN_PATH});
+      console.log(`✓ Cursor adapter: ${path.relative(process.cwd(),installed.hooks)}`);
+      console.log('✓ Cursor task continuity runs locally; dynamic per-prompt context is read from the hidden IdleProof task file.');
+      const startArgs=withoutAgentOption(resolved);
+      startArgs[0]='start';
+      await main(startArgs);
+      console.log('✓ Terminal is free — use Cursor normally; IdleProof runs in the background.');
+      return;
+    }
+    if (agent === 'all') {
+      const installed=installCursor({cwd:process.cwd(),binPath:BIN_PATH});
+      console.log(`✓ Cursor adapter: ${path.relative(process.cwd(),installed.hooks)}`);
+    }
+  }
+  await main(resolved);
 }
 
 run().catch((error) => {
