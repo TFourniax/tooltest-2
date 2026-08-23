@@ -29,6 +29,7 @@ export function projectPaths(cwd = process.cwd()) {
     portalQueue: path.join(dir, 'portal-queue.json'),
     portalQueueLock: path.join(dir, 'portal-queue.lock'),
     portalDeliveryHealth: path.join(dir, 'portal-delivery.json'),
+    defitnessConfig: path.join(dir, 'defitness.json'),
     cursorTaskContext: path.join(dir, 'cursor-current-task.md'),
     policy: path.join(root, 'idleproof.policy.json'),
     claudeSettings: path.join(root, '.claude', 'settings.local.json'),
