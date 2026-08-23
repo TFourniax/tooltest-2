@@ -19,11 +19,12 @@ function tempRepo() {
   return dir;
 }
 
-test('hook lifecycle records unverified exposure, footprint, trust findings, and a diff-bound receipt', () => {
+test('hook lifecycle records stable task identity, exposure, footprint, trust findings, and a diff-bound receipt', () => {
   const cwd = tempRepo();
   const sessionId = 'session-test';
   try {
     processHookEvent({ cwd, session_id: sessionId, hook_event_name: 'UserPromptSubmit', prompt: 'Add JWT auth and protected API tests' });
+    processHookEvent({ cwd, session_id: sessionId, hook_event_name: 'UserPromptSubmit', prompt: 'yes, continue' });
     processHookEvent({ cwd, session_id: sessionId, hook_event_name: 'PreToolUse', tool_name: 'Edit', tool_input: { file_path: path.join(cwd, 'app.js') } });
     fs.writeFileSync(path.join(cwd, 'app.js'), "export const html = user => eval(user); // auth session jwt\n");
     processHookEvent({ cwd, session_id: sessionId, hook_event_name: 'Stop' });
@@ -31,6 +32,10 @@ test('hook lifecycle records unverified exposure, footprint, trust findings, and
     const state = loadState(cwd);
     const session = state.sessions[sessionId];
     assert.equal(session.status, 'complete');
+    assert.match(session.task.id, /^dwtask_[a-f0-9]{24}$/);
+    assert.equal(session.task.anchor, 'Add JWT auth and protected API tests');
+    assert.equal(session.task.latestFocus, 'Add JWT auth and protected API tests');
+    assert.equal(session.lastTaskBoundary, 'continued');
     assert.ok(session.concepts.auth);
     assert.ok(state.ledger.auth.exposures >= 1);
     assert.ok(session.changed.added >= 1);
@@ -39,6 +44,8 @@ test('hook lifecycle records unverified exposure, footprint, trust findings, and
 
     const receipt = buildReceipt(cwd);
     assert.equal(receipt.schema, 'idleproof.receipt.v1');
+    assert.equal(receipt.session.task.id, session.task.id);
+    assert.equal(receipt.session.task.prompts, 2);
     assert.equal(receipt.session.proof.diffSha256, session.proof.diffSha256);
     assert.equal(receipt.metrics.debt, 0, 'mere exposure must not be mislabeled as Knowledge Debt');
     assert.equal(receipt.metrics.coverageStatus, 'unverified');
