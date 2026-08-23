@@ -130,7 +130,9 @@ async function run() {
   }
   if (nativeName==='postToolUse') {
     const message=lifecycle?.hookOutput?.systemMessage;
-    if (typeof message==='string' && message.trim()) process.stdout.write(`${JSON.stringify({additional_context:message.slice(0,2200)})\n`);
+    if (typeof message==='string' && message.trim()) {
+      process.stdout.write(`${JSON.stringify({additional_context:message.slice(0,2200)})}\n`);
+    }
     return;
   }
   if(nativeName==='stop'){
