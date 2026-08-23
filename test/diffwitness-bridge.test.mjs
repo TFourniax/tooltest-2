@@ -26,6 +26,6 @@ test('corrupt Defitness config fails closed instead of silently downgrading Proo
     assert.equal(result.enabled,true);
     assert.equal(result.ok,false);
     assert.equal(result.required,true);
-    assert.equal(result.errorCode,'DEFINESS_CONFIG_INVALID');
+    assert.equal(result.errorCode,'DEFITNESS_CONFIG_INVALID');
   }finally{fs.rmSync(cwd,{recursive:true,force:true});}
 });
