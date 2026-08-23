@@ -19,17 +19,11 @@ export function readDefitnessConfig(cwd=process.cwd()){
     const value=JSON.parse(fs.readFileSync(file,'utf8'));
     if(!value||value.schema!==SCHEMA||typeof value!=='object'||Array.isArray(value)) throw new Error('unsupported schema');
     const adapters=Array.isArray(value.adapters)?value.adapters.filter((item)=>['claude','codex','cursor'].includes(item)):[];
-    return {
-      schema:SCHEMA,
-      requireDiffWitness:value.requireDiffWitness===true,
-      diffWitnessCommand:typeof value.diffWitnessCommand==='string'&&value.diffWitnessCommand.trim()?value.diffWitnessCommand.trim():'dw',
-      adapters:[...new Set(adapters)],
-      installedAt:typeof value.installedAt==='string'?value.installedAt:null
-    };
+    return {schema:SCHEMA,requireDiffWitness:value.requireDiffWitness===true,diffWitnessCommand:typeof value.diffWitnessCommand==='string'&&value.diffWitnessCommand.trim()?value.diffWitnessCommand.trim():'dw',adapters:[...new Set(adapters)],installedAt:typeof value.installedAt==='string'?value.installedAt:null};
   } catch(error){
     if(error?.code==='ENOENT') return null;
     const wrapped=new Error(`Defitness integration config is invalid: ${error.message}`);
-    wrapped.code='DEFINESS_CONFIG_INVALID';
+    wrapped.code='DEFITNESS_CONFIG_INVALID';
     throw wrapped;
   }
 }
