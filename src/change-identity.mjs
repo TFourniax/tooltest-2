@@ -56,7 +56,7 @@ function isTransientUntracked(relative) {
   return TRANSIENT_SUFFIXES.has(extension);
 }
 
-function repositoryFingerprint(cwd) {
+export function repositoryFingerprint(cwd = process.cwd()) {
   const root=repoRoot(cwd);
   const roots = git(root, ['rev-list', '--max-parents=0', 'HEAD'])
     .split(/\r?\n/)
