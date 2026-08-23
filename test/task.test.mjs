@@ -10,7 +10,7 @@ test('first substantive prompt creates a stable deterministic task id', () => {
   const value=session();
   const first=updateSessionTask(value,'Implement partial refunds safely',{sessionId:value.id,now:'2026-08-23T10:00:00Z'});
   assert.equal(first.boundary,'started');
-  assert.match(value.task.id,/^dwtask_[a-f0-9]{24}$/);
+  assert.equal(value.task.id,'dwtask_c54d07d5c2dcc98ed83401d7');
   assert.equal(value.task.anchor,'Implement partial refunds safely');
   assert.equal(value.task.id,stableTaskId(value.id,1,'Implement partial refunds safely'));
   assert.equal(taskDisplayText(value),'Implement partial refunds safely');
