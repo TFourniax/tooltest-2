@@ -53,7 +53,8 @@ function sessionStartOutput(sessionId,warning='') {
   return {
     env:{ IDLEPROOF_CURSOR_SESSION_ID:sessionId },
     additional_context:[
-      'Defitness is active as a local task-understanding, Proof, software-debt and Project Continuity layer for this workspace.',
+      'IdleProof is active inside Defitness as the local task-understanding layer for this workspace.',
+      'Defitness also coordinates DiffWitness Proof, software-debt accounting and Project Continuity when the project integration is armed.',
       'Before planning or mutating code on each turn, follow the local IdleProof rule and read .idleproof/cursor-current-task.md when present.',
       'Treat DECLARED/INFERRED/OBSERVED/VERIFIED as distinct epistemic levels. Only executed DiffWitness evidence can establish VERIFIED correctness.',
       warning
@@ -129,7 +130,7 @@ async function run() {
   }
   if (nativeName==='postToolUse') {
     const message=lifecycle?.hookOutput?.systemMessage;
-    if (typeof message==='string' && message.trim()) process.stdout.write(`${JSON.stringify({additional_context:message.slice(0,2200)})}\n`);
+    if (typeof message==='string' && message.trim()) process.stdout.write(`${JSON.stringify({additional_context:message.slice(0,2200)})\n`);
     return;
   }
   if(nativeName==='stop'){
