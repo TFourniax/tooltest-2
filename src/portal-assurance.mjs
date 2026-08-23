@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { computeMetrics, loadState } from './state.mjs';
 import { assuranceFromChangeEnvelope, assertPortalSnapshotSafe, buildPortalSnapshot } from './portal-snapshot.mjs';
-import { flushPortalQueue, queuePortalSnapshot, resolvePortalProjectSeed } from './portal-client.mjs';
+import { buildPortalProjectModel, flushPortalQueue, queuePortalSnapshot, resolvePortalProjectSeed } from './portal-client.mjs';
 
 function latestSession(state) {
   return Object.values(state?.sessions || {}).sort((a,b)=>String(b.lastEventAt || '').localeCompare(String(a.lastEventAt || '')))[0] || null;
@@ -30,11 +30,13 @@ export function buildAssurancePortalSnapshot(cwd=process.cwd(), envelope) {
   const assurance=assuranceFromChangeEnvelope(envelope,expectedChangeId);
   const metrics=computeMetrics(state);
   const projectIdentitySeed=resolvePortalProjectSeed(cwd,state);
+  const featureModel=session?.featureModel || null;
+  const projectModel=buildPortalProjectModel(cwd,state,session,featureModel);
   const snapshot=buildPortalSnapshot({
     state:{...state,metrics,createdAt:projectIdentitySeed},
     session,
-    featureModel:session?.featureModel || null,
-    projectModel:null,
+    featureModel,
+    projectModel,
     explanation:null,
     assurance
   });
