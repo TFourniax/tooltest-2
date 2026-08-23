@@ -5,6 +5,7 @@
   "type": "module",
   "bin": {
     "idleproof": "./bin/idleproof.mjs",
+    "defitness": "./bin/defitness.mjs",
     "idleproof-support": "./bin/idleproof-support.mjs"
   },
   "scripts": {
