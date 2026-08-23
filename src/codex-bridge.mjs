@@ -118,7 +118,7 @@ export async function runCodexBridge({
   const args = [...codexCommand.slice(1), ...buildCodexArgs({ prompt: String(prompt), model, sandbox })];
   const command = codexCommand[0];
   let sessionId = null;
-  let fallbackSessionId = `codex-bridge-${randomUUID()}`;
+  const fallbackSessionId = `codex-bridge-${randomUUID()}`;
   let bridgeStarted = false;
   let turnFailed = false;
   let finalMessage = '';
@@ -130,6 +130,13 @@ export async function runCodexBridge({
     env: process.env,
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
+  });
+  // Register process completion immediately. Attaching the `exit` listener only after stdout EOF
+  // creates a race for short-lived Codex processes: the process can already be gone by then and the
+  // bridge would wait forever on an event that has passed.
+  const exitPromise = new Promise((resolve, reject) => {
+    child.once('error', reject);
+    child.once('exit', (code, signal) => resolve({ code: signal ? 130 : (code ?? 1), signal }));
   });
   child.stderr.on('data', (chunk) => stderr.write(chunk));
   const lines = createInterface({ input: child.stdout, crlfDelay: Infinity });
@@ -190,10 +197,7 @@ export async function runCodexBridge({
     }
   }
 
-  const exit = await new Promise((resolve, reject) => {
-    child.once('error', reject);
-    child.once('exit', (code, signal) => resolve({ code: signal ? 130 : (code ?? 1), signal }));
-  });
+  const exit = await exitPromise;
 
   const activeId = ensureBridgeStarted(sessionId || fallbackSessionId);
   const native = nativeCodexActive(cwd, activeId);
