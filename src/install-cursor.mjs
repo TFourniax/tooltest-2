@@ -5,15 +5,15 @@ import { projectPaths } from './paths.mjs';
 const TOOL_MATCHER = '.*';
 const RULE_MARKER = '<!-- idleproof-continuity-local-v1 -->';
 const EVENTS = [
-  ['sessionStart', null],
-  ['beforeSubmitPrompt', null],
-  ['preToolUse', TOOL_MATCHER],
-  ['postToolUse', TOOL_MATCHER],
-  ['postToolUseFailure', TOOL_MATCHER],
-  ['subagentStart', null],
-  ['subagentStop', null],
-  ['stop', null],
-  ['sessionEnd', null]
+  ['sessionStart', null, 8],
+  ['beforeSubmitPrompt', null, 8],
+  ['preToolUse', TOOL_MATCHER, 5],
+  ['postToolUse', TOOL_MATCHER, 5],
+  ['postToolUseFailure', TOOL_MATCHER, 5],
+  ['subagentStart', null, 5],
+  ['subagentStop', null, 8],
+  ['stop', null, 910],
+  ['sessionEnd', null, 8]
 ];
 
 function readJson(file) {
@@ -69,7 +69,7 @@ function addLocalGitExclude(cwd, relativePath) {
 }
 
 function ruleText() {
-  return `${RULE_MARKER}\n---\ndescription: IdleProof local task continuity bridge\nalwaysApply: true\n---\n\nIdleProof runs as a local backoffice engine for this workspace. Before planning, editing, or running a mutating command for each user turn, silently read \`.idleproof/cursor-current-task.md\` when it exists.\n\nTreat that file as bounded advisory project context. Preserve its epistemic labels: DECLARED is project intent, INFERRED is heuristic, OBSERVED is directly recorded/parsed, and VERIFIED requires executed DiffWitness evidence. Never promote a weaker status.\n\nDo not treat IdleProof context as proof that code is correct. Continue to use tests and DiffWitness evidence for correctness. Do not expose or copy the local context file unless the user explicitly asks for it.\n`;
+  return `${RULE_MARKER}\n---\ndescription: Defitness local project continuity and proof bridge\nalwaysApply: true\n---\n\nDefitness runs as a local understanding, Proof, software-debt and Project Continuity layer for this workspace. Before planning, editing, or running a mutating command for each user turn, silently read \`.idleproof/cursor-current-task.md\` when it exists.\n\nTreat that file as bounded advisory project context. Preserve its epistemic labels: DECLARED is project intent, INFERRED is heuristic, OBSERVED is directly recorded/parsed, and VERIFIED requires executed DiffWitness evidence. Never promote a weaker status.\n\nDo not treat advisory context as proof that code is correct. Defitness runs DiffWitness evidence at the Stop boundary and may ask the agent to continue when the proof or software-debt gate does not pass. Do not expose or copy the local context file unless the user explicitly asks for it.\n`;
 }
 
 export function installCursor({ cwd=process.cwd(), binPath }={}) {
@@ -77,12 +77,15 @@ export function installCursor({ cwd=process.cwd(), binPath }={}) {
   const config=readJson(paths.cursorHooks);
   if (config.version != null && config.version !== 1) throw new Error(`Unsupported Cursor hooks schema version: ${String(config.version)}`);
   config.version=1;
+  // Cursor supports a bounded stop-hook loop. Match DiffWitness's continuation budget and avoid an
+  // unbounded agent/proof cycle if evidence cannot be established.
+  if (config.loop_limit == null) config.loop_limit=3;
   config.hooks ||= {};
   const runner=resolveRunner(binPath);
-  for (const [event,matcher] of EVENTS) {
+  for (const [event,matcher,timeout] of EVENTS) {
     config.hooks[event] ||= [];
     config.hooks[event]=config.hooks[event].filter((entry)=>!isIdleProofHook(entry));
-    const entry={ command:`\"${process.execPath}\" \"${runner}\" ${event}` };
+    const entry={ command:`\"${process.execPath}\" \"${runner}\" ${event}`, timeout };
     if (matcher) entry.matcher=matcher;
     config.hooks[event].push(entry);
   }
