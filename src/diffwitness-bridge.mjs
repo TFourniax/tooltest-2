@@ -9,9 +9,10 @@ const EVENT_MAP=new Map([
 
 function commandFor(cwd){
   let config=null;
-  try{config=readDefitnessConfig(cwd);}catch(error){return {config:{requireDiffWitness:true},command:null,error};}
-  const command=config?.diffWitnessCommand || process.env.DEFITNESS_DIFFWITNESS_BIN || process.env.DIFFWITNESS_BIN || 'dw';
-  return {config,command,error:null};
+  try{config=readDefitnessConfig(cwd);}catch(error){return {enabled:true,config:{requireDiffWitness:true},command:null,error};}
+  if(!config)return {enabled:false,config:null,command:null,error:null};
+  const command=config.diffWitnessCommand || process.env.DEFITNESS_DIFFWITNESS_BIN || process.env.DIFFWITNESS_BIN || 'dw';
+  return {enabled:true,config,command,error:null};
 }
 
 function parseLastJson(stdout=''){
@@ -35,9 +36,8 @@ export function probeDiffWitness(cwd=process.cwd(),commandOverride=null){
   if(!selected){
     const resolved=commandFor(cwd);
     if(resolved.error)return {ok:false,command:null,errorCode:resolved.error.code||'DEFITNESS_CONFIG_INVALID',message:String(resolved.error.message||resolved.error)};
-    selected=resolved.command;
+    selected=resolved.command || process.env.DEFITNESS_DIFFWITNESS_BIN || process.env.DIFFWITNESS_BIN || 'dw';
   }
-  selected=selected || 'dw';
   const result=spawnSync(selected,['ide-hook','user-prompt-submit'],{
     cwd,
     input:'{}',
@@ -53,10 +53,11 @@ export function probeDiffWitness(cwd=process.cwd(),commandOverride=null){
 
 export function runDiffWitnessIdeHook({cwd=process.cwd(),eventName,event={}}={}){
   const mapped=EVENT_MAP.get(String(eventName||''));
-  if(!mapped)return {supported:false,available:null,ok:true,output:null,required:false};
+  if(!mapped)return {supported:false,enabled:false,available:null,ok:true,output:null,required:false};
   const resolved=commandFor(cwd);
+  if(!resolved.enabled)return {supported:true,enabled:false,available:null,ok:true,output:null,required:false};
   const required=resolved.config?.requireDiffWitness===true;
-  if(resolved.error)return {supported:true,available:null,ok:false,required:true,errorCode:resolved.error.code||'DEFITNESS_CONFIG_INVALID',message:String(resolved.error.message||resolved.error)};
+  if(resolved.error)return {supported:true,enabled:true,available:null,ok:false,required:true,errorCode:resolved.error.code||'DEFITNESS_CONFIG_INVALID',message:String(resolved.error.message||resolved.error)};
   const result=spawnSync(resolved.command,[ 'ide-hook', mapped ],{
     cwd,
     input:JSON.stringify({...event,cwd}),
@@ -67,12 +68,12 @@ export function runDiffWitnessIdeHook({cwd=process.cwd(),eventName,event={}}={})
     env:{...process.env}
   });
   if(result.error){
-    return {supported:true,available:false,ok:false,required,errorCode:result.error.code||'SPAWN_FAILED',message:String(result.error.message||result.error).slice(0,800)};
+    return {supported:true,enabled:true,available:false,ok:false,required,errorCode:result.error.code||'SPAWN_FAILED',message:String(result.error.message||result.error).slice(0,800)};
   }
   if(result.status!==0){
-    return {supported:true,available:true,ok:false,required,errorCode:'DIFFWITNESS_HOOK_FAILED',message:String(result.stderr||result.stdout||`DiffWitness exited ${result.status}`).trim().slice(0,1200)};
+    return {supported:true,enabled:true,available:true,ok:false,required,errorCode:'DIFFWITNESS_HOOK_FAILED',message:String(result.stderr||result.stdout||`DiffWitness exited ${result.status}`).trim().slice(0,1200)};
   }
-  return {supported:true,available:true,ok:true,required,output:parseLastJson(result.stdout),stderr:String(result.stderr||'').trim().slice(0,800)};
+  return {supported:true,enabled:true,available:true,ok:true,required,output:parseLastJson(result.stdout),stderr:String(result.stderr||'').trim().slice(0,800)};
 }
 
 export function diffWitnessRequiredFailure(result){
