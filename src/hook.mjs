@@ -17,6 +17,8 @@ import { cachedFeatureModel, rememberFeature } from './feature-memory.mjs';
 import { buildHookDelivery } from './delivery.mjs';
 import { captureBaselineIdentity, finalizeChangeIdentity } from './change-identity.mjs';
 import { schedulePortalSync } from './portal-client.mjs';
+import { taskContextQuery, taskDisplayText, taskMetadata, updateSessionTask } from './task.mjs';
+import { continuityCounts, loadContinuityContext, renderContinuityForAgent } from './continuity.mjs';
 
 function now() {
   return new Date().toISOString();
@@ -34,6 +36,8 @@ function ensureSession(state, event) {
       prompt: '',
       promptChars: 0,
       promptSha256: null,
+      task: null,
+      taskHistory: [],
       currentTool: null,
       estimatedWindow: 20,
       touchedFiles: [],
@@ -46,7 +50,9 @@ function ensureSession(state, event) {
       events: []
     };
   }
-  return state.sessions[id];
+  const session = state.sessions[id];
+  session.taskHistory ||= [];
+  return session;
 }
 
 function exposeConcept(state, session, id) {
@@ -96,6 +102,45 @@ function strictRecorderFailClosed(event, policyDecision, provenanceError, cwd) {
   };
 }
 
+function sessionForEvent(state, event) {
+  if (event.session_id && state.sessions?.[event.session_id]) return state.sessions[event.session_id];
+  return Object.values(state.sessions || {}).sort((a, b) => String(b.lastEventAt || '').localeCompare(String(a.lastEventAt || '')))[0] || null;
+}
+
+function loadingOutput(cwd, state, event) {
+  const session = sessionForEvent(state, event);
+  if (!session?.task?.id) return null;
+  const query = taskContextQuery(session);
+  const continuity = loadContinuityContext(cwd, query);
+  const counts = continuityCounts(continuity);
+  const continuityText = renderContinuityForAgent(continuity, { maxChars: 5200 });
+  const primary = taskDisplayText(session) || 'current task';
+  const focus = String(session.task?.latestFocus || '').replace(/\s+/g, ' ').trim();
+  const focusLine = focus && focus !== session.task.anchor ? `\nCurrent focus: ${focus.slice(0, 260)}` : '';
+  const taskContext = [
+    `ACTIVE TASK ${session.task.id}`,
+    `Primary objective: ${String(session.task.anchor || primary).slice(0, 1000)}`,
+    focusLine ? focusLine.trimStart() : null,
+    continuityText || null
+  ].filter(Boolean).join('\n\n');
+  const contextSummary = counts
+    ? `${counts.objectives} objective(s) · ${counts.decisions} decision(s) · ${counts.criticalInvariants || counts.invariants} invariant(s) · ${counts.debt} open debt item(s)`
+    : 'task identity ready · project continuity will enrich when DiffWitness is available';
+  const systemMessage = [
+    `IdleProof · loading ${session.task.id}`,
+    `Task: ${primary}`,
+    `Context: ${contextSummary}`,
+    'Engine: local/backoffice · correctness remains a DiffWitness evidence claim at handoff.'
+  ].join('\n');
+  return {
+    systemMessage,
+    hookSpecificOutput: {
+      hookEventName: 'UserPromptSubmit',
+      additionalContext: taskContext.slice(0, 6500)
+    }
+  };
+}
+
 export function processHookLifecycle(event = {}) {
   const cwd = event.cwd || process.cwd();
   const eventName = event.hook_event_name || event.type || 'event';
@@ -130,11 +175,14 @@ export function processHookLifecycle(event = {}) {
       if (!session.baselineIdentity) session.baselineIdentity = captureBaselineIdentity(cwd);
       const rawPrompt = String(event.prompt || '');
       session.status = 'active';
-      // Keep only bounded text for local Explain-first UX; retain exact full-input provenance as
-      // one-way metadata so receipts/Portal do not pretend the truncated text was the original.
+      // `prompt` remains the bounded latest turn for backward-compatible local diagnostics. The
+      // stable user task is tracked separately so a reply such as "yes, continue" cannot erase the
+      // objective that IdleProof is explaining. Full input provenance remains one-way metadata.
       session.prompt = rawPrompt.slice(0, 1200);
       session.promptChars = rawPrompt.length;
       session.promptSha256 = sha256(rawPrompt);
+      const taskUpdate = updateSessionTask(session, rawPrompt, { sessionId: session.id });
+      session.lastTaskBoundary = taskUpdate.boundary;
       session.currentTool = 'Thinking';
       session.estimatedWindow = estimateWindow(event);
     }
@@ -185,6 +233,7 @@ export function processHookLifecycle(event = {}) {
       session.currentTool = null;
       session.estimatedWindow = 0;
       session.completedAt = now();
+      if (session.task && !session.task.completedAt) session.task.completedAt = session.completedAt;
 
       const featureModel = cachedFeatureModel(cwd, session);
       const featureMemory = rememberFeature(state, session, featureModel);
@@ -229,9 +278,11 @@ export function processHookLifecycle(event = {}) {
 
   const hookOutput = policyDecision
     ? policyDecisionOutput(event, policyDecision)
-    : surfacedExplanation
-      ? { systemMessage: surfacedExplanation }
-      : null;
+    : eventName === 'UserPromptSubmit'
+      ? loadingOutput(cwd, state, event)
+      : surfacedExplanation
+        ? { systemMessage: surfacedExplanation }
+        : null;
 
   return {
     state,
@@ -273,6 +324,7 @@ function receiptFromState(state, cwd) {
       source: session.source,
       startedAt: session.startedAt,
       completedAt: session.completedAt || null,
+      task: taskMetadata(session),
       intent: { sha256: promptSha256, chars: promptChars, retainedChars: boundedPrompt.length },
       files: session.touchedFiles,
       changed: session.changed,
