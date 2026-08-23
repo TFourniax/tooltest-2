@@ -9,8 +9,8 @@ const EVENT_MAP=new Map([
 
 function commandFor(cwd){
   let config=null;
-  try{config=readDefitnessConfig(cwd);}catch(error){return {config:null,command:null,error};}
-  const command=config?.diffWitnessCommand || process.env.DEFINESS_DIFFWITNESS_BIN || process.env.DIFFWITNESS_BIN || 'dw';
+  try{config=readDefitnessConfig(cwd);}catch(error){return {config:{requireDiffWitness:true},command:null,error};}
+  const command=config?.diffWitnessCommand || process.env.DEFITNESS_DIFFWITNESS_BIN || process.env.DIFFWITNESS_BIN || 'dw';
   return {config,command,error:null};
 }
 
@@ -24,14 +24,20 @@ function parseLastJson(stdout=''){
 
 function timeoutFor(eventName){
   if(eventName==='Stop'){
-    const configured=Number(process.env.DEFINESS_DIFFWITNESS_STOP_TIMEOUT_MS || 905000);
+    const configured=Number(process.env.DEFITNESS_DIFFWITNESS_STOP_TIMEOUT_MS || 905000);
     return Number.isFinite(configured)&&configured>=1000?Math.min(configured,1_800_000):905000;
   }
   return 8000;
 }
 
 export function probeDiffWitness(cwd=process.cwd(),commandOverride=null){
-  const selected=commandOverride || commandFor(cwd).command || 'dw';
+  let selected=commandOverride;
+  if(!selected){
+    const resolved=commandFor(cwd);
+    if(resolved.error)return {ok:false,command:null,errorCode:resolved.error.code||'DEFITNESS_CONFIG_INVALID',message:String(resolved.error.message||resolved.error)};
+    selected=resolved.command;
+  }
+  selected=selected || 'dw';
   const result=spawnSync(selected,['ide-hook','user-prompt-submit'],{
     cwd,
     input:'{}',
@@ -50,7 +56,7 @@ export function runDiffWitnessIdeHook({cwd=process.cwd(),eventName,event={}}={})
   if(!mapped)return {supported:false,available:null,ok:true,output:null,required:false};
   const resolved=commandFor(cwd);
   const required=resolved.config?.requireDiffWitness===true;
-  if(resolved.error)return {supported:true,available:null,ok:false,required,errorCode:resolved.error.code||'DEFINESS_CONFIG_INVALID',message:String(resolved.error.message||resolved.error)};
+  if(resolved.error)return {supported:true,available:null,ok:false,required:true,errorCode:resolved.error.code||'DEFITNESS_CONFIG_INVALID',message:String(resolved.error.message||resolved.error)};
   const result=spawnSync(resolved.command,[ 'ide-hook', mapped ],{
     cwd,
     input:JSON.stringify({...event,cwd}),
@@ -78,4 +84,4 @@ export function diffWitnessRequiredFailure(result){
   };
 }
 
-export const __diffWitnessBridgeTest={EVENT_MAP,parseLastJson,timeoutFor};
+export const __diffWitnessBridgeTest={EVENT_MAP,parseLastJson,timeoutFor,commandFor};
