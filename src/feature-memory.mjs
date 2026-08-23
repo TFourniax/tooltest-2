@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { buildFeatureModel } from './feature-model.mjs';
+import { taskContextQuery, taskDisplayText } from './task.mjs';
 
 const modelCache = new Map();
 const MAX_CACHE = 80;
@@ -98,6 +99,8 @@ function cacheKey(cwd, session = {}) {
   return JSON.stringify({
     cwd: path.resolve(cwd),
     id: session.id || null,
+    task: session.task?.id || null,
+    taskFocus: session.task?.latestFocusSha256 || null,
     event: session.lastEventAt || null,
     resource: session.currentResource || null,
     files: (session.touchedFiles || []).slice(-8),
@@ -109,7 +112,10 @@ function cacheKey(cwd, session = {}) {
 export function cachedFeatureModel(cwd = process.cwd(), session = {}) {
   const key = cacheKey(cwd, session);
   if (modelCache.has(key)) return modelCache.get(key);
-  const model = buildFeatureModel(cwd, session);
+  // The feature mapper needs the stable task plus its substantive focus, not the latest conversational
+  // acknowledgement. This keeps feature ranking/fingerprints meaningful after turns like "yes, continue".
+  const semanticSession = { ...session, prompt: taskContextQuery(session) || session.prompt || '' };
+  const model = buildFeatureModel(cwd, semanticSession);
   model.featureKey = featureKey(model);
   modelCache.set(key, model);
   if (modelCache.size > MAX_CACHE) modelCache.delete(modelCache.keys().next().value);
@@ -141,7 +147,7 @@ function baseMemory(model, session) {
     confidence: 0,
     firstSeenAt: new Date().toISOString(),
     sessionIds: [],
-    task: String(session?.prompt || '').replace(/\s+/g, ' ').trim().slice(0, 180)
+    task: taskDisplayText(session)
   };
 }
 
@@ -158,7 +164,8 @@ export function rememberFeature(state, session, model, { exposure = true } = {})
   if (exposure && session?.id && !current.sessionIds?.includes(session.id)) current.exposures = (current.exposures || 0) + 1;
   current.sessionIds = unique([...(current.sessionIds || []), session?.id]).slice(-12);
   current.lastSeenAt = new Date().toISOString();
-  current.task = String(session?.prompt || current.task || '').replace(/\s+/g, ' ').trim().slice(0, 180);
+  current.task = taskDisplayText(session) || current.task || '';
+  current.taskId = session?.task?.id || current.taskId || null;
   current.previousFingerprint = current.fingerprint || null;
   current.fingerprint = model.fingerprint;
   current.featureKey = key;
