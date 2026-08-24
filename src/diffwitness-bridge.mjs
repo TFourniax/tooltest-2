@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { readDefitnessConfig } from './defitness-config.mjs';
+import { readIntegrationConfig } from './diffwitness-integration-config.mjs';
 
 const EVENT_MAP=new Map([
   ['SessionStart','session-start'],
@@ -7,12 +7,15 @@ const EVENT_MAP=new Map([
   ['Stop','session-stop']
 ]);
 
+function configuredCommand(config){
+  return config?.diffWitnessCommand || process.env.DIFFWITNESS_BIN || process.env.DEFITNESS_DIFFWITNESS_BIN || 'dw';
+}
+
 function commandFor(cwd){
   let config=null;
-  try{config=readDefitnessConfig(cwd);}catch(error){return {enabled:true,config:{requireDiffWitness:true},command:null,error};}
+  try{config=readIntegrationConfig(cwd);}catch(error){return {enabled:true,config:{requireDiffWitness:true},command:null,error};}
   if(!config)return {enabled:false,config:null,command:null,error:null};
-  const command=config.diffWitnessCommand || process.env.DEFITNESS_DIFFWITNESS_BIN || process.env.DIFFWITNESS_BIN || 'dw';
-  return {enabled:true,config,command,error:null};
+  return {enabled:true,config,command:configuredCommand(config),error:null};
 }
 
 function parseLastJson(stdout=''){
@@ -25,7 +28,7 @@ function parseLastJson(stdout=''){
 
 function timeoutFor(eventName){
   if(eventName==='Stop'){
-    const configured=Number(process.env.DEFITNESS_DIFFWITNESS_STOP_TIMEOUT_MS || 905000);
+    const configured=Number(process.env.DIFFWITNESS_STOP_TIMEOUT_MS || process.env.DEFITNESS_DIFFWITNESS_STOP_TIMEOUT_MS || 905000);
     return Number.isFinite(configured)&&configured>=1000?Math.min(configured,1_800_000):905000;
   }
   return 8000;
@@ -35,8 +38,8 @@ export function probeDiffWitness(cwd=process.cwd(),commandOverride=null){
   let selected=commandOverride;
   if(!selected){
     const resolved=commandFor(cwd);
-    if(resolved.error)return {ok:false,command:null,errorCode:resolved.error.code||'DEFITNESS_CONFIG_INVALID',message:String(resolved.error.message||resolved.error)};
-    selected=resolved.command || process.env.DEFITNESS_DIFFWITNESS_BIN || process.env.DIFFWITNESS_BIN || 'dw';
+    if(resolved.error)return {ok:false,command:null,errorCode:resolved.error.code||'DIFFWITNESS_INTEGRATION_CONFIG_INVALID',message:String(resolved.error.message||resolved.error)};
+    selected=resolved.command || process.env.DIFFWITNESS_BIN || process.env.DEFITNESS_DIFFWITNESS_BIN || 'dw';
   }
   const result=spawnSync(selected,['ide-hook','user-prompt-submit'],{
     cwd,
@@ -57,8 +60,8 @@ export function runDiffWitnessIdeHook({cwd=process.cwd(),eventName,event={}}={})
   const resolved=commandFor(cwd);
   if(!resolved.enabled)return {supported:true,enabled:false,available:null,ok:true,output:null,required:false};
   const required=resolved.config?.requireDiffWitness===true;
-  if(resolved.error)return {supported:true,enabled:true,available:null,ok:false,required:true,errorCode:resolved.error.code||'DEFITNESS_CONFIG_INVALID',message:String(resolved.error.message||resolved.error)};
-  const result=spawnSync(resolved.command,[ 'ide-hook', mapped ],{
+  if(resolved.error)return {supported:true,enabled:true,available:null,ok:false,required:true,errorCode:resolved.error.code||'DIFFWITNESS_INTEGRATION_CONFIG_INVALID',message:String(resolved.error.message||resolved.error)};
+  const result=spawnSync(resolved.command,['ide-hook',mapped],{
     cwd,
     input:JSON.stringify({...event,cwd}),
     encoding:'utf8',
@@ -77,11 +80,11 @@ export function runDiffWitnessIdeHook({cwd=process.cwd(),eventName,event={}}={})
 }
 
 export function diffWitnessRequiredFailure(result){
-  const reason=String(result?.message||'DiffWitness is unavailable for this Defitness project.').slice(0,1200);
+  const reason=String(result?.message||'DiffWitness is unavailable for this project.').slice(0,1200);
   return {
     decision:'block',
-    reason:`Defitness cannot establish Proof/Debt evidence: ${reason}`,
-    systemMessage:`Defitness cannot establish Proof/Debt evidence: ${reason}`
+    reason:`DiffWitness cannot establish Proof/Debt evidence: ${reason}`,
+    systemMessage:`DiffWitness cannot establish Proof/Debt evidence: ${reason}`
   };
 }
 
