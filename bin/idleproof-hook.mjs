@@ -58,18 +58,15 @@ async function run() {
     if(eventName==='UserPromptSubmit'){
       if(diffResult.ok) output=combinePromptOutput(output,diffResult.output);
       else if(diffResult.required){
-        const warning=`DEFINESS PROOF DEGRADED: ${String(diffResult.message||'DiffWitness unavailable').slice(0,700)}`;
+        const warning=`DIFFWITNESS PROOF DEGRADED: ${String(diffResult.message||'DiffWitness unavailable').slice(0,700)}`;
         output=combinePromptOutput(output,{hookSpecificOutput:{hookEventName:'UserPromptSubmit',additionalContext:warning}});
       }
     }
     if(eventName==='Stop'){
       output=combineStopOutput(output,diffResult);
-      // IdleProof has already materialized the exact receipt. DiffWitness has now produced the
-      // matching change envelope, so the assurance join is deterministic and ordering-free.
       queueMatchingDiffWitnessAssurance(cwd);
     }
   } else if(['SessionEnd','SubagentStop'].includes(eventName)) {
-    // Compatibility fallback for projects that still have an external DiffWitness hook installed.
     queueMatchingDiffWitnessAssurance(cwd);
   }
 
@@ -78,8 +75,9 @@ async function run() {
 }
 
 run().catch((error)=>{
-  // IdleProof-only installations remain fail-open. A Defitness installation is fail-closed at the
-  // DiffWitness Stop boundary through combineStopOutput, so no VERIFIED claim can be fabricated.
+  // Standalone IdleProof remains fail-open. Once DiffWitness integration is configured, the core
+  // Proof/Debt Stop decision remains the authoritative correctness boundary and cannot be upgraded
+  // to VERIFIED by this sidecar.
   console.error(`[idleproof-hook] ${error?.message || error}`);
   process.exitCode=0;
 });
