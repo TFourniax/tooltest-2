@@ -12,14 +12,14 @@ import { projectPaths } from './paths.mjs';
 import { classifyCapabilities } from './capabilities.mjs';
 
 const ZERO_HASH = '0'.repeat(64);
-// Provenance is append-only and must not silently lose a hook merely because many agents/subagents
-// report at once. Windows can hold directory/file metadata handles materially longer than POSIX
-// during process bursts. Uncontended acquisition is still one open() call; only contended writers
-// wait, and a lock is considered stale only after a full minute so a slow live writer is never
-// stolen from underneath it.
+// Provenance is append-only. Use the same atomic directory-lock strategy as state.mjs so Windows
+// never has to distinguish an open exclusive file from a real ACL/metadata error. A directory also
+// survives legacy file-lock contention as EEXIST and can be recovered only after a conservative
+// stale interval.
 const LOCK_STALE_MS = 60000;
 const LOCK_TIMEOUT_MS = 30000;
-const LOCK_WAIT_MS = 5;
+const LOCK_WAIT_MS = 10;
+const ATOMIC_RENAME_TIMEOUT_MS = 3000;
 const sleepBuffer = new Int32Array(new SharedArrayBuffer(4));
 const eventCache = new Map();
 const verificationCache = new Map();
@@ -29,8 +29,12 @@ function sleep(ms) { Atomics.wait(sleepBuffer, 0, 0, ms); }
 export function canonicalJson(value) { if (value === null || typeof value !== 'object') return JSON.stringify(value); if (Array.isArray(value)) return `[${value.map((item) => canonicalJson(item)).join(',')}]`; const keys = Object.keys(value).sort(); return `{${keys.map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`; }
 export function sha256(value) { const bytes = Buffer.isBuffer(value) ? value : Buffer.from(String(value)); return createHash('sha256').update(bytes).digest('hex'); }
 function readJson(file, fallback) { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch (error) { if (error.code === 'ENOENT') return fallback; throw error; } }
-function writeJson(file, value, mode = 0o600) { fs.mkdirSync(path.dirname(file), { recursive: true }); const temp = `${file}.${process.pid}.${Date.now()}.${randomUUID()}.tmp`; try { fs.writeFileSync(temp, `${JSON.stringify(value, null, 2)}\n`, { encoding: 'utf8', mode }); fs.renameSync(temp, file); } finally { try { fs.rmSync(temp, { force:true }); } catch {} } }
-function isLockContention(error, file) { if (error?.code === 'EEXIST') return true; if (!['EPERM','EACCES','EBUSY'].includes(error?.code)) return false; try { return fs.statSync(file).isFile(); } catch { return false; } }
+function renameAtomic(temp, file) { const started=Date.now(); while(true){ try{fs.renameSync(temp,file);return;}catch(error){ if(!['EPERM','EACCES','EBUSY'].includes(error?.code)||Date.now()-started>=ATOMIC_RENAME_TIMEOUT_MS)throw error; sleep(20); } } }
+function writeJson(file, value, mode = 0o600) { fs.mkdirSync(path.dirname(file), { recursive: true }); const temp = `${file}.${process.pid}.${Date.now()}.${randomUUID()}.tmp`; try { fs.writeFileSync(temp, `${JSON.stringify(value, null, 2)}\n`, { encoding: 'utf8', mode }); renameAtomic(temp, file); } finally { try { fs.rmSync(temp, { force:true }); } catch {} } }
+function lockExists(file){ try{fs.lstatSync(file);return true;}catch(error){if(error?.code==='ENOENT')return false;throw error;} }
+function isLockContention(error,file){ if(error?.code==='EEXIST')return true; if(!['EPERM','EACCES','EBUSY'].includes(error?.code))return false; try{return lockExists(file);}catch{return true;} }
+function lockMtime(file){ try{return fs.lstatSync(file).mtimeMs;}catch(error){if(error?.code==='ENOENT')return null;return Date.now();} }
+function removeLock(file){ try{fs.rmSync(file,{recursive:true,force:true,maxRetries:12,retryDelay:25});}catch{} }
 function acquireLock(cwd) {
   const file = projectPaths(cwd).provenanceLock;
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -38,31 +42,23 @@ function acquireLock(cwd) {
   let lastError = null;
   while (Date.now() - started < LOCK_TIMEOUT_MS) {
     try {
-      const fd = fs.openSync(file, 'wx', 0o600);
-      fs.writeFileSync(fd, `${process.pid} ${Date.now()}\n`);
+      fs.mkdirSync(file,{mode:0o700});
+      try{fs.writeFileSync(path.join(file,'owner'),`${process.pid} ${Date.now()}\n`,{encoding:'utf8',mode:0o600});}
+      catch(error){removeLock(file);throw error;}
+      let released=false;
       return () => {
-        // Close before unlinking: especially on Windows, unlinking an open lock can fail and leave
-        // a false permanent contention marker. Never throw from release after the ledger commit.
-        try { fs.closeSync(fd); } catch {}
-        for (let attempt=0; attempt<20; attempt+=1) {
-          try { fs.unlinkSync(file); return; }
-          catch (error) {
-            if (error?.code === 'ENOENT') return;
-            if (!['EPERM','EACCES','EBUSY'].includes(error?.code)) return;
-            sleep(5);
-          }
-        }
+        if(released)return;
+        released=true;
+        removeLock(file);
       };
     } catch (error) {
       lastError = error;
       if (!isLockContention(error,file)) throw error;
-      try {
-        const stat=fs.statSync(file);
-        if (Date.now() - stat.mtimeMs > LOCK_STALE_MS) {
-          try { fs.unlinkSync(file); } catch {}
-          continue;
-        }
-      } catch {}
+      const mtime=lockMtime(file);
+      if (mtime !== null && Date.now() - mtime > LOCK_STALE_MS) {
+        removeLock(file);
+        continue;
+      }
       sleep(LOCK_WAIT_MS);
     }
   }
