@@ -4,14 +4,18 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { defitnessStatus, installDefitness, uninstallDefitness } from '../src/defitness-install.mjs';
+import {
+  diffWitnessIntegrationStatus,
+  installDiffWitnessIntegration,
+  uninstallDiffWitnessIntegration
+} from '../src/diffwitness-integration-install.mjs';
 import { projectPaths } from '../src/paths.mjs';
 
 function repo(){
-  const cwd=fs.mkdtempSync(path.join(os.tmpdir(),'defitness-install-'));
+  const cwd=fs.mkdtempSync(path.join(os.tmpdir(),'diffwitness-integration-'));
   execFileSync('git',['init','-q'],{cwd});
-  execFileSync('git',['config','user.email','defitness@example.test'],{cwd});
-  execFileSync('git',['config','user.name','Defitness Test'],{cwd});
+  execFileSync('git',['config','user.email','diffwitness@example.test'],{cwd});
+  execFileSync('git',['config','user.name','DiffWitness Test'],{cwd});
   fs.writeFileSync(path.join(cwd,'app.js'),'export const ready = true;\n');
   execFileSync('git',['add','-A'],{cwd});
   execFileSync('git',['commit','-qm','base'],{cwd});
@@ -20,16 +24,18 @@ function repo(){
 
 const proofOk=(_cwd,command)=>({ok:true,command:command||'dw-test'});
 
-test('one Defitness install arms Claude, Codex and Cursor without collapsing their native configs',()=>{
+test('one DiffWitness integration arms Claude, Codex and Cursor without collapsing their native configs',()=>{
   const cwd=repo();
   try{
-    const result=installDefitness({cwd,agent:'all',diffWitnessCommand:'dw-test',probe:proofOk});
+    const result=installDiffWitnessIntegration({cwd,agent:'all',diffWitnessCommand:'dw-test',probe:proofOk});
     assert.deepEqual(result.adapters,['claude','codex','cursor']);
     const paths=projectPaths(cwd);
-    const product=JSON.parse(fs.readFileSync(paths.defitnessConfig,'utf8'));
+    const product=JSON.parse(fs.readFileSync(paths.diffwitnessConfig,'utf8'));
+    assert.equal(product.schema,'diffwitness.integration-config.v1');
     assert.equal(product.requireDiffWitness,true);
     assert.equal(product.diffWitnessCommand,'dw-test');
     assert.deepEqual(product.adapters,['claude','codex','cursor']);
+    assert.equal(fs.existsSync(paths.defitnessConfigLegacy),false);
 
     const claude=JSON.parse(fs.readFileSync(paths.claudeSettings,'utf8'));
     const claudeStop=claude.hooks.Stop.find((entry)=>entry.hooks?.some((hook)=>hook.command?.includes('idleproof-hook.mjs')));
@@ -47,18 +53,18 @@ test('one Defitness install arms Claude, Codex and Cursor without collapsing the
     assert.ok(cursorStop);
     assert.equal(cursorStop.timeout,910);
 
-    const status=defitnessStatus(cwd,{probe:proofOk});
+    const status=diffWitnessIntegrationStatus(cwd,{probe:proofOk});
     assert.equal(status.healthy,true);
     assert.deepEqual(status.expectedAdapters,['claude','codex','cursor']);
 
-    const removed=uninstallDefitness({cwd});
+    const removed=uninstallDiffWitnessIntegration({cwd});
     assert.equal(removed.installed,false);
-    assert.equal(fs.existsSync(paths.defitnessConfig),false);
-    assert.equal(defitnessStatus(cwd,{probe:proofOk}).configured,false);
-  }finally{fs.rmSync(cwd,{recursive:true,force:true});}
+    assert.equal(fs.existsSync(paths.diffwitnessConfig),false);
+    assert.equal(diffWitnessIntegrationStatus(cwd,{probe:proofOk}).configured,false);
+  }finally{fs.rmSync(cwd,{recursive:true,force:true,maxRetries:12,retryDelay:50});}
 });
 
-test('Defitness install is project-local transactional when a later adapter refuses unsafe overwrite',()=>{
+test('DiffWitness integration is project-local transactional when a later adapter refuses unsafe overwrite',()=>{
   const cwd=repo();
   try{
     const paths=projectPaths(cwd);
@@ -72,28 +78,28 @@ test('Defitness install is project-local transactional when a later adapter refu
     const beforeExclude=fs.existsSync(exclude)?fs.readFileSync(exclude):null;
 
     assert.throws(
-      ()=>installDefitness({cwd,agent:'all',diffWitnessCommand:'dw-test',probe:proofOk}),
+      ()=>installDiffWitnessIntegration({cwd,agent:'all',diffWitnessCommand:'dw-test',probe:proofOk}),
       /Refusing to overwrite an unrelated Cursor rule/
     );
     assert.deepEqual(fs.readFileSync(paths.claudeSettings),beforeClaude);
     assert.deepEqual(fs.readFileSync(paths.cursorRule),beforeRule);
     if(beforeExclude)assert.deepEqual(fs.readFileSync(exclude),beforeExclude);
     else assert.equal(fs.existsSync(exclude),false);
-    assert.equal(fs.existsSync(paths.defitnessConfig),false);
+    assert.equal(fs.existsSync(paths.diffwitnessConfig),false);
     assert.equal(fs.existsSync(paths.codexHooks),false);
     assert.equal(fs.existsSync(paths.cursorHooks),false);
-  }finally{fs.rmSync(cwd,{recursive:true,force:true});}
+  }finally{fs.rmSync(cwd,{recursive:true,force:true,maxRetries:12,retryDelay:50});}
 });
 
-test('Defitness never arms a project when DiffWitness compatibility probe fails',()=>{
+test('DiffWitness integration never arms a project when the compatibility probe fails',()=>{
   const cwd=repo();
   try{
     const paths=projectPaths(cwd);
     assert.throws(
-      ()=>installDefitness({cwd,agent:'claude',diffWitnessCommand:'dw',probe:()=>({ok:false,errorCode:'UNSUPPORTED_DIFFWITNESS',message:'missing ide-hook'})}),
+      ()=>installDiffWitnessIntegration({cwd,agent:'claude',diffWitnessCommand:'dw',probe:()=>({ok:false,errorCode:'UNSUPPORTED_DIFFWITNESS',message:'missing ide-hook'})}),
       /DiffWitness is required/
     );
-    assert.equal(fs.existsSync(paths.defitnessConfig),false);
+    assert.equal(fs.existsSync(paths.diffwitnessConfig),false);
     assert.equal(fs.existsSync(paths.claudeSettings),false);
-  }finally{fs.rmSync(cwd,{recursive:true,force:true});}
+  }finally{fs.rmSync(cwd,{recursive:true,force:true,maxRetries:12,retryDelay:50});}
 });
