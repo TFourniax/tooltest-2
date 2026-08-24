@@ -17,13 +17,16 @@ async function freePort() {
   return port;
 }
 
-async function waitFor(url, timeout = 5000) {
+async function waitFor(url, { timeout = 15000, child = null, output = () => '' } = {}) {
   const started = Date.now();
   while (Date.now() - started < timeout) {
+    if (child?.exitCode != null) {
+      throw new Error(`Demo exited before readiness (code=${child.exitCode}): ${output().slice(-2000)}`);
+    }
     try { const res = await fetch(url); if (res.ok) return res.json(); } catch {}
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 75));
   }
-  throw new Error(`Demo did not become ready: ${url}`);
+  throw new Error(`Demo did not become ready within ${timeout}ms: ${url}\n${output().slice(-2000)}`);
 }
 
 test('idleproof demo is isolated from the launch repository and demonstrates drift plus cross-feature impact', async () => {
@@ -31,12 +34,16 @@ test('idleproof demo is isolated from the launch repository and demonstrates dri
   const sentinel = path.join(launchCwd, 'KEEP_ME.txt');
   fs.writeFileSync(sentinel, 'untouched');
   const port = await freePort();
-  const child = spawn(process.execPath, [BIN, 'demo', '--port', String(port), '--no-open'], { cwd:launchCwd, stdio:['ignore','pipe','pipe'] });
+  const child = spawn(process.execPath, [BIN, 'demo', '--port', String(port), '--no-open'], { cwd:launchCwd, stdio:['ignore','pipe','pipe'], windowsHide:true });
   let output = '';
   child.stdout.on('data', (chunk) => { output += chunk; });
   child.stderr.on('data', (chunk) => { output += chunk; });
   try {
-    const state = await waitFor(`http://127.0.0.1:${port}/api/state`);
+    // Demo preparation intentionally constructs several realistic sessions and Git snapshots before
+    // binding the HTTP listener. On loaded Windows runners that can exceed 5s even though the same
+    // installed package is healthy. Keep a bounded 15s readiness gate and fail immediately if the
+    // process exits, preserving diagnostics instead of turning runner load into a flaky release gate.
+    const state = await waitFor(`http://127.0.0.1:${port}/api/state`, { child, output:()=>output });
     assert.match(output, /IdleProof demo cockpit/);
     assert.match(output, /current repository is untouched/i);
     assert.equal(fs.readFileSync(sentinel, 'utf8'), 'untouched');
@@ -53,7 +60,7 @@ test('idleproof demo is isolated from the launch repository and demonstrates dri
     assert.ok(state.projectModel.topology.hotspots.some((item) => item.file === 'src/services/billing.ts' && item.featureCount >= 2));
   } finally {
     child.kill('SIGTERM');
-    await new Promise((resolve) => { child.once('exit', resolve); setTimeout(resolve, 2000); });
-    fs.rmSync(launchCwd, { recursive:true, force:true });
+    await new Promise((resolve) => { child.once('exit', resolve); setTimeout(resolve, 2500); });
+    fs.rmSync(launchCwd, { recursive:true, force:true, maxRetries:10, retryDelay:50 });
   }
 });
