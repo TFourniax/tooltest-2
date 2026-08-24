@@ -8,7 +8,7 @@ const TRANSIENT_DIRS = new Set(['__pycache__', '.pytest_cache', '.mypy_cache', '
 const TRANSIENT_SUFFIXES = new Set(['.pyc', '.pyo']);
 const TRANSIENT_FILES = new Set(['.coverage']);
 
-function git(cwd, args, { env = process.env, input = undefined, timeout = 5000 } = {}) {
+function git(cwd, args, { env = process.env, input = undefined, timeout = 7000 } = {}) {
   return execFileSync('git', args, {
     cwd,
     env,
@@ -16,7 +16,8 @@ function git(cwd, args, { env = process.env, input = undefined, timeout = 5000 }
     encoding: 'utf8',
     stdio: ['pipe', 'pipe', 'ignore'],
     timeout,
-    maxBuffer: 4 * 1024 * 1024
+    maxBuffer: 4 * 1024 * 1024,
+    windowsHide: true
   });
 }
 
@@ -49,6 +50,8 @@ function isTransientUntracked(relative) {
   if (parts.includes('.idleproof')) return true;
   if (parts.length >= 2 && parts.at(-2) === '.claude' && parts.at(-1) === 'settings.local.json') return true;
   if (parts.length >= 2 && parts.at(-2) === '.codex' && parts.at(-1) === 'hooks.json') return true;
+  if (parts.length >= 2 && parts.at(-2) === '.cursor' && parts.at(-1) === 'hooks.json') return true;
+  if (parts.length >= 3 && parts.slice(-3).join('/') === '.cursor/rules/idleproof-continuity.mdc') return true;
   if (parts.some((part) => TRANSIENT_DIRS.has(part))) return true;
   const name = parts.at(-1) || '';
   if (TRANSIENT_FILES.has(name)) return true;
@@ -77,19 +80,6 @@ export function changeId({ repository, baseTree, candidateTree }) {
   return `dwchg_${sha256(canonical(stable)).slice(0, 24)}`;
 }
 
-function meaningfulDirty(cwd) {
-  const root=repoRoot(cwd);
-  const raw = git(root, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
-  const entries = raw.split('\0').filter(Boolean);
-  for (const entry of entries) {
-    const status = entry.slice(0, 2);
-    const relative = entry.slice(3);
-    if (status === '??' && isTransientUntracked(relative)) continue;
-    return true;
-  }
-  return false;
-}
-
 function snapshotTree(cwd) {
   const root=repoRoot(cwd);
   const head = git(root, ['rev-parse', '--verify', 'HEAD']).trim();
@@ -104,10 +94,11 @@ function snapshotTree(cwd) {
   const env = { ...process.env, GIT_INDEX_FILE: indexFile };
   try {
     git(root, ['read-tree', head], { env });
-    // Snapshot the entire repository, not only the package/subdirectory where IdleProof was started.
-    // This keeps change-envelope identity byte-compatible with DiffWitness for monorepo tasks that
-    // legitimately touch sibling packages or root-level files.
-    git(root, ['add', '-A', '--', '.'], { env, timeout: 15000 });
+    // Snapshot the full meaningful worktree with an alternate index. This deliberately supports a
+    // dirty repository: the user's pre-existing edits become the exact baseline, so only work made
+    // after the coding task starts is attributed to that task. Local agent/IdleProof plumbing stays
+    // outside the software identity and the user's real index is never modified.
+    git(root, ['add', '-A', '--', '.'], { env, timeout: 20000 });
     for (const relative of [...new Set(untracked)]) {
       try { git(root, ['reset', '--quiet', head, '--', normalized(relative)], { env }); }
       catch { /* best-effort exclusion; write-tree still remains fail-closed below */ }
@@ -123,22 +114,12 @@ function snapshotTree(cwd) {
 export function captureBaselineIdentity(cwd = process.cwd()) {
   try {
     const root=repoRoot(cwd);
-    const head = git(root, ['rev-parse', '--verify', 'HEAD']).trim();
-    const tree = git(root, ['rev-parse', '--verify', 'HEAD^{tree}']).trim();
     const repository = repositoryFingerprint(root);
-    if (meaningfulDirty(root)) {
-      return {
-        available: false,
-        reason: 'preexisting-dirty-worktree',
-        repository,
-        observedHead: head,
-        observedHeadTree: tree
-      };
-    }
+    const base = snapshotTree(root);
     return {
       available: true,
       repository,
-      base: { sha: head, tree, dirty: false }
+      base: { sha: base.sha, tree: base.tree, dirty: base.dirty }
     };
   } catch {
     return { available: false, reason: 'git-baseline-unavailable' };
@@ -172,4 +153,4 @@ export function finalizeChangeIdentity(cwd = process.cwd(), baseline = null) {
   }
 }
 
-export const __test = { canonical, isTransientUntracked, repositoryFingerprint, repoRoot };
+export const __test = { canonical, isTransientUntracked, repositoryFingerprint, repoRoot, snapshotTree };
