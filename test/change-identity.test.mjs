@@ -37,18 +37,22 @@ test('change id is byte-compatible with the frozen DiffWitness change-envelope c
   );
 });
 
-test('clean Git session produces exact before/after tree identity while local IdleProof plumbing stays out of the change', () => {
+test('clean Git session produces exact before/after tree identity while local agent plumbing stays out of the change', () => {
   const cwd = repo();
   try {
     fs.mkdirSync(path.join(cwd, '.idleproof'), { recursive:true });
     fs.writeFileSync(path.join(cwd, '.idleproof', 'state.json'), '{}\n');
     fs.mkdirSync(path.join(cwd, '.claude'), { recursive:true });
     fs.writeFileSync(path.join(cwd, '.claude', 'settings.local.json'), '{}\n');
+    fs.mkdirSync(path.join(cwd, '.cursor', 'rules'), { recursive:true });
+    fs.writeFileSync(path.join(cwd, '.cursor', 'hooks.json'), '{}\n');
+    fs.writeFileSync(path.join(cwd, '.cursor', 'rules', 'idleproof-continuity.mdc'), 'local rule\n');
 
     const baseline = captureBaselineIdentity(cwd);
     assert.equal(baseline.available, true, JSON.stringify(baseline));
     assert.equal(baseline.base.sha, git(cwd, 'rev-parse', 'HEAD'));
     assert.equal(baseline.base.tree, git(cwd, 'rev-parse', 'HEAD^{tree}'));
+    assert.equal(baseline.base.dirty, false);
 
     fs.writeFileSync(path.join(cwd, 'app.js'), 'export const value = 2;\n');
     const change = finalizeChangeIdentity(cwd, baseline);
@@ -61,6 +65,7 @@ test('clean Git session produces exact before/after tree identity while local Id
 
     fs.writeFileSync(path.join(cwd, '.idleproof', 'state.json'), '{"updated":true}\n');
     fs.writeFileSync(path.join(cwd, '.claude', 'settings.local.json'), '{"hooks":true}\n');
+    fs.writeFileSync(path.join(cwd, '.cursor', 'hooks.json'), '{"hooks":true}\n');
     const sameChange = finalizeChangeIdentity(cwd, baseline);
     assert.equal(sameChange.changeId, change.changeId, 'local tool state changed the software change identity');
     assert.equal(sameChange.candidate.tree, change.candidate.tree);
@@ -85,11 +90,9 @@ test('nested monorepo session binds sibling changes into the same full Git candi
     git(cwd,'add','.');
     git(cwd,'commit','-qm','monorepo baseline');
 
-    // IdleProof is deliberately launched from a nested package.
     const baseline=captureBaselineIdentity(app);
     assert.equal(baseline.available,true,JSON.stringify(baseline));
 
-    // The agent touches its package, a sibling package, and a root-level file.
     fs.writeFileSync(path.join(app,'main.ts'),'export const app = 2;\n');
     fs.writeFileSync(path.join(shared,'util.ts'),'export const shared = 2;\n');
     fs.writeFileSync(path.join(cwd,'root.config.js'),'export default 2;\n');
@@ -101,7 +104,6 @@ test('nested monorepo session binds sibling changes into the same full Git candi
     const change=finalizeChangeIdentity(app,baseline);
     assert.equal(change.available,true,JSON.stringify(change));
 
-    // Build the expected global software tree with the real index, excluding local plumbing.
     fs.rmSync(path.join(app,'.idleproof'),{recursive:true,force:true});
     fs.rmSync(path.join(shared,'.codex'),{recursive:true,force:true});
     git(cwd,'add','-A','.');
@@ -116,16 +118,30 @@ test('nested monorepo session binds sibling changes into the same full Git candi
   }
 });
 
-test('pre-existing dirty software work fails closed instead of being attributed to the agent session', () => {
+test('pre-existing dirty software becomes the exact baseline instead of being attributed to the coding task', () => {
   const cwd = repo();
   try {
     fs.writeFileSync(path.join(cwd, 'app.js'), 'export const value = 99;\n');
+    fs.writeFileSync(path.join(cwd, 'notes.txt'), 'pre-existing user work\n');
     const baseline = captureBaselineIdentity(cwd);
-    assert.equal(baseline.available, false);
-    assert.equal(baseline.reason, 'preexisting-dirty-worktree');
-    const change = finalizeChangeIdentity(cwd, baseline);
-    assert.equal(change.available, false);
-    assert.equal(change.reason, 'preexisting-dirty-worktree');
+    assert.equal(baseline.available, true, JSON.stringify(baseline));
+    assert.equal(baseline.base.dirty, true);
+    assert.equal(baseline.base.sha, null);
+    assert.notEqual(baseline.base.tree, git(cwd, 'rev-parse', 'HEAD^{tree}'));
+
+    const noTaskChange = finalizeChangeIdentity(cwd, baseline);
+    assert.equal(noTaskChange.available, true, JSON.stringify(noTaskChange));
+    assert.equal(noTaskChange.candidate.tree, baseline.base.tree);
+
+    fs.writeFileSync(path.join(cwd, 'app.js'), 'export const value = 100;\n');
+    const taskChange = finalizeChangeIdentity(cwd, baseline);
+    assert.equal(taskChange.available, true, JSON.stringify(taskChange));
+    assert.notEqual(taskChange.candidate.tree, baseline.base.tree);
+    assert.equal(taskChange.changeId, changeId({
+      repository: taskChange.repository.fingerprint,
+      baseTree: baseline.base.tree,
+      candidateTree: taskChange.candidate.tree
+    }));
   } finally {
     cleanup(cwd);
   }

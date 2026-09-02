@@ -5,27 +5,36 @@ import { CONCEPTS } from './catalog.mjs';
 
 export const CURRENT_STATE_VERSION = 2;
 
-// Agent hooks can arrive in bursts from parallel tool calls/subagents. An uncontended
-// lock is still acquired immediately, but a writer now waits long enough for other
-// short atomic mutations instead of dropping an otherwise valid hook after <1s.
-// A stale lock threshold longer than the acquisition timeout prevents a slow but live
-// writer from being unlinked by another process.
-const LOCK_STALE_MS = 15000;
-const LOCK_WAIT_MS = 10;
-const LOCK_TIMEOUT_MS = 7500;
+// Agent hooks can arrive in bursts from parallel tool calls/subagents. A directory lock is used
+// instead of an open file descriptor because Windows may report EPERM/EACCES for an already-open
+// lock file. mkdir is atomic on all supported platforms, interoperates safely with a legacy lock
+// file (both appear as EEXIST), and lets us recover genuinely stale locks without dropping events.
+const LOCK_STALE_MS = 30000;
+const LOCK_WAIT_MS = 15;
+const LOCK_TIMEOUT_MS = 15000;
+const ATOMIC_RENAME_TIMEOUT_MS = 2000;
 const sleepBuffer = new Int32Array(new SharedArrayBuffer(4));
 
 function sleep(ms) {
   Atomics.wait(sleepBuffer, 0, 0, ms);
 }
 
+function lockExists(file) {
+  try { fs.lstatSync(file); return true; } catch (error) { if (error?.code === 'ENOENT') return false; throw error; }
+}
+
 function isLockContention(error, file) {
   if (error?.code === 'EEXIST') return true;
-  // Windows can surface an active exclusive/share lock as EPERM/EACCES rather than
-  // EEXIST. Treat that as contention only when the lock path actually exists; a real
-  // directory/ACL failure with no lock must still fail immediately and visibly.
-  if (!['EPERM', 'EACCES'].includes(error?.code)) return false;
-  try { return fs.statSync(file).isFile(); } catch { return false; }
+  if (!['EPERM', 'EACCES', 'EBUSY'].includes(error?.code)) return false;
+  try { return lockExists(file); } catch { return true; }
+}
+
+function lockMtime(file) {
+  try { return fs.lstatSync(file).mtimeMs; } catch (error) { if (error?.code === 'ENOENT') return null; return Date.now(); }
+}
+
+function removeLock(file) {
+  try { fs.rmSync(file, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 }); } catch {}
 }
 
 function acquireLock(cwd) {
@@ -35,25 +44,30 @@ function acquireLock(cwd) {
 
   while (Date.now() - started < LOCK_TIMEOUT_MS) {
     try {
-      const fd = fs.openSync(paths.lock, 'wx', 0o600);
-      fs.writeFileSync(fd, `${process.pid} ${Date.now()}\n`);
+      fs.mkdirSync(paths.lock, { mode: 0o700 });
+      try {
+        fs.writeFileSync(path.join(paths.lock, 'owner'), `${process.pid} ${Date.now()}\n`, { encoding: 'utf8', mode: 0o600 });
+      } catch (error) {
+        removeLock(paths.lock);
+        throw error;
+      }
+      let released = false;
       return () => {
-        try { fs.closeSync(fd); } catch {}
-        try { fs.unlinkSync(paths.lock); } catch {}
+        if (released) return;
+        released = true;
+        removeLock(paths.lock);
       };
     } catch (error) {
       if (!isLockContention(error, paths.lock)) throw error;
-      try {
-        const stat = fs.statSync(paths.lock);
-        if (Date.now() - stat.mtimeMs > LOCK_STALE_MS) {
-          try { fs.unlinkSync(paths.lock); } catch {}
-          continue;
-        }
-      } catch {}
+      const mtime = lockMtime(paths.lock);
+      if (mtime !== null && Date.now() - mtime > LOCK_STALE_MS) {
+        removeLock(paths.lock);
+        continue;
+      }
       sleep(LOCK_WAIT_MS);
     }
   }
-  throw new Error('IdleProof state stayed busy for 7.5s; refusing to drop or overwrite a concurrent hook event.');
+  throw new Error('IdleProof state stayed busy for 15s; refusing to drop or overwrite a concurrent hook event.');
 }
 
 export function freshState(cwd = process.cwd()) {
@@ -170,11 +184,24 @@ export function loadState(cwd = process.cwd()) {
   }
 }
 
+function renameAtomic(temp, file) {
+  const started = Date.now();
+  while (true) {
+    try {
+      fs.renameSync(temp, file);
+      return;
+    } catch (error) {
+      if (!['EPERM', 'EACCES', 'EBUSY'].includes(error?.code) || Date.now() - started >= ATOMIC_RENAME_TIMEOUT_MS) throw error;
+      sleep(20);
+    }
+  }
+}
+
 function writeAtomic(file, content) {
   const temp = `${file}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.tmp`;
   try {
     fs.writeFileSync(temp, content, { encoding: 'utf8', mode: 0o600 });
-    fs.renameSync(temp, file);
+    renameAtomic(temp, file);
   } finally {
     try { fs.rmSync(temp, { force: true }); } catch {}
   }

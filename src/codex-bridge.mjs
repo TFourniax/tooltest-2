@@ -1,8 +1,9 @@
 import { createInterface } from 'node:readline';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { loadState } from './state.mjs';
+import { loadState, mutateState } from './state.mjs';
 import { processHookLifecycle } from './hook.mjs';
+import { captureBaselineIdentity } from './change-identity.mjs';
 
 const SANDBOXES = new Set(['read-only', 'workspace-write']);
 
@@ -115,6 +116,11 @@ export async function runCodexBridge({
   if (!String(prompt || '').trim()) throw new Error('Codex task is required.');
   if (!Array.isArray(codexCommand) || !codexCommand.length) throw new Error('Codex command is required.');
 
+  // The fallback bridge must bind the task to the repository state that existed before Codex
+  // starts. Waiting for the first JSON telemetry line creates a real race on slower platforms:
+  // the child can mutate the worktree while SessionStart is still performing Git IO. Capture this
+  // immutable baseline first, then attach it to whichever thread id Codex announces.
+  const preSpawnBaseline = captureBaselineIdentity(cwd);
   const args = [...codexCommand.slice(1), ...buildCodexArgs({ prompt: String(prompt), model, sandbox })];
   const command = codexCommand[0];
   let sessionId = null;
@@ -146,7 +152,15 @@ export async function runCodexBridge({
     if (bridgeStarted) return actual;
     sessionId = actual;
     const existing = bridgeSessionExists(cwd, actual);
-    if (!existing) lifecycle(cwd, actual, { hook_event_name: 'SessionStart', source: 'codex-json-bridge' });
+    if (!existing) {
+      lifecycle(cwd, actual, { hook_event_name: 'SessionStart', source: 'codex-json-bridge' });
+      // SessionStart normally captures its own baseline. Replace it with the pre-spawn value so
+      // telemetry latency can never cause Codex's first edit to be classified as pre-existing work.
+      mutateState(cwd, (state) => {
+        if (state.sessions?.[actual]) state.sessions[actual].baselineIdentity = preSpawnBaseline;
+        return state;
+      });
+    }
     if (!nativeCodexActive(cwd, actual)) {
       lifecycle(cwd, actual, { hook_event_name: 'UserPromptSubmit', prompt: String(prompt) });
     }

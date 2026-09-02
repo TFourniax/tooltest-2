@@ -3,8 +3,12 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { PACKAGE_ROOT, projectPaths } from './paths.mjs';
 import { computeMetrics, loadState } from './state.mjs';
+import { repositoryFingerprint } from './change-identity.mjs';
 import { validatePortalIngestAck } from './portal-ingest-ack.mjs';
 import { assertPortalSnapshotSafe, buildPortalSnapshot, projectLocalId } from './portal-snapshot.mjs';
+import { buildProjectModel } from './project-model.mjs';
+import { loadContinuityContext } from './continuity.mjs';
+import { taskContextQuery } from './task.mjs';
 
 const CONFIG_SCHEMA = 'idleproof.portal-config.v1';
 const DELIVERY_HEALTH_SCHEMA = 'idleproof.portal-delivery-health.v1';
@@ -92,6 +96,38 @@ function validateToken(token) {
   return value;
 }
 
+function allLearnedFiles(state) {
+  const files=[];
+  for (const feature of Object.values(state?.features || {})) {
+    for (const item of feature?.story || []) {
+      if (item?.type === 'file' && item?.label) files.push(String(item.label).replaceAll('\\','/'));
+    }
+  }
+  return [...new Set(files)];
+}
+
+export function buildPortalProjectModel(cwd, state, session, featureModel) {
+  const mental=buildProjectModel(state,session || {},featureModel || null);
+  let continuity=null;
+  try {
+    const query=taskContextQuery(session) || session?.task?.anchor || '';
+    if (query) continuity=loadContinuityContext(cwd,query,{timeoutMs:1500});
+  } catch { continuity=null; }
+  let repoFingerprint=null;
+  try { repoFingerprint=repositoryFingerprint(cwd); } catch {}
+  return {
+    repositoryFingerprint:repoFingerprint,
+    stats:{
+      features:Number(mental?.stats?.learnedFeatures || 0),
+      files:allLearnedFiles(state).length,
+      sharedFiles:Number(mental?.topology?.hotspots?.length || 0),
+      boundaryNodes:Number(mental?.topology?.sharedBoundaries?.length || 0)
+    },
+    impact:{ blastRadius:Number(mental?.impact?.blastRadius || 0) },
+    continuity
+  };
+}
+
 function defaultDeliveryHealth() {
   return {
     schema:DELIVERY_HEALTH_SCHEMA,
@@ -177,11 +213,13 @@ export function buildCurrentPortalSnapshot(cwd = process.cwd()) {
   const state = loadState(cwd);
   const session = latestSession(state);
   const metrics = computeMetrics(state);
+  const featureModel=session?.featureModel || null;
+  const projectModel=buildPortalProjectModel(cwd,state,session,featureModel);
   const snapshot = buildPortalSnapshot({
     state:{ ...state, metrics },
     session,
-    featureModel:session?.featureModel || null,
-    projectModel:null,
+    featureModel,
+    projectModel,
     explanation:null
   });
   assertPortalSnapshotSafe(snapshot);
@@ -239,9 +277,6 @@ export function queuePortalSnapshot(cwd = process.cwd(), snapshot = null) {
         lastErrorAt:new Date().toISOString()
       };
       writeDeliveryHealth(cwd, nextHealth);
-      // Never silently evict historical snapshots to make room. The coding agent remains
-      // unblocked, but status/support become explicitly degraded because one snapshot could
-      // not be retained for delivery.
       return { queued:false, reason:'queue-full', snapshotId:safeSnapshot.snapshotId, pending:current.length, skippedSnapshots:nextHealth.skippedSnapshots };
     }
     const next = [...current, safeSnapshot];

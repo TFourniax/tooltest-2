@@ -12,11 +12,14 @@ import { projectPaths } from './paths.mjs';
 import { classifyCapabilities } from './capabilities.mjs';
 
 const ZERO_HASH = '0'.repeat(64);
-// Provenance is append-only and must not silently lose a hook merely because many
-// agents/subagents report at once. Uncontended acquisition remains immediate; the
-// longer bounded wait only applies during genuine concurrent writer bursts.
-const LOCK_STALE_MS = 15000;
-const LOCK_TIMEOUT_MS = 7500;
+// Provenance is append-only. Use the same atomic directory-lock strategy as state.mjs so Windows
+// never has to distinguish an open exclusive file from a real ACL/metadata error. A directory also
+// survives legacy file-lock contention as EEXIST and can be recovered only after a conservative
+// stale interval.
+const LOCK_STALE_MS = 60000;
+const LOCK_TIMEOUT_MS = 30000;
+const LOCK_WAIT_MS = 10;
+const ATOMIC_RENAME_TIMEOUT_MS = 3000;
 const sleepBuffer = new Int32Array(new SharedArrayBuffer(4));
 const eventCache = new Map();
 const verificationCache = new Map();
@@ -26,9 +29,42 @@ function sleep(ms) { Atomics.wait(sleepBuffer, 0, 0, ms); }
 export function canonicalJson(value) { if (value === null || typeof value !== 'object') return JSON.stringify(value); if (Array.isArray(value)) return `[${value.map((item) => canonicalJson(item)).join(',')}]`; const keys = Object.keys(value).sort(); return `{${keys.map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`; }
 export function sha256(value) { const bytes = Buffer.isBuffer(value) ? value : Buffer.from(String(value)); return createHash('sha256').update(bytes).digest('hex'); }
 function readJson(file, fallback) { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch (error) { if (error.code === 'ENOENT') return fallback; throw error; } }
-function writeJson(file, value, mode = 0o600) { fs.mkdirSync(path.dirname(file), { recursive: true }); const temp = `${file}.${process.pid}.${Date.now()}.tmp`; fs.writeFileSync(temp, `${JSON.stringify(value, null, 2)}\n`, { encoding: 'utf8', mode }); fs.renameSync(temp, file); }
-function isLockContention(error, file) { if (error?.code === 'EEXIST') return true; if (!['EPERM','EACCES'].includes(error?.code)) return false; try { return fs.statSync(file).isFile(); } catch { return false; } }
-function acquireLock(cwd) { const file = projectPaths(cwd).provenanceLock; fs.mkdirSync(path.dirname(file), { recursive: true }); const started = Date.now(); while (Date.now() - started < LOCK_TIMEOUT_MS) { try { const fd = fs.openSync(file, 'wx', 0o600); fs.writeFileSync(fd, `${process.pid} ${Date.now()}\n`); return () => { try { fs.closeSync(fd); } catch {} try { fs.unlinkSync(file); } catch {} }; } catch (error) { if (!isLockContention(error,file)) throw error; try { if (Date.now() - fs.statSync(file).mtimeMs > LOCK_STALE_MS) { try { fs.unlinkSync(file); } catch {} continue; } } catch {} sleep(10); } } throw new Error('IdleProof provenance ledger stayed busy for 7.5s; refusing to drop a concurrent trace event.'); }
+function renameAtomic(temp, file) { const started=Date.now(); while(true){ try{fs.renameSync(temp,file);return;}catch(error){ if(!['EPERM','EACCES','EBUSY'].includes(error?.code)||Date.now()-started>=ATOMIC_RENAME_TIMEOUT_MS)throw error; sleep(20); } } }
+function writeJson(file, value, mode = 0o600) { fs.mkdirSync(path.dirname(file), { recursive: true }); const temp = `${file}.${process.pid}.${Date.now()}.${randomUUID()}.tmp`; try { fs.writeFileSync(temp, `${JSON.stringify(value, null, 2)}\n`, { encoding: 'utf8', mode }); renameAtomic(temp, file); } finally { try { fs.rmSync(temp, { force:true }); } catch {} } }
+function lockExists(file){ try{fs.lstatSync(file);return true;}catch(error){if(error?.code==='ENOENT')return false;throw error;} }
+function isLockContention(error,file){ if(error?.code==='EEXIST')return true; if(!['EPERM','EACCES','EBUSY'].includes(error?.code))return false; try{return lockExists(file);}catch{return true;} }
+function lockMtime(file){ try{return fs.lstatSync(file).mtimeMs;}catch(error){if(error?.code==='ENOENT')return null;return Date.now();} }
+function removeLock(file){ try{fs.rmSync(file,{recursive:true,force:true,maxRetries:12,retryDelay:25});}catch{} }
+function acquireLock(cwd) {
+  const file = projectPaths(cwd).provenanceLock;
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const started = Date.now();
+  let lastError = null;
+  while (Date.now() - started < LOCK_TIMEOUT_MS) {
+    try {
+      fs.mkdirSync(file,{mode:0o700});
+      try{fs.writeFileSync(path.join(file,'owner'),`${process.pid} ${Date.now()}\n`,{encoding:'utf8',mode:0o600});}
+      catch(error){removeLock(file);throw error;}
+      let released=false;
+      return () => {
+        if(released)return;
+        released=true;
+        removeLock(file);
+      };
+    } catch (error) {
+      lastError = error;
+      if (!isLockContention(error,file)) throw error;
+      const mtime=lockMtime(file);
+      if (mtime !== null && Date.now() - mtime > LOCK_STALE_MS) {
+        removeLock(file);
+        continue;
+      }
+      sleep(LOCK_WAIT_MS);
+    }
+  }
+  const detail=lastError?.code ? ` (${lastError.code})` : '';
+  throw new Error(`IdleProof provenance ledger stayed busy for ${LOCK_TIMEOUT_MS/1000}s${detail}; refusing to drop a concurrent trace event.`);
+}
 function relativeTarget(cwd, candidate) { if (!candidate || typeof candidate !== 'string') return null; const root = path.resolve(cwd); const absolute = path.resolve(root, candidate); if (absolute.startsWith(`${root}${path.sep}`)) return path.relative(root, absolute).replaceAll('\\', '/'); return candidate.replaceAll('\\', '/').slice(0, 500); }
 function executable(command = '') { const text = String(command || '').trim(); return text.match(/^(?:env\s+[^\s]+\s+|sudo\s+)?([^\s]+)/)?.[1] || null; }
 

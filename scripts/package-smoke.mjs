@@ -17,9 +17,6 @@ function exec(command, args, options = {}) {
 }
 
 function npm(args, options = {}) {
-  // Recent Node versions no longer reliably execute npm.cmd directly through execFileSync on
-  // Windows hosted runners (EINVAL). The normal npm command is a shell shim there, so use the
-  // platform shell only for this trusted test invocation. POSIX keeps direct exec semantics.
   return exec('npm', args, { ...options, shell: process.platform === 'win32' });
 }
 
@@ -31,8 +28,23 @@ function runIdleProof(bin, cwd, ...args) {
   return exec(process.execPath, [bin, ...args], { cwd });
 }
 
-function containsIdleProofHook(value, marker) {
-  return JSON.stringify(value).includes('idleproof.mjs') && JSON.stringify(value).includes(marker);
+function containsIdleProofHook(value, mode) {
+  const text=JSON.stringify(value);
+  if (mode === 'claude') {
+    return (text.includes('idleproof-hook.mjs') && text.includes(' claude')) ||
+      (text.includes('idleproof.mjs') && text.includes(' hook'));
+  }
+  if (mode === 'codex') {
+    return (text.includes('idleproof-hook.mjs') && text.includes(' codex')) ||
+      (text.includes('idleproof.mjs') && text.includes('hook-codex'));
+  }
+  return false;
+}
+
+function containsAnyIdleProofHook(value) {
+  const text=JSON.stringify(value);
+  return text.includes('idleproof-hook.mjs') ||
+    (text.includes('idleproof.mjs') && (text.includes(' hook') || text.includes('hook-codex')));
 }
 
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'idleproof-package-smoke-'));
@@ -50,8 +62,10 @@ try {
 
   const packageRoot = path.join(consumer, 'node_modules', 'idleproof');
   const bin = path.join(packageRoot, 'bin', 'idleproof.mjs');
+  const hookBin = path.join(packageRoot, 'bin', 'idleproof-hook.mjs');
   const supportBin = path.join(packageRoot, 'bin', 'idleproof-support.mjs');
   if (!fs.existsSync(bin)) throw new Error('installed IdleProof package does not contain its CLI entrypoint');
+  if (!fs.existsSync(hookBin)) throw new Error('installed IdleProof package does not contain its convergent IDE hook entrypoint');
   if (!fs.existsSync(supportBin)) throw new Error('installed IdleProof package does not contain its support diagnostic entrypoint');
   const help = runIdleProof(bin, consumer, '--help');
   if (!/understand what your coding agent is building/i.test(help)) throw new Error(`unexpected installed CLI help:\n${help}`);
@@ -61,8 +75,6 @@ try {
   fs.mkdirSync(project, { recursive: true });
   git(project, 'init', '-q');
 
-  // Seed local history from a hypothetical previous installation. Upgrading adapter
-  // paths must never rewrite or reset this learning state.
   const stateDir=path.join(project,'.idleproof');
   fs.mkdirSync(stateDir,{recursive:true});
   const statePath=path.join(stateDir,'state.json');
@@ -77,7 +89,6 @@ try {
   },null,2)+'\n';
   fs.writeFileSync(statePath,historicalState,{encoding:'utf8',mode:0o600});
 
-  // The support command must work from the exact installed artifact and keep its privacy contract.
   const support = JSON.parse(runIdleProof(supportBin, project, '--json'));
   if (support.schema !== 'idleproof.support-diagnostic.v1') throw new Error('packaged support diagnostic returned an unexpected schema');
   if (support.product?.version !== '0.10.0') throw new Error(`packaged support diagnostic version mismatch: ${support.product?.version}`);
@@ -88,9 +99,6 @@ try {
   if (supportSerialized.includes(path.resolve(project))) throw new Error('packaged support diagnostic leaked the absolute project path');
   if (supportSerialized.includes('PRIVATE_UPGRADE_MARKER')) throw new Error('packaged support diagnostic leaked historical prompt content');
 
-  // Portal: the exact installed artifact must expose stable local identity, configure without
-  // putting the token in argv, produce the canonical privacy-safe snapshot, and disconnect
-  // without rewriting historical learning state.
   const portalIdentity = JSON.parse(runIdleProof(bin, project, 'portal', 'identity', '--json'));
   if (portalIdentity.schema !== 'idleproof.portal-identity.v1' || !/^[a-f0-9]{24}$/.test(portalIdentity.projectLocalId || '')) {
     throw new Error('packaged Portal identity command returned an invalid local project id');
@@ -116,8 +124,6 @@ try {
   if (JSON.parse(runIdleProof(bin, project, 'portal', 'status', '--json')).configured !== false) throw new Error('packaged Portal disconnect left enrollment configured');
   if (fs.readFileSync(statePath,'utf8') !== historicalState) throw new Error('Portal enrollment lifecycle changed historical IdleProof state');
 
-  // Claude Code: replace stale IdleProof paths, preserve unrelated permissions/hooks,
-  // and leave historical IdleProof state byte-for-byte unchanged.
   fs.mkdirSync(path.join(project, '.claude'), { recursive: true });
   const settingsPath = path.join(project, '.claude', 'settings.local.json');
   fs.writeFileSync(settingsPath, JSON.stringify({
@@ -131,19 +137,19 @@ try {
   runIdleProof(bin, project, 'install', 'claude');
   const installedClaude = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
   if (installedClaude.permissions?.allow?.[0] !== 'Bash(git status:*)') throw new Error('packaged installer changed existing Claude permissions');
-  if (!containsIdleProofHook(installedClaude, ' hook')) throw new Error('packaged installer did not register IdleProof Claude hooks');
+  if (!containsIdleProofHook(installedClaude, 'claude')) throw new Error('packaged installer did not register the convergent IdleProof Claude hooks');
   if (!installedClaude.hooks.Stop.some((entry) => entry.hooks?.[0]?.command === 'echo existing')) throw new Error('packaged installer removed an existing Claude hook');
   if (JSON.stringify(installedClaude).includes('/old-idleproof/')) throw new Error('packaged Claude upgrade left an obsolete IdleProof executable path');
-  if (installedClaude.hooks.Stop.filter((entry)=>containsIdleProofHook(entry,' hook')).length !== 1) throw new Error('packaged Claude upgrade duplicated the IdleProof Stop hook');
+  if (installedClaude.hooks.Stop.filter((entry)=>containsIdleProofHook(entry,'claude')).length !== 1) throw new Error('packaged Claude upgrade duplicated the IdleProof Stop hook');
+  if (!JSON.stringify(installedClaude).includes('idleproof-hook.mjs')) throw new Error('packaged Claude install did not upgrade to the convergent hook runner');
   if (fs.readFileSync(statePath,'utf8') !== historicalState) throw new Error('packaged Claude upgrade changed historical IdleProof state');
 
   runIdleProof(bin, project, 'uninstall', 'claude');
   const uninstalledClaude = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
   if (!uninstalledClaude.hooks?.Stop?.some((entry) => entry.hooks?.[0]?.command === 'echo existing')) throw new Error('packaged uninstall removed a pre-existing Claude hook');
-  if (JSON.stringify(uninstalledClaude).includes('idleproof.mjs')) throw new Error('packaged uninstall left IdleProof Claude hooks behind');
+  if (containsAnyIdleProofHook(uninstalledClaude)) throw new Error('packaged uninstall left IdleProof Claude hooks behind');
   if (fs.readFileSync(statePath,'utf8') !== historicalState) throw new Error('packaged Claude uninstall changed historical IdleProof state');
 
-  // Codex: replace stale paths, preserve an unrelated project hook and keep local hook config excluded from Git.
   fs.mkdirSync(path.join(project, '.codex'), { recursive: true });
   const codexPath = path.join(project, '.codex', 'hooks.json');
   fs.writeFileSync(codexPath, JSON.stringify({
@@ -156,10 +162,11 @@ try {
 
   runIdleProof(bin, project, 'install', 'codex');
   const installedCodex = JSON.parse(fs.readFileSync(codexPath, 'utf8'));
-  if (!containsIdleProofHook(installedCodex, 'hook-codex')) throw new Error('packaged installer did not register IdleProof Codex hooks');
+  if (!containsIdleProofHook(installedCodex, 'codex')) throw new Error('packaged installer did not register the convergent IdleProof Codex hooks');
   if (!installedCodex.hooks.Stop.some((entry) => entry.hooks?.[0]?.command === 'echo codex-existing')) throw new Error('packaged installer removed an existing Codex hook');
   if (JSON.stringify(installedCodex).includes('/old-idleproof/')) throw new Error('packaged Codex upgrade left an obsolete IdleProof executable path');
-  if (installedCodex.hooks.Stop.filter((entry)=>containsIdleProofHook(entry,'hook-codex')).length !== 1) throw new Error('packaged Codex upgrade duplicated the IdleProof Stop hook');
+  if (installedCodex.hooks.Stop.filter((entry)=>containsIdleProofHook(entry,'codex')).length !== 1) throw new Error('packaged Codex upgrade duplicated the IdleProof Stop hook');
+  if (!JSON.stringify(installedCodex).includes('idleproof-hook.mjs')) throw new Error('packaged Codex install did not upgrade to the convergent hook runner');
   const exclude = fs.readFileSync(path.join(project, '.git', 'info', 'exclude'), 'utf8');
   if (!exclude.split(/\r?\n/).some((line) => line.trim() === '.codex/hooks.json')) throw new Error('packaged Codex install did not exclude local hook config from Git');
   if (fs.readFileSync(statePath,'utf8') !== historicalState) throw new Error('packaged Codex upgrade changed historical IdleProof state');
@@ -167,10 +174,10 @@ try {
   runIdleProof(bin, project, 'uninstall', 'codex');
   const uninstalledCodex = JSON.parse(fs.readFileSync(codexPath, 'utf8'));
   if (!uninstalledCodex.hooks?.Stop?.some((entry) => entry.hooks?.[0]?.command === 'echo codex-existing')) throw new Error('packaged uninstall removed a pre-existing Codex hook');
-  if (JSON.stringify(uninstalledCodex).includes('idleproof.mjs')) throw new Error('packaged uninstall left IdleProof Codex hooks behind');
+  if (containsAnyIdleProofHook(uninstalledCodex)) throw new Error('packaged uninstall left IdleProof Codex hooks behind');
   if (fs.readFileSync(statePath,'utf8') !== historicalState) throw new Error('packaged Codex uninstall changed historical IdleProof state');
 
-  console.log(`IdleProof package smoke passed on ${process.platform}/${process.version} · Portal enrollment + upgrade-safe Claude/Codex adapters + support diagnostic`);
+  console.log(`IdleProof package smoke passed on ${process.platform}/${process.version} · Portal enrollment + convergent upgrade-safe Claude/Codex adapters + support diagnostic`);
 } finally {
   if (tarball) {
     try { fs.rmSync(tarball, { force: true }); } catch {}

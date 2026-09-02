@@ -55,23 +55,47 @@ export function estimateWindow(event = {}) {
   return 22;
 }
 
+function isTimeoutError(error) {
+  return error?.code === 'ETIMEDOUT' || Boolean(error?.signal) || /timed out|timeout/i.test(String(error?.message || ''));
+}
+
 function git(cwd, args, maxBuffer = 1024 * 1024) {
+  const run = (timeout) => execFileSync('git', args, {
+    cwd,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    timeout,
+    maxBuffer,
+    windowsHide: true
+  });
   try {
-    return execFileSync('git', args, {
-      cwd,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-      timeout: 800,
-      maxBuffer
-    });
-  } catch {
-    return '';
+    return run(5000);
+  } catch (error) {
+    // Missing Git / not-a-repository are normal in standalone IdleProof mode. A timeout inside a
+    // valid project is different: silently converting it to an empty string previously fabricated
+    // "no HEAD/no diff" receipts on loaded Windows runners. Retry once with a wider window, then
+    // surface a bounded failure rather than inventing evidence.
+    if (!isTimeoutError(error)) return '';
+    try {
+      return run(15000);
+    } catch (retryError) {
+      if (!isTimeoutError(retryError)) return '';
+      const wrapped = new Error(`Git did not complete ${args[0] || 'command'} within the bounded retry window.`);
+      wrapped.code = 'IDLEPROOF_GIT_TIMEOUT';
+      wrapped.cause = retryError;
+      throw wrapped;
+    }
   }
 }
 
 function isIdleProofInternal(relative) {
-  const normalized = relative.replaceAll('\\', '/');
-  return normalized === '.idleproof' || normalized.startsWith('.idleproof/') || normalized === '.claude/settings.local.json' || normalized === '.codex/hooks.json';
+  const normalized = String(relative || '').replaceAll('\\', '/').replace(/^\.\//, '');
+  return normalized === '.idleproof' ||
+    normalized.startsWith('.idleproof/') ||
+    normalized === '.claude/settings.local.json' ||
+    normalized === '.codex/hooks.json' ||
+    normalized === '.cursor/hooks.json' ||
+    normalized === '.cursor/rules/idleproof-continuity.mdc';
 }
 
 function safeUntrackedPatch(cwd, relative) {
@@ -103,7 +127,7 @@ function filterInternalDiff(diff) {
 export function captureGitSnapshot(cwd) {
   const status = git(cwd, ['status', '--short', '--untracked-files=all']);
   const head = git(cwd, ['rev-parse', '--verify', 'HEAD']).trim() || null;
-  const trackedDiff = filterInternalDiff(`${git(cwd, ['diff', '--unified=0', '--no-ext-diff'])}\n${git(cwd, ['diff', '--cached', '--unified=0', '--no-ext-diff'])}`);
+  const trackedDiff = filterInternalDiff(`${git(cwd, ['diff', '--unified=0', '--no-ext-diff'], 4 * 1024 * 1024)}\n${git(cwd, ['diff', '--cached', '--unified=0', '--no-ext-diff'], 4 * 1024 * 1024)}`);
   const numstat = `${git(cwd, ['diff', '--numstat'])}\n${git(cwd, ['diff', '--cached', '--numstat'])}`;
   const files = new Set();
   const untracked = [];

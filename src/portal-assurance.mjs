@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { computeMetrics, loadState } from './state.mjs';
 import { assuranceFromChangeEnvelope, assertPortalSnapshotSafe, buildPortalSnapshot } from './portal-snapshot.mjs';
-import { flushPortalQueue, queuePortalSnapshot } from './portal-client.mjs';
+import { buildPortalProjectModel, flushPortalQueue, queuePortalSnapshot } from './portal-client.mjs';
 
 function latestSession(state) {
   return Object.values(state?.sessions || {}).sort((a,b)=>String(b.lastEventAt || '').localeCompare(String(a.lastEventAt || '')))[0] || null;
@@ -29,11 +29,13 @@ export function buildAssurancePortalSnapshot(cwd=process.cwd(), envelope) {
   if (!expectedChangeId) throw new Error('IdleProof has no completed exact-bound change to correlate with DiffWitness assurance.');
   const assurance=assuranceFromChangeEnvelope(envelope,expectedChangeId);
   const metrics=computeMetrics(state);
+  const featureModel=session?.featureModel || null;
+  const projectModel=buildPortalProjectModel(cwd,state,session,featureModel);
   const snapshot=buildPortalSnapshot({
     state:{...state,metrics},
     session,
-    featureModel:session?.featureModel || null,
-    projectModel:null,
+    featureModel,
+    projectModel,
     explanation:null,
     assurance
   });

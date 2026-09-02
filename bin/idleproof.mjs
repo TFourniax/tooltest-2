@@ -11,6 +11,11 @@ import { portalCliHelp, runPortalCli } from '../src/portal-cli.mjs';
 import { runDemo } from '../src/demo.mjs';
 import { repairLocalState } from '../src/recovery.mjs';
 import { installCursor, uninstallCursor } from '../src/install-cursor.mjs';
+import {
+  diffWitnessIntegrationStatus,
+  installDiffWitnessIntegration,
+  uninstallDiffWitnessIntegration
+} from '../src/diffwitness-integration-install.mjs';
 
 const args = process.argv.slice(2);
 const BIN_PATH = fileURLToPath(import.meta.url);
@@ -89,6 +94,17 @@ function withoutAgentOption(values) {
   return result;
 }
 
+function printIntegrationStatus(status,json=false) {
+  if (json) { console.log(JSON.stringify(status,null,2)); return; }
+  console.log(`${status.healthy?'✓':'✗'} DiffWitness IDE integration ${status.healthy?'ready':'not ready'}`);
+  console.log(`  core: ${status.diffWitness.ok?'ready':'missing/degraded'}${status.diffWitness.command?` · ${status.diffWitness.command}`:''}`);
+  for (const name of ['claude','codex','cursor']) {
+    const expected=status.expectedAdapters.includes(name);
+    console.log(`  ${name}: ${status.adapters[name]?'installed':expected?'MISSING':'not selected'}`);
+  }
+  if (status.configError) console.log(`  config: INVALID · ${status.configError}`);
+}
+
 function printRepair(result, repairArgs) {
   if (repairArgs.includes('--json')) {
     console.log(JSON.stringify(result,null,2));
@@ -120,9 +136,36 @@ async function run() {
     process.stdout.write(`${learningCliHelp()}\n`);
     process.stdout.write(`\n${portalCliHelp()}\n`);
     process.stdout.write('\nIDE adapters:\n  idleproof on --agent claude|codex|cursor|all\n  Cursor local mode uses native hooks plus a local always-on continuity rule; source/project identity stays unchanged.\n');
+    process.stdout.write('\nDiffWitness integration (normally managed by `dw setup`):\n  idleproof integration install [--agent auto|all|claude,codex,cursor] [--diffwitness-command dw]\n  idleproof integration status [--json]\n  idleproof integration uninstall\n');
     process.stdout.write('\nCodex resilient mode:\n  idleproof codex [--model MODEL] [--sandbox read-only|workspace-write] -- <task>\n  Uses Codex exec JSON telemetry when native project hooks are unavailable; never enables danger-full-access.\n');
     process.stdout.write('\nRecovery & support:\n  idleproof support [--json|--out FILE]\n  idleproof repair [--dry-run] [--json]\n');
     return;
+  }
+  if (cmd === 'integration') {
+    const action=String(args[1]||'status').toLowerCase();
+    if (action === 'install') {
+      const result=installDiffWitnessIntegration({
+        cwd:process.cwd(),
+        agent:optionValue(args,'--agent')||'auto',
+        diffWitnessCommand:optionValue(args,'--diffwitness-command')||process.env.DIFFWITNESS_BIN||'dw'
+      });
+      console.log(`✓ DiffWitness IDE integration armed for ${result.adapters.join(', ')}`);
+      console.log('✓ UNDERSTAND · PROVE · OWE · CONTINUITY now converge through native hooks.');
+      return;
+    }
+    if (action === 'uninstall') {
+      const result=uninstallDiffWitnessIntegration({cwd:process.cwd()});
+      console.log(`✓ DiffWitness IDE integration removed${result.removed.length?` · ${result.removed.join(', ')}`:''}.`);
+      console.log('Historical IdleProof/Continuity evidence was preserved.');
+      return;
+    }
+    if (action === 'status' || action === 'doctor') {
+      const status=diffWitnessIntegrationStatus(process.cwd());
+      printIntegrationStatus(status,args.includes('--json'));
+      if(!status.healthy)process.exitCode=1;
+      return;
+    }
+    throw new Error('Usage: idleproof integration install|status|uninstall');
   }
   if (cmd === 'support') {
     await import('./idleproof-support.mjs');

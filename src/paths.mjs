@@ -7,6 +7,7 @@ export const DEFAULT_PORT = 4777;
 export function projectPaths(cwd = process.cwd()) {
   const root = path.resolve(cwd);
   const dir = path.join(root, '.idleproof');
+  const legacyDefitnessConfig = path.join(dir, 'defitness.json');
   return {
     root,
     dir,
@@ -29,6 +30,10 @@ export function projectPaths(cwd = process.cwd()) {
     portalQueue: path.join(dir, 'portal-queue.json'),
     portalQueueLock: path.join(dir, 'portal-queue.lock'),
     portalDeliveryHealth: path.join(dir, 'portal-delivery.json'),
+    diffwitnessConfig: path.join(dir, 'diffwitness.json'),
+    // Pre-alpha compatibility only. Never write this path again; readers may migrate it once.
+    defitnessConfig: legacyDefitnessConfig,
+    defitnessConfigLegacy: legacyDefitnessConfig,
     cursorTaskContext: path.join(dir, 'cursor-current-task.md'),
     policy: path.join(root, 'idleproof.policy.json'),
     claudeSettings: path.join(root, '.claude', 'settings.local.json'),
