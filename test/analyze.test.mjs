@@ -52,7 +52,11 @@ test('auth evidence matches whole identifier tokens, not substrings of unrelated
     'SessionProvider', 'jwt', 'JWT_SECRET', 'jwtVerify', 'signJWTToken', 'oauth2', 'OAuthClient',
     'src/routes/oauthCallback.ts', 'cookie', 'cookies', 'setCookie', 'cookieParser', 'login', 'logout',
     'loginHandler', 'src/components/LoginForm.tsx', 'bcrypt', 'bcryptjs', 'argon2', 'argon2id',
-    'export function authenticate(req) {}', 'const JWT_SECRET = process.env.JWT_SECRET'
+    'export function authenticate(req) {}', 'const JWT_SECRET = process.env.JWT_SECRET',
+    'authorizer', 'authorizers', 'Authorizer', 'authoriser', 'lambdaAuthorizer', 'apiGatewayAuthorizer',
+    'src/auth/Authorizer.ts', 'custom_authorizer',
+    'isLoggedIn', 'isLoggedOut', 'loggedIn', 'loggedOut', 'logged_in', 'logged-out',
+    'const [loggedIn, setLoggedIn] = useState(false)'
   ]) {
     assert.ok(detectConcepts(evidence).includes('auth'), `genuine auth evidence must classify as auth: ${evidence}`);
   }
@@ -61,7 +65,11 @@ test('auth evidence matches whole identifier tokens, not substrings of unrelated
     'authority', 'authoritative', 'authentic', 'authenticity', 'oauthish', 'jwtish', 'cookiecutter',
     'obsession', 'obsessional', 'sessional', 'subsession', 'author', 'authors', 'authored', 'authoring',
     'authorship', 'the commit was authored by Ada', 'jargon', 'inauthentic', 'concession', 'possession',
-    'professional', 'logging', 'catalogue', 'plugin', 'paragon', 'argonaut'
+    'professional', 'logging', 'catalogue', 'plugin', 'paragon', 'argonaut',
+    'CookieCutter', 'cookieCutter', 'cookie-cutter', 'cookie_cutter', 'CookieCutters', 'Cookiecutter',
+    'npx cookiecutter gh:audreyr/cookiecutter-pypackage',
+    'loggedInfo', 'loggedError', 'logged', 'blogged', 'clogged', 'unclogged',
+    'authoring', 'authorities'
   ]) {
     assert.ok(!detectConcepts(noise).includes('auth'), `unrelated word must not classify as auth: ${noise}`);
   }
