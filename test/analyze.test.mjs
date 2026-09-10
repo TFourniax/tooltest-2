@@ -44,6 +44,30 @@ test('hook protocol/session metadata does not fabricate an auth concept', () => 
   assert.ok(detectConcepts(realAuth).includes('auth'), 'real auth/session project evidence must still classify as auth');
 });
 
+test('auth classification survives real identifier, path and inflection shapes', () => {
+  for (const evidence of [
+    'export function authenticate(req) {}',
+    'if (!isAuthenticated(req)) throw new Error("denied")',
+    'export function authorize(user, permission) {}',
+    'const authService = createAuthService()',
+    'src/middleware/requireAuth.ts',
+    'const JWT_SECRET = process.env.JWT_SECRET',
+    'export const loginHandler = () => {}',
+    'src/routes/oauthCallback.ts',
+    'export function getSession(id) {}',
+    'session_token = create_session_token(user)',
+    "import bcrypt from 'bcryptjs'",
+    "import argon2 from 'argon2'",
+    'res.clearCookie("sid")'
+  ]) {
+    assert.ok(detectConcepts(evidence).includes('auth'), `genuine auth evidence must classify as auth: ${evidence}`);
+  }
+
+  for (const noise of ['author', 'authors', 'the commit was authored by Ada', 'marketing jargon', 'SessionStart', 'SessionEnd']) {
+    assert.ok(!detectConcepts(noise).includes('auth'), `non-auth text must not classify as auth: ${noise}`);
+  }
+});
+
 test('estimateWindow recognizes long-running validation commands', () => {
   assert.equal(estimateWindow({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'npm test' } }), 55);
   assert.equal(estimateWindow({ hook_event_name: 'PreToolUse', tool_name: 'apply_patch', tool_input: {} }), 24);

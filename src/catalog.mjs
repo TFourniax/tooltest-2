@@ -1,7 +1,7 @@
 export const CONCEPTS = [
   {
     id: 'auth', title: 'Authentication & sessions', level: 'high-risk', risk: 5, seconds: 42,
-    patterns: [/\bauth(?:entication|orization)?\b/i, /\bsessions?\b/i, /\bjwts?\b/i, /\boauth(?:2)?\b/i, /\bcookies?\b/i, /\blog(?:in|out)\b/i, /\bbcrypt\b/i, /\bargon(?:2)?\b/i],
+    patterns: [/auth(?!or(?:s|ed|ing|ship)?\b)/i, /session(?!start\b|end\b)/i, /jwt/i, /oauth/i, /cookie/i, /log(?:in|out)/i, /bcrypt/i, /(?<![a-z])argon/i],
     lesson: 'Authentication proves identity; authorization decides what that identity may do. Keep those checks server-side, scope sessions narrowly, and treat cookies/tokens as credentials rather than UI state.',
     why: 'Auth bugs often look fine in happy-path demos but become account-takeover or privilege-escalation bugs in production.',
     review: 'Verify the server rejects an authenticated user who lacks the specific permission—not only an unauthenticated user.',
