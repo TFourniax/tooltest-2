@@ -44,28 +44,48 @@ test('hook protocol/session metadata does not fabricate an auth concept', () => 
   assert.ok(detectConcepts(realAuth).includes('auth'), 'real auth/session project evidence must still classify as auth');
 });
 
-test('auth classification survives real identifier, path and inflection shapes', () => {
+test('auth evidence matches whole identifier tokens, not substrings of unrelated words', () => {
   for (const evidence of [
-    'export function authenticate(req) {}',
-    'if (!isAuthenticated(req)) throw new Error("denied")',
-    'export function authorize(user, permission) {}',
-    'const authService = createAuthService()',
-    'src/middleware/requireAuth.ts',
-    'const JWT_SECRET = process.env.JWT_SECRET',
-    'export const loginHandler = () => {}',
-    'src/routes/oauthCallback.ts',
-    'export function getSession(id) {}',
-    'session_token = create_session_token(user)',
-    "import bcrypt from 'bcryptjs'",
-    "import argon2 from 'argon2'",
-    'res.clearCookie("sid")'
+    'authentication', 'authenticate', 'authenticated', 'authorization', 'authorize', 'authorized', 'authorisation',
+    'auth_token', 'AUTH_TOKEN', 'auth-token', 'src/auth/session.ts', 'authService', 'requireAuth', 'isAuthenticated',
+    'src/middleware/requireAuth.ts', 'session', 'sessions', 'session_token', 'sessionStore', 'getSession',
+    'SessionProvider', 'jwt', 'JWT_SECRET', 'jwtVerify', 'signJWTToken', 'oauth2', 'OAuthClient',
+    'src/routes/oauthCallback.ts', 'cookie', 'cookies', 'setCookie', 'cookieParser', 'login', 'logout',
+    'loginHandler', 'src/components/LoginForm.tsx', 'bcrypt', 'bcryptjs', 'argon2', 'argon2id',
+    'export function authenticate(req) {}', 'const JWT_SECRET = process.env.JWT_SECRET'
   ]) {
     assert.ok(detectConcepts(evidence).includes('auth'), `genuine auth evidence must classify as auth: ${evidence}`);
   }
 
-  for (const noise of ['author', 'authors', 'the commit was authored by Ada', 'marketing jargon', 'SessionStart', 'SessionEnd']) {
-    assert.ok(!detectConcepts(noise).includes('auth'), `non-auth text must not classify as auth: ${noise}`);
+  for (const noise of [
+    'authority', 'authoritative', 'authentic', 'authenticity', 'oauthish', 'jwtish', 'cookiecutter',
+    'obsession', 'obsessional', 'sessional', 'subsession', 'author', 'authors', 'authored', 'authoring',
+    'authorship', 'the commit was authored by Ada', 'jargon', 'inauthentic', 'concession', 'possession',
+    'professional', 'logging', 'catalogue', 'plugin', 'paragon', 'argonaut'
+  ]) {
+    assert.ok(!detectConcepts(noise).includes('auth'), `unrelated word must not classify as auth: ${noise}`);
   }
+});
+
+test('hook protocol metadata is not semantic evidence', () => {
+  for (const event of [
+    { session_id: 'calc-session', hook_event_name: 'SessionStart', source: 'codex' },
+    { session_id: 'calc-session', hook_event_name: 'SessionEnd', source: 'claude' },
+    { session_id: 'calc-session', hook_event_name: 'SubagentStop', source: 'claude' },
+    { session_id: 'calc-session', hook_event_name: 'PreToolUse', tool_name: 'Edit',
+      tool_input: { file_path: '/tmp/app.py', old_string: 'return a - b', new_string: 'return a + b' } }
+  ]) {
+    const text = eventText(event);
+    assert.ok(!/SessionStart|SessionEnd|SubagentStop|PreToolUse/.test(text), `protocol metadata leaked into semantic evidence: ${text}`);
+    assert.ok(!detectConcepts(text).includes('auth'), `protocol metadata fabricated an auth concept: ${JSON.stringify(event)}`);
+  }
+
+  const realAuth = eventText({
+    hook_event_name: 'PreToolUse',
+    tool_name: 'Edit',
+    tool_input: { file_path: '/tmp/src/auth/session.ts', new_string: 'export function login() {}' }
+  });
+  assert.ok(detectConcepts(realAuth).includes('auth'), 'real auth/session project evidence must still classify as auth');
 });
 
 test('estimateWindow recognizes long-running validation commands', () => {

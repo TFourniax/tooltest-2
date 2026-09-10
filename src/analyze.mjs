@@ -14,9 +14,9 @@ function compactText(value, max = 32000) {
 }
 
 export function eventText(event = {}) {
+  // Hook protocol metadata (event name, tool name) is transport, not project evidence, and must
+  // never fabricate a semantic concept. Only real prompt/input/error content is classified.
   return [
-    event.hook_event_name,
-    event.tool_name,
     compactText(event.prompt, 8000),
     compactText(event.tool_input, 16000),
     compactText(event.error, 4000)

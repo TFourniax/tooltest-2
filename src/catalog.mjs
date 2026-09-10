@@ -1,7 +1,19 @@
+const AUTH_ROOTS = 'auth|authn|authz|authenticat(?:e|ed|es|ing|or|ors|ion|ions)|authori[sz](?:e|ed|es|ing|ation|ations)|oauth2?|sessions?|jwts?|cookies?|log(?:in|ins|out|outs)|bcrypt(?:js)?|argon2?(?:id|i|d)?';
+const AUTH_ROOTS_CAPITALIZED = 'Auth|Authn|Authz|Authenticat(?:e|ed|es|ing|or|ors|ion|ions)|Authori[sz](?:e|ed|es|ing|ation|ations)|OAuth2?|Sessions?|JWTs?|Jwts?|Cookies?|Log(?:in|ins|out|outs)|Bcrypt(?:js)?|Argon2?(?:id|i|d)?';
+
+// An auth root counts as evidence only where it is a whole identifier token: delimited by
+// non-letters, or at a camelCase seam. It never matches as a substring of an unrelated word
+// (author, authority, authentic, obsession, cookiecutter, jargon...).
+const AUTH_PATTERNS = [
+  new RegExp(`(?<![A-Za-z])(?:${AUTH_ROOTS})(?![A-Za-z])`, 'i'),
+  new RegExp(`(?:${AUTH_ROOTS_CAPITALIZED})(?![a-z])`),
+  new RegExp(`(?<![A-Za-z])(?:${AUTH_ROOTS})(?=[A-Z])`)
+];
+
 export const CONCEPTS = [
   {
     id: 'auth', title: 'Authentication & sessions', level: 'high-risk', risk: 5, seconds: 42,
-    patterns: [/auth(?!or(?:s|ed|ing|ship)?\b)/i, /session(?!start\b|end\b)/i, /jwt/i, /oauth/i, /cookie/i, /log(?:in|out)/i, /bcrypt/i, /(?<![a-z])argon/i],
+    patterns: AUTH_PATTERNS,
     lesson: 'Authentication proves identity; authorization decides what that identity may do. Keep those checks server-side, scope sessions narrowly, and treat cookies/tokens as credentials rather than UI state.',
     why: 'Auth bugs often look fine in happy-path demos but become account-takeover or privilege-escalation bugs in production.',
     review: 'Verify the server rejects an authenticated user who lacks the specific permission—not only an unauthenticated user.',
