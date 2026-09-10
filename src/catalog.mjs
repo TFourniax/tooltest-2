@@ -1,13 +1,20 @@
 const AUTH_ROOTS = 'auth|authn|authz|authenticat(?:e|ed|es|ing|or|ors|ion|ions)|authori[sz](?:e|ed|er|ers|es|ing|ation|ations)|oauth2?|sessions?|jwts?|cookies?(?![-_]?[Cc]utter)|log(?:in|ins|out|outs)|logged[_ -]?(?:in|out)|bcrypt(?:js)?|argon2?(?:id|i|d)?';
-const AUTH_ROOTS_CAPITALIZED = 'Auth|Authn|Authz|Authenticat(?:e|ed|es|ing|or|ors|ion|ions)|Authori[sz](?:e|ed|er|ers|es|ing|ation|ations)|OAuth2?|Sessions?|JWTs?|Jwts?|Cookies?(?![-_]?[Cc]utter)|Log(?:in|ins|out|outs)|LoggedIn|LoggedOut|loggedIn|loggedOut|Bcrypt(?:js)?|Argon2?(?:id|i|d)?';
+const AUTH_ROOTS_CAPITALIZED = 'Auth|Authn|Authz|Authenticat(?:e|ed|es|ing|or|ors|ion|ions)|Authori[sz](?:e|ed|er|ers|es|ing|ation|ations)|OAuth2?|Sessions?|JWTs?|Jwts?|Cookies?(?![-_]?[Cc]utter)|Log(?:in|ins|out|outs)|LoggedIn|LoggedOut|Bcrypt(?:js)?|Argon2?(?:id|i|d)?';
+
+// Predicates whose own first letter is lowercase. The capitalised pattern below carries no left
+// guard on purpose, so that a camelCase seam matches (getSession, isAuthenticated); a
+// lowercase-initial alternative placed there would also be reachable from inside an unrelated
+// word (bloggedIn, cataloggedIn). These therefore need an explicit identifier boundary.
+const AUTH_CAMEL_PREDICATES = 'loggedIn|loggedOut';
 
 // An auth root counts as evidence only where it is a whole identifier token: delimited by
 // non-letters, or at a camelCase seam. It never matches as a substring of an unrelated word
-// (author, authority, authentic, obsession, cookiecutter/CookieCutter, jargon...).
+// (author, authority, authentic, obsession, cookiecutter/CookieCutter, jargon, blogged...).
 const AUTH_PATTERNS = [
   new RegExp(`(?<![A-Za-z])(?:${AUTH_ROOTS})(?![A-Za-z])`, 'i'),
   new RegExp(`(?:${AUTH_ROOTS_CAPITALIZED})(?![a-z])`),
-  new RegExp(`(?<![A-Za-z])(?:${AUTH_ROOTS})(?=[A-Z])`)
+  new RegExp(`(?<![A-Za-z])(?:${AUTH_ROOTS})(?=[A-Z])`),
+  new RegExp(`(?<![A-Za-z])(?:${AUTH_CAMEL_PREDICATES})(?![a-z])`)
 ];
 
 export const CONCEPTS = [

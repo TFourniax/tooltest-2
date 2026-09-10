@@ -56,7 +56,7 @@ test('auth evidence matches whole identifier tokens, not substrings of unrelated
     'authorizer', 'authorizers', 'Authorizer', 'authoriser', 'lambdaAuthorizer', 'apiGatewayAuthorizer',
     'src/auth/Authorizer.ts', 'custom_authorizer',
     'isLoggedIn', 'isLoggedOut', 'loggedIn', 'loggedOut', 'logged_in', 'logged-out',
-    'const [loggedIn, setLoggedIn] = useState(false)'
+    'loggedInState', 'loggedOutState', 'const [loggedIn, setLoggedIn] = useState(false)'
   ]) {
     assert.ok(detectConcepts(evidence).includes('auth'), `genuine auth evidence must classify as auth: ${evidence}`);
   }
@@ -69,6 +69,8 @@ test('auth evidence matches whole identifier tokens, not substrings of unrelated
     'CookieCutter', 'cookieCutter', 'cookie-cutter', 'cookie_cutter', 'CookieCutters', 'Cookiecutter',
     'npx cookiecutter gh:audreyr/cookiecutter-pypackage',
     'loggedInfo', 'loggedError', 'logged', 'blogged', 'clogged', 'unclogged',
+    'bloggedIn', 'cloggedIn', 'uncloggedIn', 'cataloggedIn', 'bloggedOut', 'cloggedOut',
+    'reblogged', 'sloggedIn', 'floggedOut',
     'authoring', 'authorities'
   ]) {
     assert.ok(!detectConcepts(noise).includes('auth'), `unrelated word must not classify as auth: ${noise}`);
