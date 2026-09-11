@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/TFourniax/tooltest-2/spec/agentic-development-provenance/v1",
+  "title": "IdleProof Agentic Development Provenance v1 predicate",
+  "type": "object",
+  "required": ["schema", "generatedAt", "project", "execution", "controls", "provenance", "agentBillOfMaterials", "responsibility"],
+  "properties": {
+    "schema": { "const": "idleproof.agentic-development-provenance.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "project": { "type": "string" },
+    "sourceRevision": { "type": ["string", "null"] },
+    "execution": {
+      "type": "object",
+      "required": ["files", "changed", "maxObservedPolicyRisk"],
+      "properties": {
+        "sessionId": { "type": ["string", "null"] },
+        "agentSource": { "type": ["string", "null"] },
+        "startedAt": { "type": ["string", "null"] },
+        "completedAt": { "type": ["string", "null"] },
+        "files": { "type": "array", "items": { "type": "string" } },
+        "changed": {
+          "type": "object",
+          "properties": { "added": { "type": "integer" }, "deleted": { "type": "integer" } },
+          "required": ["added", "deleted"]
+        },
+        "maxObservedPolicyRisk": { "type": "number", "minimum": 0, "maximum": 100 },
+        "intent": {
+          "type": ["object", "null"],
+          "properties": {
+            "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+            "chars": { "type": "integer", "minimum": 0 }
+          },
+          "required": ["sha256", "chars"]
+        }
+      }
+    },
+    "controls": { "type": "object" },
+    "provenance": {
+      "type": "object",
+      "required": ["chainLength", "chainHeadSha256", "signerFingerprint"],
+      "properties": {
+        "chainLength": { "type": "integer", "minimum": 0 },
+        "chainHeadSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "signerFingerprint": { "type": "string" }
+      }
+    },
+    "agentBillOfMaterials": { "type": "object" },
+    "environment": { "type": "object" },
+    "responsibility": { "type": "object" }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,21 @@
+{
+  "schema": "idleproof.policy.v1",
+  "profile": "strict",
+  "description": "Example team policy for protected software-delivery domains.",
+  "rules": [
+    {
+      "id": "protect-auth-billing",
+      "severity": "critical",
+      "effect": "ask",
+      "match": { "path": "^(?:src/)?(?:auth|billing|permissions)/" },
+      "message": "Security-sensitive domain requires explicit human review."
+    },
+    {
+      "id": "protect-infra",
+      "severity": "high",
+      "effect": "ask",
+      "match": { "path": "^(?:terraform|infra|k8s|\\.github/workflows)/" },
+      "message": "Infrastructure or delivery-policy change requires review."
+    }
+  ]
+}

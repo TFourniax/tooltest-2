@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/TFourniax/tooltest-2/spec/idleproof-policy/v1",
+  "title": "IdleProof runtime policy v1",
+  "type": "object",
+  "required": ["schema", "profile", "rules"],
+  "properties": {
+    "schema": { "const": "idleproof.policy.v1" },
+    "profile": { "enum": ["observe", "balanced", "strict"] },
+    "description": { "type": "string" },
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "effect", "match"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "enabled": { "type": "boolean" },
+          "severity": { "enum": ["low", "medium", "high", "critical"] },
+          "effect": { "enum": ["observe", "ask", "deny"] },
+          "message": { "type": "string" },
+          "match": {
+            "type": "object",
+            "properties": {
+              "event": { "type": "string" },
+              "source": { "type": "string" },
+              "tool": { "type": "string" },
+              "command": { "type": "string" },
+              "path": { "type": "string" },
+              "capability": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,28 @@
+{
+  "name": "idleproof",
+  "version": "0.10.0",
+  "description": "Local human-understanding layer for coding agents: explain what Claude Code or Codex is building in your actual project.",
+  "type": "module",
+  "bin": {
+    "idleproof": "./bin/idleproof.mjs",
+    "idleproof-support": "./bin/idleproof-support.mjs"
+  },
+  "scripts": {
+    "start": "node ./bin/idleproof.mjs serve",
+    "demo": "node ./bin/idleproof.mjs demo",
+    "test": "node --test",
+    "check": "node ./bin/idleproof.mjs doctor",
+    "explainbench": "node ./scripts/explainbench.mjs"
+  },
+  "engines": { "node": ">=20" },
+  "keywords": [
+    "coding-agent", "vibe-coding", "claude-code", "codex", "developer-understanding",
+    "code-explanation", "contextual-learning", "knowledge-debt", "human-in-the-loop", "ai-coding"
+  ],
+  "license": "MIT",
+  "files": ["bin", "src", "public", "docs", "spec", "examples", "action.yml", "README.md", "SECURITY.md", "LICENSE"],
+  "repository": { "type": "git", "url": "git+https://github.com/TFourniax/tooltest-2.git" },
+  "homepage": "https://github.com/TFourniax/tooltest-2#readme",
+  "bugs": { "url": "https://github.com/TFourniax/tooltest-2/issues" },
+  "publishConfig": { "access": "public" }
+}

@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://idleproof.dev/spec/idleproof-portal-snapshot-v1.schema.json",
+  "title": "IdleProof Portal Snapshot v1",
+  "type": "object",
+  "required": ["schema", "snapshotId", "generatedAt", "project", "task", "change", "understanding", "files", "privacy"],
+  "properties": {
+    "schema": { "const": "idleproof.portal-snapshot.v1" },
+    "snapshotId": { "type": "string", "pattern": "^ipsnap_[a-f0-9]{24}$" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "project": {
+      "type": "object",
+      "required": ["name", "localId"],
+      "properties": {
+        "name": { "type": "string", "maxLength": 120 },
+        "localId": { "type": "string", "pattern": "^[a-f0-9]{24}$" }
+      },
+      "additionalProperties": false
+    },
+    "task": {
+      "type": "object",
+      "required": ["summary", "promptDigest", "promptChars", "source", "status", "changed"],
+      "properties": {
+        "summary": { "type": ["string", "null"], "maxLength": 300 },
+        "promptDigest": { "type": ["string", "null"], "pattern": "^sha256:[a-f0-9]{64}$" },
+        "promptChars": { "type": "integer", "minimum": 0 },
+        "source": { "type": "string", "maxLength": 40 },
+        "status": { "type": ["string", "null"], "maxLength": 80 },
+        "changed": {
+          "type": "object",
+          "required": ["added", "deleted"],
+          "properties": {
+            "added": { "type": "integer", "minimum": 0 },
+            "deleted": { "type": "integer", "minimum": 0 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "change": {
+      "type": "object",
+      "required": ["changeId", "diffSha256"],
+      "properties": {
+        "changeId": { "type": ["string", "null"], "pattern": "^dwchg_[a-f0-9]{24}$" },
+        "diffSha256": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" }
+      },
+      "additionalProperties": false
+    },
+    "assurance": {
+      "type": ["object", "null"],
+      "required": ["schema", "proof", "softwareDebt"],
+      "properties": {
+        "schema": { "const": "idleproof.change-assurance.v1" },
+        "proof": {
+          "type": ["object", "null"],
+          "required": ["claim", "accepted", "certificateId"],
+          "properties": {
+            "claim": { "enum": ["causal", "preservation", "validation", "not-required", "inconclusive", "unknown"] },
+            "accepted": { "type": "boolean" },
+            "certificateId": { "type": "string", "minLength": 6, "maxLength": 128 }
+          },
+          "additionalProperties": false
+        },
+        "softwareDebt": {
+          "type": ["object", "null"],
+          "required": ["points", "obligations", "budgetPassed"],
+          "properties": {
+            "points": { "type": "integer", "minimum": 0, "maximum": 1000000000 },
+            "obligations": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+            "budgetPassed": { "type": ["boolean", "null"] }
+          },
+          "additionalProperties": false
+        }
+      },
+      "anyOf": [
+        { "properties": { "proof": { "type": "object" } } },
+        { "properties": { "softwareDebt": { "type": "object" } } }
+      ],
+      "additionalProperties": false
+    },
+    "explanation": { "type": ["object", "null"] },
+    "feature": { "type": ["object", "null"] },
+    "understanding": { "type": "object" },
+    "projectMemory": { "type": ["object", "null"] },
+    "files": { "type": "array", "items": { "type": "string", "maxLength": 300 }, "maxItems": 40 },
+    "privacy": {
+      "type": "object",
+      "required": ["sourceCodeIncluded", "rawDiffIncluded", "rawAgentEventsIncluded", "rawPromptIncluded", "secretsRedacted"],
+      "properties": {
+        "sourceCodeIncluded": { "const": false },
+        "rawDiffIncluded": { "const": false },
+        "rawAgentEventsIncluded": { "const": false },
+        "rawPromptIncluded": { "const": false },
+        "secretsRedacted": { "const": true }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
