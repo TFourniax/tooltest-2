@@ -2,14 +2,7 @@
 import { processHookLifecycle } from '../src/hook.mjs';
 import { queueMatchingDiffWitnessAssurance } from '../src/ide-assurance.mjs';
 import { diffWitnessRequiredFailure, runDiffWitnessIdeHook } from '../src/diffwitness-bridge.mjs';
-
-async function stdinJson() {
-  let raw='';
-  for await (const chunk of process.stdin) raw += chunk;
-  if (!raw.trim()) return {};
-  try { return JSON.parse(raw); }
-  catch { return {}; }
-}
+import { readHookPayload } from '../src/hook-input.mjs';
 
 function combinePromptOutput(idleOutput,diffOutput){
   if(!diffOutput)return idleOutput;
@@ -44,17 +37,29 @@ function combineStopOutput(idleOutput,diffResult){
   return diffOutput;
 }
 
+function queueAssurance(cwd) {
+  try { queueMatchingDiffWitnessAssurance(cwd); }
+  catch { console.error('[idleproof-hook] Portal assurance queue unavailable; native assurance result preserved.'); }
+}
+
 async function run() {
   const mode=String(process.argv[2] || 'claude').toLowerCase();
   if (!['claude','codex'].includes(mode)) throw new Error('IdleProof hook runner expects claude or codex.');
-  const event=await stdinJson();
+  const event=await readHookPayload();
   const cwd=event.cwd || process.cwd();
-  const lifecycle=processHookLifecycle({ ...event, source:mode });
   const eventName=event.hook_event_name || event.type || '';
-  let output=lifecycle.hookOutput || null;
+  let output=null;
+  let advisoryWarning='';
+  try { output=processHookLifecycle({ ...event, source:mode }).hookOutput || null; }
+  catch {
+    advisoryWarning='IdleProof context is unavailable; inspect idleproof repair. DiffWitness assurance is evaluated separately.';
+    console.error(`[idleproof-hook] ${advisoryWarning}`);
+  }
 
   if(['SessionStart','UserPromptSubmit','Stop'].includes(eventName)){
-    const diffResult=runDiffWitnessIdeHook({cwd,eventName,event:{...event,source:mode}});
+    let diffResult;
+    try { diffResult=runDiffWitnessIdeHook({cwd,eventName,event:{...event,source:mode}}); }
+    catch { diffResult={ok:false,required:true,message:'Native DiffWitness assurance could not be evaluated.'}; }
     if(eventName==='UserPromptSubmit'){
       if(diffResult.ok) output=combinePromptOutput(output,diffResult.output);
       else if(diffResult.required){
@@ -64,11 +69,13 @@ async function run() {
     }
     if(eventName==='Stop'){
       output=combineStopOutput(output,diffResult);
-      queueMatchingDiffWitnessAssurance(cwd);
+      queueAssurance(cwd);
     }
   } else if(['SessionEnd','SubagentStop'].includes(eventName)) {
-    queueMatchingDiffWitnessAssurance(cwd);
+    queueAssurance(cwd);
   }
+
+  if(advisoryWarning) output={...(output||{}),systemMessage:[output?.systemMessage,advisoryWarning].filter(Boolean).join('\n')};
 
   if(output) process.stdout.write(`${JSON.stringify(output)}\n`);
   else if(mode==='codex' && ['Stop','SubagentStop'].includes(eventName)) process.stdout.write('{}\n');
