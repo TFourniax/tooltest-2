@@ -124,27 +124,50 @@ function filterInternalDiff(diff) {
   }).join('');
 }
 
+function diffAndStats(cwd,cached=false) {
+  const output=git(cwd,['diff',...(cached ? ['--cached'] : []),'--numstat','-z','--patch','--unified=0','--no-ext-diff'],4*1024*1024);
+  const separator=output.indexOf('\0\0diff --git ');
+  const boundary=separator<0 ? -1 : separator+2;
+  const rawStats=boundary<0 ? output : output.slice(0,boundary);
+  const fields=rawStats.split('\0');const numstat=[];
+  for(let index=0;index<fields.length;index++) {
+    const record=fields[index];const match=record.match(/^(\d+|-)\t(\d+|-)\t([\s\S]*)$/);
+    if(!match)continue;
+    let file=match[3];
+    if(!file) {index++;file=fields[++index] || ''; } // Rename: old and new are separate NUL fields.
+    numstat.push({added:match[1],deleted:match[2],file});
+  }
+  return {diff:boundary<0 ? '' : output.slice(boundary),numstat};
+}
+
 export function captureGitSnapshot(cwd) {
-  const status = git(cwd, ['status', '--short', '--untracked-files=all']);
-  const head = git(cwd, ['rev-parse', '--verify', 'HEAD']).trim() || null;
-  const trackedDiff = filterInternalDiff(`${git(cwd, ['diff', '--unified=0', '--no-ext-diff'], 4 * 1024 * 1024)}\n${git(cwd, ['diff', '--cached', '--unified=0', '--no-ext-diff'], 4 * 1024 * 1024)}`);
-  const numstat = `${git(cwd, ['diff', '--numstat'])}\n${git(cwd, ['diff', '--cached', '--numstat'])}`;
+  const status = git(cwd, ['status', '--porcelain=v2', '--branch', '--untracked-files=all','-z']);
+  const records=status.split('\0');
+  const headRecord=records.find(record=>record.startsWith('# branch.oid '));
+  const headValue=headRecord?.slice('# branch.oid '.length);
+  const head=/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(headValue || '') ? headValue : null;
+  const unstaged=diffAndStats(cwd);const staged=diffAndStats(cwd,true);
+  const trackedDiff=filterInternalDiff(`${unstaged.diff}\n${staged.diff}`);
+  const numstat=[...unstaged.numstat,...staged.numstat];
   const files = new Set();
   const untracked = [];
   let added = 0;
   let deleted = 0;
 
-  for (const line of status.split('\n')) {
-    if (!line.trim()) continue;
-    const file = line.slice(3).trim().replace(/^"|"$/g, '');
+  for (let index=0;index<records.length;index++) {
+    const line=records[index];
+    const type=line[0];
+    let file='';
+    if(type==='?')file=line.slice(2);
+    else if(type==='1')file=line.split(' ').slice(8).join(' ');
+    else if(type==='2') {file=line.split(' ').slice(9).join(' ');index++;}
+    else if(type==='u')file=line.split(' ').slice(10).join(' ');
     if (file && isIdleProofInternal(file)) continue;
     if (file) files.add(file);
-    if (line.startsWith('?? ') && file) untracked.push(file);
+    if (type==='?' && file) untracked.push(file);
   }
-  for (const line of numstat.split('\n')) {
-    const [a, d, file] = line.split('\t');
+  for (const {added:a,deleted:d,file} of numstat) {
     if (!file || isIdleProofInternal(file)) continue;
-    files.add(file);
     if (/^\d+$/.test(a)) added += Number(a);
     if (/^\d+$/.test(d)) deleted += Number(d);
   }
