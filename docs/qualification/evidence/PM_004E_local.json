@@ -1,0 +1,67 @@
+{
+  "schema": "pm-004e-local-1",
+  "classification": "MACHINE",
+  "base": "97fcd0286026b99bdc309454d75a43e1f81a2f33",
+  "core_pin": "26944bd363b51a61a018269a98b817e3c116e05e",
+  "core_dependency_gate": "fresh-main qualification required before merge",
+  "full": {
+    "run": 219,
+    "pass": 219,
+    "skip": 0,
+    "seconds": 15.824
+  },
+  "quality": {
+    "explain": 30,
+    "adversarial": 238,
+    "idlebench": 5,
+    "corpus": 15
+  },
+  "package": "npm pack --dry-run PASS",
+  "actual_core": "PASS",
+  "perf_budget_ms": {
+    "hook_p95": 150,
+    "hook_max": 500,
+    "stop": 750,
+    "state_p95": 100
+  },
+  "latest_python_perf": "IdleProof PERF PASS (Python/Core) \u00b7 hook p95 70.5ms \u00b7 max 74.6ms \u00b7 Stop 103.9ms \u00b7 state p95 0.4ms",
+  "files": {
+    "src/structure-provider.mjs": "7eb2d673b90a02264cacd750c5632985889e32ebe2325906620b17b632e116da",
+    "src/context.mjs": "4f8158a0f8fa757bbe20f039f8e47b4a65f298376c031949d8472654809e60cb",
+    "src/diffwitness-integration-config.mjs": "d27dc26ce10e8b313d532207c7a68655ce724384776950f37841489bab9f1a12",
+    "test/structure-provider.test.mjs": "fdfb80249192cc2641a95e6475b8abfb77db764c51bf77323cca7b444ffa1678",
+    "scripts/structure-core-smoke.mjs": "586a3ef9a1ff74a1d6ee87da081ae799ecb074e3a255f783c62c9f6f62239cb2",
+    "scripts/perf-gate.mjs": "ac3ef7047daea4b58ccdc5e9ee783a3e6def3afe6436f7aaefabc0133385705a",
+    ".github/workflows/test.yml": "63cebdbc57fb6bd9d5d544a932e514a2f9ac06f4773a083fce5d34e754b0f248"
+  },
+  "local_logs": {
+    "PM_004E_corpus_final.log": "a348aba6379380548240dcaed6b935e5c860f56e73b69d07c857cc33bea653c1",
+    "PM_004E_explainbench.log": "53b49728130ecfbe303256c20079627d853f9a1cb420f8625d140e1bed9eb927",
+    "PM_004E_perf_final.log": "4a0966674e3667ca9c0107a918545a6474bd6bda9f85629ac2a7258c8e4ad311",
+    "PM_004E_python_perf_final.log": "2510de838a502d7d5e67d8f5d79c745f7e675342f0eac46ac2978ce68a8f2b0c",
+    "PM_004E_package_final.log": "8fae9f1979997ecf909ff62fe9616a435ff8c2e0cc35e7157a94b9a2e4371bee",
+    "PM_004E_context.log": "8d5b61aa288276ea388b5a7d6c07ae7db81ba5746507b854b68b0d59fd84ca4c",
+    "PM_004E_idlebench.log": "a13a085f7381526f3aded3332bd4f2a3d3e8d6f6401fcda1d3cb0b3b37c79cfa",
+    "PM_004E_full.log": "b60da85bd3dad25be934df47cb68af1a54891b6cb921608be2b13721079ecd8c",
+    "PM_004E_perf.log": "2d57b247574471f3c90a0d6469cc4c01a49758bafd7c406b956af580524a0198",
+    "PM_004E_python_perf.log": "41eb8d591e084902d0adbb1e9906b7d0418f96da14cae5d488d7dea291b9423f",
+    "PM_004E_core_review_dependency.log": "393025660c281e3bfd919c67a546607e61cf1240fa9b1334cd62278a2b5c051a",
+    "PM_004E_package.log": "492d04c63a2e58172e7ab424739193b54976f8b16432436697cf0a34c45d678b",
+    "PM_004E_core_final.log": "f19a0ec7918636fda3d79b3cbd0809889673e9398368b67957e1d5c603c44d39",
+    "PM_004E_perf_review_dependency.log": "977ef572762c42732a11176ae651a50ea518d2a688214aa9f632db6d3395e35c",
+    "PM_004E_config_review_before.log": "4c7c44d2904e82eeca7185464c73898062e1adfdcdcfef11823bf4697d466e51",
+    "PM_004E_adversarial_final.log": "f29835c93b9f27292a2982128132abdaf628bb4e78b8cc61d2e5ffdd71b41f56",
+    "PM_004E_idlebench_final.log": "a13a085f7381526f3aded3332bd4f2a3d3e8d6f6401fcda1d3cb0b3b37c79cfa",
+    "PM_004E_explain_final.log": "53b49728130ecfbe303256c20079627d853f9a1cb420f8625d140e1bed9eb927",
+    "PM_004E_full_final.log": "356c6c8d04499015c41bec58ecc4f2ce290f08067e5bfbc5203a8cb265778f71",
+    "PM_004E_corpus.log": "a348aba6379380548240dcaed6b935e5c860f56e73b69d07c857cc33bea653c1",
+    "PM_004E_adversarial.log": "f29835c93b9f27292a2982128132abdaf628bb4e78b8cc61d2e5ffdd71b41f56",
+    "PM_004E_before.log": "c5b6c901ddc0e1457c63545fa00f8d2223eb3f387180ec6449e078d89f87c5a1"
+  },
+  "failures_retained": [
+    "fake Python symbol selected before canonical adapter",
+    "legacy config migration during advisory extraction before read-only correction"
+  ],
+  "human": "NOT RUN",
+  "archived_logs": "Copied failure logs preserve content; trailing whitespace in the configuration review log is trimmed. local_logs hashes refer to original outputs."
+}

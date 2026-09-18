@@ -1,0 +1,30 @@
+✖ advisory extraction can read a legacy command without migrating configuration (4.057342ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 84.898851
+
+✖ failing tests:
+
+test at test/structure-provider.test.mjs:79:1
+✖ advisory extraction can read a legacy command without migrating configuration (4.057342ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  true !== false
+
+      at TestContext.<anonymous> (file:///workspace/scratch/e9f3b6772074/work/idleproof/test/structure-provider.test.mjs:90:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.start (node:internal/test_runner/test:1242:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
