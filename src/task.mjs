@@ -3,6 +3,18 @@ import { createHash } from 'node:crypto';
 const MAX_ANCHOR_CHARS = 1200;
 const MAX_FOCUS_CHARS = 1200;
 const MAX_HISTORY = 12;
+const MAX_NATIVE_PROMPT_CHARS = 12000;
+// Python str.split whitespace, frozen for Core native task-v1 interoperability.
+const TASK_WHITESPACE = /[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+/gu;
+
+function nativePrompt(value) {
+  const chars = [];
+  for (const char of String(value || '')) {
+    if (chars.length === MAX_NATIVE_PROMPT_CHARS) break;
+    chars.push(char);
+  }
+  return chars.join('');
+}
 
 const WEAK_FOLLOWUP = /^(?:yes|yep|yeah|ok(?:ay)?|sure|go(?: ahead)?|continue|keep going|do it|proceed|retry|try again|fix it|fix that|same|exactly|great|thanks?|oui|ok|d['’]?accord|vas[- ]?y|continue|continues?|poursuis|fais[- ]?le|refais|réessaie|essaie encore|corrige(?: ça| cela)?|parfait|merci)[.!…\s]*$/iu;
 const EXPLICIT_PIVOT = /^(?:new task|next task|different task|switch (?:to|topic)|now (?:work|let['’]?s work) on|move on to|instead[, :]|separate task|nouvelle tâche|tâche suivante|autre tâche|changeons de (?:tâche|sujet)|passons à|maintenant (?:travaille|travaillons) sur|autre sujet|à la place[, :])/iu;
@@ -12,9 +24,10 @@ function sha256(value = '') {
 }
 
 function compact(value = '', max = MAX_FOCUS_CHARS) {
-  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  const text = String(value || '').replace(TASK_WHITESPACE, ' ').replace(/^ | $/g, '');
   if (!text) return '';
-  return text.length <= max ? text : `${text.slice(0, Math.max(1, max - 1)).trimEnd()}…`;
+  const chars = [...text];
+  return chars.length <= max ? text : `${chars.slice(0, Math.max(1, max - 1)).join('').replace(/ +$/g, '')}…`;
 }
 
 function nowIso(now = null) {
@@ -28,7 +41,7 @@ export function isWeakFollowup(prompt = '') {
   if (!text) return true;
   if (WEAK_FOLLOWUP.test(text)) return true;
   const tokens = text.toLowerCase().match(/[\p{L}\p{N}_-]+/gu) || [];
-  return tokens.length <= 3 && text.length <= 36 && !/[\/.]/.test(text);
+  return tokens.length <= 3 && [...text].length <= 36 && !/[\/.]/.test(text);
 }
 
 export function isExplicitTaskPivot(prompt = '') {
@@ -67,10 +80,10 @@ function startTask(session, sessionId, rawPrompt, timestamp) {
     id: stableTaskId(sessionId, ordinal, rawPrompt),
     ordinal,
     anchor,
-    anchorChars: String(rawPrompt || '').length,
+    anchorChars: [...rawPrompt].length,
     anchorSha256: sha256(rawPrompt),
     latestFocus: anchor,
-    latestFocusChars: String(rawPrompt || '').length,
+    latestFocusChars: [...rawPrompt].length,
     latestFocusSha256: sha256(rawPrompt),
     prompts: 1,
     startedAt: timestamp,
@@ -83,7 +96,7 @@ function startTask(session, sessionId, rawPrompt, timestamp) {
 
 export function updateSessionTask(session, rawPrompt, { sessionId = null, now = null } = {}) {
   if (!session || typeof session !== 'object') throw new Error('IdleProof task tracking requires a session object.');
-  const prompt = String(rawPrompt || '');
+  const prompt = nativePrompt(rawPrompt);
   const text = compact(prompt, MAX_FOCUS_CHARS);
   const timestamp = nowIso(now);
   const id = String(sessionId || session.id || 'default');
@@ -102,7 +115,7 @@ export function updateSessionTask(session, rawPrompt, { sessionId = null, now = 
   const weak = isWeakFollowup(text);
   session.task.prompts = Math.max(1, Number(session.task.prompts || 1)) + 1;
   session.task.updatedAt = timestamp;
-  session.task.latestFocusChars = prompt.length;
+  session.task.latestFocusChars = [...prompt].length;
   session.task.latestFocusSha256 = sha256(prompt);
   if (!weak) session.task.latestFocus = text;
   return { task: session.task, boundary: weak ? 'continued' : 'focused', weakFollowup: weak };
