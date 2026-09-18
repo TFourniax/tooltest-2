@@ -7,7 +7,9 @@ import { buildFeatureModel } from '../src/feature-model.mjs';
 
 const LIMIT = 128 * 1024;
 function fixture(t) {
-  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'idleproof-source-boundary-'));
+  // macOS temporary paths can themselves be aliases (/var -> /private/var).
+  // Race injection must match the canonical path opened by the product.
+  const base = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'idleproof-source-boundary-')));
   const cwd = path.join(base, 'project');
   const outside = path.join(base, 'outside');
   fs.mkdirSync(cwd); fs.mkdirSync(outside);
