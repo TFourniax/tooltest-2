@@ -1,8 +1,7 @@
-import fs from 'node:fs';
-import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { inferFileRole } from './semantics.mjs';
+import { readProjectSource } from './project-source.mjs';
 
-const MAX_CONTEXT_BYTES = 128 * 1024;
 const MAX_RELATED_FILES = 8;
 const cache = new Map();
 
@@ -21,18 +20,6 @@ const TECHNOLOGIES = [
   ['Laravel', /\blaravel\b/i], ['Spring', /\bspring(?:boot)?\b/i], ['.NET', /\basp\.net\b|\bdotnet\b|\b\.net\b/i],
   ['OpenAI', /\bopenai\b/i], ['Anthropic', /\banthropic\b|\bclaude\b/i]
 ];
-
-function safeFile(cwd, candidate) {
-  if (!candidate || typeof candidate !== 'string') return null;
-  const root = path.resolve(cwd);
-  const absolute = path.resolve(root, candidate);
-  if (!(absolute === root || absolute.startsWith(`${root}${path.sep}`))) return null;
-  try {
-    const stat = fs.statSync(absolute);
-    if (!stat.isFile() || stat.size > MAX_CONTEXT_BYTES) return null;
-    return { absolute, stat, relative:path.relative(root, absolute).replaceAll('\\', '/') };
-  } catch { return null; }
-}
 
 function unique(values) {
   return [...new Set(values.filter(Boolean))];
@@ -146,25 +133,15 @@ function preferredContextFile(session = {}) {
 }
 
 function inspectTaskFile(cwd, file, prompt) {
-  const safe = safeFile(cwd, file);
+  const safe = readProjectSource(cwd, file);
   if (!safe) {
     const fallback = { file:file || null, symbol:null, route:null, table:null, technologies:technologiesFrom(prompt), dependencies:[], symbols:[] };
     return { ...fallback, fileRole:inferFileRole(file || '', fallback) };
   }
-  const cacheKey = `${safe.absolute}|${safe.stat.mtimeMs}|${safe.stat.size}|${prompt}`;
-  if (cache.has(cacheKey)) return cache.get(cacheKey);
+  const cacheKey = JSON.stringify([safe.absolute, safe.sha256, createHash('sha256').update(prompt).digest('hex')]);
+  if (cache.has(cacheKey)) return structuredClone(cache.get(cacheKey));
 
-  let text = '';
-  try {
-    const bytes = fs.readFileSync(safe.absolute);
-    if (bytes.includes(0)) throw new Error('binary');
-    text = bytes.toString('utf8');
-  } catch {
-    const fallback = { file:safe.relative, symbol:null, route:null, table:null, technologies:technologiesFrom(prompt), dependencies:[], symbols:[] };
-    return { ...fallback, fileRole:inferFileRole(safe.relative, fallback) };
-  }
-
-  const evidenceText = stripCommentEvidence(text);
+  const evidenceText = stripCommentEvidence(safe.text);
   const symbols = symbolsFromText(evidenceText);
   const routes = routesFromText(`${prompt}\n${evidenceText}`);
   const tables = tablesFromText(`${prompt}\n${evidenceText}`);
@@ -180,7 +157,7 @@ function inspectTaskFile(cwd, file, prompt) {
     symbolCount:symbols.length
   };
   const signal = { ...base, fileRole:inferFileRole(safe.relative, base) };
-  cache.set(cacheKey, signal);
+  cache.set(cacheKey, structuredClone(signal));
   if (cache.size > 160) cache.delete(cache.keys().next().value);
   return signal;
 }
