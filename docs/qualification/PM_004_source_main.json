@@ -1,0 +1,121 @@
+{
+  "sha": "c2d17881d8b156d1a01f09f631131597c5c246d0",
+  "tree": "90aeae3bc5a1b841cd9c0622daf797f9d9d67933",
+  "current_main": "c2d17881d8b156d1a01f09f631131597c5c246d0",
+  "pr_head": "9c7a2ff44c1a3b37c5a9a6cf0e8d1dcf20fbaf06",
+  "pr_state": "closed",
+  "pr_merged": true,
+  "pr_merge_commit": "c2d17881d8b156d1a01f09f631131597c5c246d0",
+  "runs": [
+    {
+      "id": 35342998071,
+      "name": "test",
+      "head_sha": "c2d17881d8b156d1a01f09f631131597c5c246d0",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/TFourniax/tooltest-2/actions/runs/35342998071",
+      "run_attempt": 1,
+      "jobs": [
+        {
+          "id": 105592983241,
+          "name": "real Core context consumer (ubuntu-latest)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 105592983407,
+          "name": "real Core context consumer (windows-latest)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 105592983448,
+          "name": "ExplainBench + adversarial quality + performance budgets",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 105592983493,
+          "name": "test (macos-latest, 20)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 105592983496,
+          "name": "installed package commercial-alpha journey (windows-latest)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 105592983500,
+          "name": "installed package commercial-alpha journey (ubuntu-latest)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 105592983528,
+          "name": "installed package commercial-alpha journey (macos-latest)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 105592983584,
+          "name": "test (ubuntu-latest, 20)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 105592983620,
+          "name": "test (windows-latest, 22)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 105592983705,
+          "name": "test (windows-latest, 24)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 105592983712,
+          "name": "test (windows-latest, 20)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 105592983740,
+          "name": "test (macos-latest, 24)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 105592983776,
+          "name": "test (ubuntu-latest, 22)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 105592983777,
+          "name": "test (macos-latest, 22)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 105592983815,
+          "name": "real Core context consumer (macos-latest)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 105592983817,
+          "name": "test (ubuntu-latest, 24)",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ],
+      "artifacts": []
+    }
+  ],
+  "qualified": true
+}

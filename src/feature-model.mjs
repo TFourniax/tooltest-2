@@ -1,8 +1,9 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { SOURCE_FILE_BYTES, isExcludedProjectPath as ignored, isInsideProject as inside,
+         admitProjectSource as admittedSource, readProjectSource as safeRead } from './project-source.mjs';
 
-const LIMITS = { fileBytes:128 * 1024, totalBytes:640 * 1024, files:24, depth:2 };
+const LIMITS = { fileBytes:SOURCE_FILE_BYTES, totalBytes:640 * 1024, files:24, depth:2 };
 const SOURCE_EXTENSIONS = ['.js','.mjs','.cjs','.ts','.tsx','.jsx','.py'];
 const JS_RESOLVE_EXTENSIONS = ['', ...SOURCE_EXTENSIONS, '.json'];
 const TECHNOLOGIES = [
@@ -18,54 +19,6 @@ const uniq = (values) => [...new Set((values || []).filter(Boolean))];
 const norm = (value = '') => String(value).replaceAll('\\','/').replace(/^\.\//,'');
 const compact = (value = '', max = 90) => { const text=String(value || '').replace(/\s+/g,' ').trim(); return text.length <= max ? text : `${text.slice(0,max-1).trimEnd()}…`; };
 const nodeId = (type, value) => `${type}:${value}`;
-
-function ignored(relative = '') {
-  const v = norm(relative);
-  return !v || ['.git/','.idleproof/','node_modules/','dist/','build/','.next/','coverage/','.venv/','venv/','__pycache__/'].some((prefix) => v.startsWith(prefix));
-}
-
-function inside(cwd, candidate) {
-  const relative=path.relative(path.resolve(cwd),path.resolve(cwd,candidate));
-  return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
-}
-
-function admittedSource(cwd, relative) {
-  const file=norm(relative); if (ignored(file) || !inside(cwd,file)) return null;
-  const absolute=path.resolve(cwd,file);
-  try {
-    const root=fs.realpathSync(cwd), canonical=fs.realpathSync(absolute);
-    if (!inside(root,canonical) || ignored(path.relative(root,canonical))) return null;
-    const stat=fs.statSync(canonical); if (!stat.isFile() || stat.size > LIMITS.fileBytes) return null;
-    return { relative:file, absolute, root, canonical, stat };
-  } catch { return null; }
-}
-
-function sameSource(left,right) {
-  return right.isFile() && ['dev','ino','size','mtimeMs','ctimeMs'].every((key) => left[key] === right[key]);
-}
-
-function safeRead(cwd, relative) {
-  const admitted=admittedSource(cwd,relative); if (!admitted) return null;
-  let fd;
-  try {
-    // Open the checked target, then bind bounded reads to that descriptor. The
-    // nonblocking/no-follow flags also reject common regular-file swap races.
-    fd=fs.openSync(admitted.canonical,fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0) | (fs.constants.O_NONBLOCK || 0));
-    const before=fs.fstatSync(fd); if (!sameSource(admitted.stat,before)) return null;
-    const buffer=Buffer.allocUnsafe(LIMITS.fileBytes+1); let size=0;
-    while (size<buffer.length) {
-      const count=fs.readSync(fd,buffer,size,buffer.length-size,size);
-      if (!count) break;
-      size+=count;
-    }
-    if (size>LIMITS.fileBytes || size!==before.size || !sameSource(before,fs.fstatSync(fd))) return null;
-    if (fs.realpathSync(cwd)!==admitted.root || fs.realpathSync(admitted.absolute)!==admitted.canonical || !sameSource(before,fs.statSync(admitted.canonical))) return null;
-    const bytes=buffer.subarray(0,size); if (bytes.includes(0)) return null;
-    const text=new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(bytes);
-    return { relative:admitted.relative, absolute:admitted.absolute, size, text };
-  } catch { return null; }
-  finally { if (fd !== undefined) { try { fs.closeSync(fd); } catch {} } }
-}
 
 function firstExisting(cwd, candidates) {
   const root=path.resolve(cwd);
