@@ -32,6 +32,8 @@ jobs:
           node --check ./src/learning-cli.mjs
           node --check ./src/demo.mjs
           node --check ./src/hook.mjs
+          node --check ./src/continuity-contract.mjs
+          node --check ./src/continuity.mjs
           node --check ./src/context.mjs
           node --check ./src/semantics.mjs
           node --check ./src/explain.mjs
@@ -90,6 +92,33 @@ jobs:
           node ./scripts/idlebench-corpus.mjs
       - name: Enforce local hook latency budgets
         run: node ./scripts/perf-gate.mjs
+
+  core-context:
+    name: real Core context consumer (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Checkout exact Core task and lifecycle contract
+        uses: actions/checkout@v7
+        with:
+          repository: TFourniax/tooltest
+          ref: 897bd146b07fcbe1a26e00d0b1306630d1032483
+          path: core-context-fixture
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Install exact Core CLI
+        run: python -m pip install --no-deps ./core-context-fixture
+      - name: Verify tasks and lifecycle through real CLI consumer
+        run: node scripts/continuity-core-smoke.mjs
 
   package-e2e:
     name: installed package commercial-alpha journey (${{ matrix.os }})

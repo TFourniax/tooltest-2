@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { validContext } from './continuity-contract.mjs';
 
 const FORBIDDEN_KEYS = new Set(['sourceCode','source_code','content','rawContent','raw_content','diff','patch','tool_input','toolInput','prompt','promptRaw','secret','token','credential']);
 const MAX_SNAPSHOT_BYTES = 64 * 1024;
@@ -51,7 +52,11 @@ function continuityEntity(item={}) {
   const id=redact(item.id || item.debt_id || '',96) || null;
   const label=redact(item.label || item.title || '',240) || null;
   if (!id && !label) return null;
-  return { id, status:epistemic(item.epistemicStatus || item.epistemic_status), label };
+  const lifecycle=item.lifecycle?.action==='confirmed' ? {
+    action:'confirmed', active:true, status:'DECLARED', reason:redact(item.lifecycle.reason,240),
+    sourceEventId:item.lifecycle.sourceEventId, assertionEventId:item.lifecycle.assertionEventId
+  } : null;
+  return { id, status:epistemic(item.epistemicStatus || item.epistemic_status), label, ...(lifecycle ? {lifecycle} : {}) };
 }
 
 function continuityComponent(item={}) {
@@ -67,8 +72,8 @@ function continuityComponent(item={}) {
 
 function continuityRelation(item={}) {
   const predicate=redact(item.predicate || '',80);
-  const sourceId=redact(item.sourceId || item.source_id || item.source?.id || '',96);
-  const targetId=redact(item.targetId || item.target_id || item.target?.id || '',96);
+  const sourceId=redact(typeof item.source==='string' ? item.source : item.sourceId || item.source_id || item.source?.id || '',96);
+  const targetId=redact(typeof item.target==='string' ? item.target : item.targetId || item.target_id || item.target?.id || '',96);
   if (!predicate || (!sourceId && !targetId)) return null;
   return { predicate, sourceId:sourceId || null, targetId:targetId || null, status:epistemic(item.epistemicStatus || item.epistemic_status) };
 }
@@ -107,7 +112,7 @@ function continuityChange(item={}) {
 }
 
 function safeContinuityMemory(value) {
-  if (!value || typeof value!=='object' || Array.isArray(value) || value.schema_version!=='continuity-context-1') return null;
+  if (!validContext(value)) return null;
   const contextId=String(value.context_id || '');
   if (!/^dwctx_[a-f0-9]{24}$/.test(contextId)) return null;
   const entities=(items,max)=> (Array.isArray(items)?items:[]).map(continuityEntity).filter(Boolean).slice(0,max);
@@ -117,13 +122,15 @@ function safeContinuityMemory(value) {
     eventHead:/^[a-f0-9]{64}$/.test(String(value.state?.eventHead || '')) ? value.state.eventHead : null,
     structureTree:/^[a-f0-9]{40,64}$/.test(String(value.state?.structureTree || '')) ? value.state.structureTree : null,
     objectives:entities(value.objectives,8),
+    tasks:entities(value.tasks,8),
     decisions:entities(value.decisions,8),
     invariants:entities(value.invariants,8),
     failedApproaches:entities(value.failedApproaches,8),
     components:(Array.isArray(value.components)?value.components:[]).map(continuityComponent).filter(Boolean).slice(0,12),
     relations:(Array.isArray(value.relations)?value.relations:[]).map(continuityRelation).filter(Boolean).slice(0,16),
     knownDebt:(Array.isArray(value.knownDebt)?value.knownDebt:[]).map(continuityDebt).filter(Boolean).slice(0,12),
-    recentChanges:(Array.isArray(value.recentRelatedChanges)?value.recentRelatedChanges:[]).map(continuityChange).filter(Boolean).slice(0,8)
+    recentChanges:(Array.isArray(value.recentRelatedChanges)?value.recentRelatedChanges:[]).map(continuityChange).filter(Boolean).slice(0,8),
+    warnings:value.warnings.slice(0,8).map(value=>redact(value,240))
   };
 }
 
