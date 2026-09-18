@@ -25,25 +25,54 @@ function ignored(relative = '') {
 }
 
 function inside(cwd, candidate) {
-  const root=path.resolve(cwd); const absolute=path.resolve(root,candidate);
-  return absolute === root || absolute.startsWith(`${root}${path.sep}`);
+  const relative=path.relative(path.resolve(cwd),path.resolve(cwd,candidate));
+  return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
 }
 
-function safeRead(cwd, relative) {
+function admittedSource(cwd, relative) {
   const file=norm(relative); if (ignored(file) || !inside(cwd,file)) return null;
   const absolute=path.resolve(cwd,file);
   try {
-    const stat=fs.statSync(absolute); if (!stat.isFile() || stat.size > LIMITS.fileBytes) return null;
-    const bytes=fs.readFileSync(absolute); if (bytes.includes(0)) return null;
-    return { relative:file, absolute, size:stat.size, text:bytes.toString('utf8') };
+    const root=fs.realpathSync(cwd), canonical=fs.realpathSync(absolute);
+    if (!inside(root,canonical) || ignored(path.relative(root,canonical))) return null;
+    const stat=fs.statSync(canonical); if (!stat.isFile() || stat.size > LIMITS.fileBytes) return null;
+    return { relative:file, absolute, root, canonical, stat };
   } catch { return null; }
+}
+
+function sameSource(left,right) {
+  return right.isFile() && ['dev','ino','size','mtimeMs','ctimeMs'].every((key) => left[key] === right[key]);
+}
+
+function safeRead(cwd, relative) {
+  const admitted=admittedSource(cwd,relative); if (!admitted) return null;
+  let fd;
+  try {
+    // Open the checked target, then bind bounded reads to that descriptor. The
+    // nonblocking/no-follow flags also reject common regular-file swap races.
+    fd=fs.openSync(admitted.canonical,fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0) | (fs.constants.O_NONBLOCK || 0));
+    const before=fs.fstatSync(fd); if (!sameSource(admitted.stat,before)) return null;
+    const buffer=Buffer.allocUnsafe(LIMITS.fileBytes+1); let size=0;
+    while (size<buffer.length) {
+      const count=fs.readSync(fd,buffer,size,buffer.length-size,size);
+      if (!count) break;
+      size+=count;
+    }
+    if (size>LIMITS.fileBytes || size!==before.size || !sameSource(before,fs.fstatSync(fd))) return null;
+    if (fs.realpathSync(cwd)!==admitted.root || fs.realpathSync(admitted.absolute)!==admitted.canonical || !sameSource(before,fs.statSync(admitted.canonical))) return null;
+    const bytes=buffer.subarray(0,size); if (bytes.includes(0)) return null;
+    const text=new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(bytes);
+    return { relative:admitted.relative, absolute:admitted.absolute, size, text };
+  } catch { return null; }
+  finally { if (fd !== undefined) { try { fs.closeSync(fd); } catch {} } }
 }
 
 function firstExisting(cwd, candidates) {
   const root=path.resolve(cwd);
   for (const candidate of candidates) {
-    const absolute=path.resolve(candidate); if (!(absolute === root || absolute.startsWith(`${root}${path.sep}`))) continue;
-    try { const stat=fs.statSync(absolute); if (stat.isFile() && stat.size <= LIMITS.fileBytes) return norm(path.relative(root,absolute)); } catch {}
+    const absolute=path.resolve(candidate); if (!inside(root,absolute)) continue;
+    const admitted=admittedSource(cwd,path.relative(root,absolute));
+    if (admitted) return admitted.relative;
   }
   return null;
 }

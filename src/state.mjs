@@ -19,14 +19,11 @@ function sleep(ms) {
   Atomics.wait(sleepBuffer, 0, 0, ms);
 }
 
-function lockExists(file) {
-  try { fs.lstatSync(file); return true; } catch (error) { if (error?.code === 'ENOENT') return false; throw error; }
-}
-
-function isLockContention(error, file) {
-  if (error?.code === 'EEXIST') return true;
-  if (!['EPERM', 'EACCES', 'EBUSY'].includes(error?.code)) return false;
-  try { return lockExists(file); } catch { return true; }
+function isLockContention(error) {
+  // The previous owner may remove the lock before an existence probe. Windows
+  // can still report a transient access error while its handles are released.
+  // Retry acquisition within the same deadline; never infer ownership here.
+  return ['EEXIST', 'EPERM', 'EACCES', 'EBUSY'].includes(error?.code);
 }
 
 function lockMtime(file) {
@@ -58,7 +55,7 @@ function acquireLock(cwd) {
         removeLock(paths.lock);
       };
     } catch (error) {
-      if (!isLockContention(error, paths.lock)) throw error;
+      if (!isLockContention(error)) throw error;
       const mtime = lockMtime(paths.lock);
       if (mtime !== null && Date.now() - mtime > LOCK_STALE_MS) {
         removeLock(paths.lock);

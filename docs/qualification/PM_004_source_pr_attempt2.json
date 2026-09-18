@@ -1,0 +1,121 @@
+{
+  "sha": "e2f3a605249b3363d702fd2dfd5ff504a2af1730",
+  "tree": "0e760967e20e1906643d0c67296f4e10bd6f2238",
+  "current_main": "d2fb2ce46d129c879f20dc838b4c0e5a3834fc1a",
+  "pr_head": "e2f3a605249b3363d702fd2dfd5ff504a2af1730",
+  "pr_state": "open",
+  "pr_merged": false,
+  "pr_merge_commit": "3d1bb4230e39ec155bc3f7a74a2f7281d78dca4d",
+  "runs": [
+    {
+      "id": 35341450926,
+      "name": "test",
+      "head_sha": "e2f3a605249b3363d702fd2dfd5ff504a2af1730",
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "failure",
+      "html_url": "https://github.com/TFourniax/tooltest-2/actions/runs/35341450926",
+      "run_attempt": 1,
+      "jobs": [
+        {
+          "id": 105588048055,
+          "name": "ExplainBench + adversarial quality + performance budgets",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 105588048234,
+          "name": "real Core context consumer (macos-latest)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 105588048251,
+          "name": "real Core context consumer (ubuntu-latest)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 105588048255,
+          "name": "real Core context consumer (windows-latest)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 105588048264,
+          "name": "test (ubuntu-latest, 22)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 105588048273,
+          "name": "installed package commercial-alpha journey (ubuntu-latest)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 105588048275,
+          "name": "test (ubuntu-latest, 20)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 105588048301,
+          "name": "installed package commercial-alpha journey (windows-latest)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 105588048312,
+          "name": "installed package commercial-alpha journey (macos-latest)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 105588048345,
+          "name": "test (macos-latest, 24)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 105588048362,
+          "name": "test (macos-latest, 22)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 105588048417,
+          "name": "test (windows-latest, 20)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 105588048436,
+          "name": "test (windows-latest, 22)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 105588048450,
+          "name": "test (ubuntu-latest, 24)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 105588048473,
+          "name": "test (macos-latest, 20)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 105588048532,
+          "name": "test (windows-latest, 24)",
+          "status": "completed",
+          "conclusion": "failure"
+        }
+      ],
+      "artifacts": []
+    }
+  ],
+  "qualified": false
+}
