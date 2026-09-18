@@ -8,7 +8,7 @@ import { validatePortalIngestAck } from './portal-ingest-ack.mjs';
 import { assertPortalSnapshotSafe, buildPortalSnapshot, projectLocalId } from './portal-snapshot.mjs';
 import { buildProjectModel } from './project-model.mjs';
 import { loadContinuityContext } from './continuity.mjs';
-import { taskContextQuery } from './task.mjs';
+import { taskContinuityQuery } from './task.mjs';
 
 const CONFIG_SCHEMA = 'idleproof.portal-config.v1';
 const DELIVERY_HEALTH_SCHEMA = 'idleproof.portal-delivery-health.v1';
@@ -110,7 +110,7 @@ export function buildPortalProjectModel(cwd, state, session, featureModel) {
   const mental=buildProjectModel(state,session || {},featureModel || null);
   let continuity=null;
   try {
-    const query=taskContextQuery(session) || session?.task?.anchor || '';
+    const query=taskContinuityQuery(session) || session?.task?.anchor || '';
     if (query) continuity=loadContinuityContext(cwd,query,{timeoutMs:1500});
   } catch { continuity=null; }
   let repoFingerprint=null;

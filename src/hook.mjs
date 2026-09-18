@@ -17,7 +17,7 @@ import { cachedFeatureModel, rememberFeature } from './feature-memory.mjs';
 import { buildHookDelivery } from './delivery.mjs';
 import { captureBaselineIdentity, finalizeChangeIdentity } from './change-identity.mjs';
 import { schedulePortalSync } from './portal-client.mjs';
-import { taskContextQuery, taskDisplayText, taskMetadata, updateSessionTask } from './task.mjs';
+import { taskContinuityQuery, taskDisplayText, taskMetadata, updateSessionTask } from './task.mjs';
 import { continuityCounts, loadContinuityContext, renderContinuityForAgent } from './continuity.mjs';
 
 function now() {
@@ -110,7 +110,7 @@ function sessionForEvent(state, event) {
 function loadingOutput(cwd, state, event) {
   const session = sessionForEvent(state, event);
   if (!session?.task?.id) return null;
-  const query = taskContextQuery(session);
+  const query = taskContinuityQuery(session);
   const continuity = loadContinuityContext(cwd, query);
   const counts = continuityCounts(continuity);
   const continuityText = renderContinuityForAgent(continuity, { maxChars: 5200 });
@@ -124,8 +124,8 @@ function loadingOutput(cwd, state, event) {
     continuityText || null
   ].filter(Boolean).join('\n\n');
   const contextSummary = counts
-    ? `${counts.objectives} objective(s) · ${counts.decisions} decision(s) · ${counts.criticalInvariants || counts.invariants} invariant(s) · ${counts.debt} open debt item(s)`
-    : 'task identity ready · project continuity will enrich when DiffWitness is available';
+    ? `${counts.tasks} related task(s) · ${counts.objectives} objective(s) · ${counts.decisions} decision(s) · ${counts.criticalInvariants || counts.invariants} invariant(s) · ${counts.debt} open debt item(s)`
+    : 'task identity ready · project memory unavailable or rejected';
   const systemMessage = [
     `IdleProof · loading ${session.task.id}`,
     `Task: ${primary}`,

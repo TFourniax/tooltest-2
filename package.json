@@ -10,7 +10,7 @@
   "scripts": {
     "start": "node ./bin/idleproof.mjs serve",
     "demo": "node ./bin/idleproof.mjs demo",
-    "test": "node --test",
+    "test": "node --test --test-concurrency=1",
     "check": "node ./bin/idleproof.mjs doctor",
     "explainbench": "node ./scripts/explainbench.mjs"
   },

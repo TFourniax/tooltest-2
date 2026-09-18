@@ -121,6 +121,12 @@ export function taskDisplayText(session = {}) {
   return compact(session.task?.anchor || session.prompt || '', 220);
 }
 
+export function taskContinuityQuery(session = {}) {
+  const query = taskContextQuery(session);
+  const id = session.task?.id;
+  return /^dwtask_[a-f0-9]{24}$/.test(id || '') ? `${id}\n${query}`.trim() : query;
+}
+
 export function taskMetadata(session = {}) {
   const task = session.task;
   if (!task) return null;
