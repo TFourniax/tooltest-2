@@ -8,12 +8,12 @@ const TRANSIENT_DIRS = new Set(['__pycache__', '.pytest_cache', '.mypy_cache', '
 const TRANSIENT_SUFFIXES = new Set(['.pyc', '.pyo']);
 const TRANSIENT_FILES = new Set(['.coverage']);
 
-function git(cwd, args, { env = process.env, input = undefined, timeout = 7000 } = {}) {
+function git(cwd, args, { env = process.env, input = undefined, timeout = 7000, encoding = 'utf8' } = {}) {
   return execFileSync('git', args, {
     cwd,
     env,
     input,
-    encoding: 'utf8',
+    encoding,
     stdio: ['pipe', 'pipe', 'ignore'],
     timeout,
     maxBuffer: 4 * 1024 * 1024,
@@ -81,14 +81,11 @@ export function changeId({ repository, baseTree, candidateTree }) {
 }
 
 function snapshotTree(cwd) {
-  const root=repoRoot(cwd);
-  const head = git(root, ['rev-parse', '--verify', 'HEAD']).trim();
-  if (!head) throw new Error('repository has no HEAD commit');
-  const headTree = git(root, ['rev-parse', '--verify', 'HEAD^{tree}']).trim();
-  const untracked = git(root, ['ls-files', '--others', '--exclude-standard', '-z'])
-    .split('\0')
-    .filter(Boolean)
-    .filter(isTransientUntracked);
+  const resolved=git(cwd,['rev-parse','--show-toplevel','HEAD']).trim().split(/\r?\n/);
+  if (resolved.length!==2 || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(resolved[1])) throw new Error('repository HEAD could not be resolved');
+  const root=path.resolve(resolved[0]);
+  const head=resolved[1];
+  const headTree = git(root, ['rev-parse', '--verify', `${head}^{tree}`]).trim();
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'idleproof-index-'));
   const indexFile = path.join(tempDir, 'index');
   const env = { ...process.env, GIT_INDEX_FILE: indexFile };
@@ -98,10 +95,17 @@ function snapshotTree(cwd) {
     // dirty repository: the user's pre-existing edits become the exact baseline, so only work made
     // after the coding task starts is attributed to that task. Local agent/IdleProof plumbing stays
     // outside the software identity and the user's real index is never modified.
-    git(root, ['add', '-A', '--', '.'], { env, timeout: 20000 });
-    for (const relative of [...new Set(untracked)]) {
-      try { git(root, ['reset', '--quiet', head, '--', normalized(relative)], { env }); }
-      catch { /* best-effort exclusion; write-tree still remains fail-closed below */ }
+    const manifest=git(root,['ls-files','-t','--cached','--others','--exclude-standard','-z'],{env,encoding:null});
+    const decoded=manifest.toString('utf8');
+    if(!Buffer.from(decoded,'utf8').equals(manifest))throw new Error('Git path is not valid UTF-8');
+    const entries=decoded.split('\0').filter(Boolean);
+    const admitted=entries.filter(entry=>!entry.startsWith('? ') || !isTransientUntracked(entry.slice(2))).map(entry=>entry.slice(2));
+    if (admitted.length) {
+      // Select paths against the disposable HEAD index. Already-tracked files (including
+      // deletions) remain meaningful; transient untracked files never enter the index.
+      // Literal NUL paths avoid wildcard interpretation and command-line size limits.
+      const input=Buffer.from([...new Set(admitted)].join('\0')+'\0','utf8');
+      git(root, ['--literal-pathspecs','add','-A','--pathspec-from-file=-','--pathspec-file-nul'], {env,input,timeout:20000});
     }
     const tree = git(root, ['write-tree'], { env }).trim();
     if (!tree) throw new Error('Git did not produce a worktree tree');

@@ -16,8 +16,17 @@ const SENSITIVE = [
 ];
 function readJson(file, fallback) { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch (error) { if (error.code === 'ENOENT') return fallback; throw error; } }
 function writeJson(file, value, mode = 0o600) { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`, { encoding: 'utf8', mode }); }
-function gitValue(cwd, key) { try { return execFileSync('git', ['config', '--get', key], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 1000 }).trim(); } catch { return ''; } }
-export function localHumanIdentity(cwd = process.cwd()) { return { name: gitValue(cwd, 'user.name') || process.env.USER || process.env.USERNAME || 'local-user', email: gitValue(cwd, 'user.email') || '', source: 'git-config' }; }
+export function localHumanIdentity(cwd = process.cwd()) {
+  const values={};
+  try {
+    const raw=execFileSync('git',['config','--null','--get-regexp','^user\\.(name|email)$'],{cwd,encoding:'utf8',stdio:['ignore','pipe','ignore'],timeout:1000,windowsHide:true});
+    for(const record of raw.split('\0')) {
+      const separator=record.indexOf('\n');
+      if(separator>=0)values[record.slice(0,separator)]=record.slice(separator+1).trim();
+    }
+  } catch { /* Preserve standalone fallback when Git identity is unavailable. */ }
+  return {name:values['user.name'] || process.env.USER || process.env.USERNAME || 'local-user',email:values['user.email'] || '',source:'git-config'};
+}
 function regexEscape(char) { return /[.()+^$|{}\[\]\\]/.test(char) ? `\\${char}` : char; }
 export function codeownersPatternToRegex(pattern) {
   let input = String(pattern || '').trim(); if (!input) return null; const anchored = input.startsWith('/'); if (anchored) input = input.slice(1); const directory = input.endsWith('/'); if (directory) input += '**'; const hasSlash = input.includes('/'); let source = '';
