@@ -1,0 +1,85 @@
+import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { readIntegrationConfig } from './diffwitness-integration-config.mjs';
+
+const MAX_FILES=64, MAX_FILE_BYTES=128*1024, MAX_TOTAL_BYTES=640*1024;
+const RESPONSE_BYTES=2*1024*1024, TIMEOUT_MS=500;
+const object=value=>value!==null&&typeof value==='object'&&!Array.isArray(value);
+const keys=(value,expected)=>object(value)&&Object.keys(value).sort().join('|')===[...expected].sort().join('|');
+const text=value=>typeof value==='string'&&value.length>0&&value.length<=8192;
+const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
+const safePath=value=>typeof value==='string'&&value.length>0&&value.length<=4096
+  &&!/[\\:\u0000-\u001f\u007f]/.test(value)&&value.split('/').every(part=>part&&part!=='.'&&part!=='..');
+
+export function validPythonExtractions(response,sources) {
+  if (!Array.isArray(sources)||!keys(response,['schema_version','files','coverage'])||response.schema_version!=='structure-response-1'
+      ||!Array.isArray(response.files)||response.files.length!==sources.length) return false;
+  let parsed=0;
+  for (let index=0;index<sources.length;index+=1) {
+    const source=sources[index],value=response.files[index];
+    if (!keys(value,['path','language','provider','source_sha256','module','parsed','symbols','imports','calls','schema_version'])
+        ||value.schema_version!=='structure-extraction-1'||value.path!==source.relative
+        ||value.source_sha256!==source.sha256||value.provider!=='python-ast'||value.language!=='python'
+        ||typeof value.parsed!=='boolean'||typeof value.module!=='string'||value.module.length>8192) return false;
+    const module=source.relative.slice(0,-3).split('/');
+    if(module.at(-1)==='__init__') module.pop();
+    if(value.module!==module.join('.')) return false;
+    const maxLine=source.text.split(/\r\n|\r|\n/).length;
+    const line=value=>Number.isInteger(value)&&value>=1&&value<=maxLine;
+    for(const name of ['symbols','imports','calls']) {
+      if(!Array.isArray(value[name])||value[name].length>100000||(!value.parsed&&value[name].length)) return false;
+    }
+    for(const symbol of value.symbols) {
+      if(!keys(symbol,['qualified_name','kind','line','end_line','epistemic_status','local_call_name'])
+          ||!text(symbol.qualified_name)||!text(symbol.kind)||!line(symbol.line)||!line(symbol.end_line)
+          ||symbol.end_line<symbol.line||symbol.epistemic_status!=='OBSERVED'
+          ||!(symbol.local_call_name===null||text(symbol.local_call_name))) return false;
+    }
+    for(const imported of value.imports) {
+      if(!keys(imported,['target','epistemic_status'])||!text(imported.target)||imported.epistemic_status!=='OBSERVED') return false;
+    }
+    for(const call of value.calls) {
+      if(!keys(call,['name','line','epistemic_status'])||!text(call.name)||!line(call.line)||call.epistemic_status!=='INFERRED') return false;
+    }
+    parsed+=Number(value.parsed);
+  }
+  return keys(response.coverage,['files','parsed','unsupported','unparsed'])
+    &&response.coverage.files===sources.length&&response.coverage.parsed===parsed
+    &&response.coverage.unsupported===0&&response.coverage.unparsed===sources.length-parsed;
+}
+
+export function loadPythonExtractions(cwd,sources,{command=null,run=spawnSync}={}) {
+  const unavailable=reason=>({byPath:new Map(),reason});
+  if(!Array.isArray(sources)||sources.length>MAX_FILES) return unavailable('invalid-source-batch');
+  if(!sources.length) return unavailable('no-python-sources');
+  let total=0;
+  const paths=new Set(),files=[];
+  for(const source of sources) {
+    if(!object(source)||!safePath(source.relative)||!source.relative.endsWith('.py')
+        ||paths.has(source.relative)||typeof source.text!=='string') return unavailable('invalid-source-batch');
+    const bytes=Buffer.from(source.text,'utf8');
+    total+=bytes.length;
+    if(bytes.length>MAX_FILE_BYTES||total>MAX_TOTAL_BYTES||sha(bytes)!==source.sha256) return unavailable('invalid-source-batch');
+    paths.add(source.relative);
+    files.push({path:source.relative,content_base64:bytes.toString('base64')});
+  }
+  if(!command) {
+    try {
+      command=readIntegrationConfig(cwd,{migrateLegacy:false})?.diffWitnessCommand||process.env.DIFFWITNESS_BIN||process.env.DEFITNESS_DIFFWITNESS_BIN||'dw';
+    } catch { return unavailable('invalid-integration-configuration'); }
+  }
+  try {
+    const result=run(command,['state','extract','--json'],{cwd,input:JSON.stringify({schema_version:'structure-request-1',files}),
+      windowsHide:true,timeout:TIMEOUT_MS,maxBuffer:RESPONSE_BYTES});
+    if(result.error||result.status!==0) return unavailable('core-extraction-unavailable');
+    if(!Buffer.isBuffer(result.stdout)||result.stdout.length>RESPONSE_BYTES) return unavailable('core-extraction-rejected');
+    const raw=new TextDecoder('utf-8',{fatal:true}).decode(result.stdout);
+    const response=JSON.parse(raw);
+    // Core emits canonical strings/numbers. A lossless native JSON round-trip
+    // rejects duplicate keys and alternate encodings without a second parser.
+    const compact=raw.replace(/("(?:\\.|[^"\\])*")|\s+/g, (match,string)=>string??'');
+    if(JSON.stringify(response)!==compact) return unavailable('core-extraction-rejected');
+    if(!validPythonExtractions(response,sources)) return unavailable('core-extraction-rejected');
+    return {byPath:new Map(response.files.map(file=>[file.path,file])),reason:null};
+  } catch { return unavailable('core-extraction-rejected'); }
+}

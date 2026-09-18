@@ -32,7 +32,7 @@ function readJson(file){
   return normalize(JSON.parse(fs.readFileSync(file,'utf8')));
 }
 
-export function readIntegrationConfig(cwd=process.cwd()){
+export function readIntegrationConfig(cwd=process.cwd(),{migrateLegacy=true}={}){
   const paths=projectPaths(cwd);
   try{return readJson(paths.diffwitnessConfig);}catch(error){
     if(error?.code!=='ENOENT'){
@@ -46,8 +46,10 @@ export function readIntegrationConfig(cwd=process.cwd()){
     // The experimental pre-alpha name was never public. Migrate it in-place once so upgraded
     // worktrees keep their adapter selection without carrying the wrong product name forward.
     const migrated={...legacy,schema:SCHEMA,migratedFrom:LEGACY_SCHEMA};
-    atomicJson(paths.diffwitnessConfig,migrated);
-    try{fs.rmSync(paths.defitnessConfigLegacy,{force:true});}catch{}
+    if(migrateLegacy){
+      atomicJson(paths.diffwitnessConfig,migrated);
+      try{fs.rmSync(paths.defitnessConfigLegacy,{force:true});}catch{}
+    }
     return migrated;
   }catch(error){
     if(error?.code==='ENOENT')return null;
