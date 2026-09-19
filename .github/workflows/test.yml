@@ -66,6 +66,8 @@ jobs:
           node --check ./scripts/explain-torturebench.mjs
           node --check ./scripts/perf-gate.mjs
           node --check ./scripts/structure-core-smoke.mjs
+          node --check ./scripts/structure-languages-smoke.mjs
+          node --check ./scripts/structure-dependencies-smoke.mjs
           node --check ./public/app.js
           node --check ./public/feature-review.js
       - name: Validate JSON examples and schemas
@@ -108,7 +110,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: TFourniax/tooltest
-          ref: 26944bd363b51a61a018269a98b817e3c116e05e
+          ref: 0c342bc2fb12edb2d58da39958e3c0667a22a1db
           path: core-context-fixture
           persist-credentials: false
       - uses: actions/setup-python@v7
@@ -123,9 +125,20 @@ jobs:
         run: node scripts/continuity-core-smoke.mjs
       - name: Verify source-bound Python extraction through real CLI consumer
         run: node scripts/structure-core-smoke.mjs
+      - name: Verify explicit optional-language coverage without grammars
+        run: node scripts/structure-languages-smoke.mjs --without-grammars
+      - name: Install exact Core optional syntax providers
+        run: python -m pip install "./core-context-fixture[structure]"
+      - name: Verify actual JS/TS/Go/Rust task context
+        run: node scripts/structure-languages-smoke.mjs
+      - name: Keep local and platform imports out of third-party dependency signals
+        run: node scripts/structure-dependencies-smoke.mjs
       - name: Enforce existing hook budgets with actual Python provider
         if: runner.os == 'Linux'
         run: node scripts/perf-gate.mjs --python-core
+      - name: Enforce existing hook budgets with actual TypeScript provider
+        if: runner.os == 'Linux'
+        run: node scripts/perf-gate.mjs --syntax-core
 
   package-e2e:
     name: installed package commercial-alpha journey (${{ matrix.os }})

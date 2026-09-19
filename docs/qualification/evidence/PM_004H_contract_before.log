@@ -1,0 +1,44 @@
+✖ shared consumer admits mixed canonical languages in one bounded batch (0.768098ms)
+✖ mixed batch cannot change language, provider, module, path, hash or authority (0.19895ms)
+✖ optional unparsed syntax remains empty; unsupported source never invokes Core (0.202907ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 0
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 74.613103
+
+✖ failing tests:
+
+test at test/structure-languages.test.mjs:15:1
+✖ shared consumer admits mixed canonical languages in one bounded batch (0.768098ms)
+  TypeError: provider.validStructureExtractions is not a function
+      at TestContext.<anonymous> (file:///workspace/scratch/e9f3b6772074/work/idle_languages/test/structure-languages.test.mjs:16:48)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.start (node:internal/test_runner/test:1242:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17)
+
+test at test/structure-languages.test.mjs:27:1
+✖ mixed batch cannot change language, provider, module, path, hash or authority (0.19895ms)
+  TypeError: provider.validStructureExtractions is not a function
+      at TestContext.<anonymous> (file:///workspace/scratch/e9f3b6772074/work/idle_languages/test/structure-languages.test.mjs:33:64)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
+
+test at test/structure-languages.test.mjs:39:1
+✖ optional unparsed syntax remains empty; unsupported source never invokes Core (0.202907ms)
+  TypeError: provider.validStructureExtractions is not a function
+      at TestContext.<anonymous> (file:///workspace/scratch/e9f3b6772074/work/idle_languages/test/structure-languages.test.mjs:42:25)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
