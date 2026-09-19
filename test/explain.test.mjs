@@ -2,11 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildPlainExplanation } from '../src/explain.mjs';
 
-function explain({ prompt='Do the thing', file='src/odd_name.ts', symbol='doThing', route=null, table=null, technologies=[], dependencies=[], relatedFiles=[], touched=[file], concept=null, phase='implement' }={}) {
+function explain({ prompt='Do the thing', file='src/odd_name.ts', symbol='doThing', route=null, table=null, technologies=[], dependencies=[], importReferences=[], relatedFiles=[], touched=[file], concept=null, phase='implement' }={}) {
   return buildPlainExplanation({
     phase,
     concept,
-    session:{ prompt, currentResource:file, touchedFiles:touched, taskSignals:{ file, symbol, route, table, technologies, dependencies, relatedFiles } }
+    session:{ prompt, currentResource:file, touchedFiles:touched, taskSignals:{ file, symbol, route, table, technologies, dependencies, importReferences, relatedFiles } }
   });
 }
 
@@ -77,3 +77,21 @@ for (const [id,file] of CASES) {
     assert.ok(out.certainty.limitations.length>=3);
   });
 }
+
+
+test('unresolved import references remain visible without third-party ownership claims',()=>{
+  const out=explain({file:'gateway.php',symbol:null,importReferences:['Vendor\\Client','json','Vendor\\Client']});
+  for(const text of [out.doing,out.project]){
+    assert.ok(text.includes('Vendor\\Client'));assert.ok(text.includes('`json`'));
+    assert.match(text,/unresolved/);assert.doesNotMatch(text,/third-party|maintained outside|external dependency/);
+  }
+  assert.equal(out.doing.split('Vendor\\Client').length-1,1);
+});
+
+test('related-file references stay attached to their file and duplicate dependency names are not repeated',()=>{
+  const out=explain({file:'entry.ts',dependencies:['known'],importReferences:['known','neutral'],
+    touched:['entry.ts','gateway.php'],relatedFiles:[{file:'gateway.php',importReferences:['Vendor\\Client'],dependencies:[],technologies:[]}]});
+  assert.equal(out.doing.split('`known`').length-1,1);assert.ok(out.doing.includes('`neutral`'));
+  const related=out.files.find(f=>f.path==='gateway.php');assert.ok(related.explanation.includes('Vendor\\Client'));
+  assert.ok(!out.files.find(f=>f.path==='entry.ts').explanation.includes('Vendor\\Client'));
+});

@@ -45,6 +45,11 @@ function phaseSentence(phase, task) {
   return `The agent is working on ${quoted}.`;
 }
 
+function neutralImportReferences(signals={}) {
+  const dependencies=new Set(signals.dependencies||[]);
+  return uniq(signals.importReferences).filter(value=>!dependencies.has(value)).slice(0,3);
+}
+
 function fileObservation(file, session, currentFile) {
   const normalized = normalizedProjectPath(file);
   const related = (session.taskSignals?.relatedFiles || []).find((item) => normalizedProjectPath(item.file) === normalized);
@@ -56,6 +61,8 @@ function fileObservation(file, session, currentFile) {
   if (signals.route) facts.push(`it exposes or references route \`${signals.route}\``);
   if (signals.table) facts.push(`it references data surface \`${signals.table}\``);
   if ((signals.dependencies||[]).length) facts.push(`it references ${signals.dependencies.slice(0,3).map((value)=>`\`${value}\``).join(', ')}`);
+  const imports=neutralImportReferences(signals);
+  if (imports.length) facts.push(`it contains import references ${imports.map(value=>`\`${value}\``).join(', ')} (origins unresolved)`);
   if ((signals.technologies||[]).length) facts.push(`IdleProof recognized ${signals.technologies.slice(0,3).join(', ')}`);
 
   let explanation;
@@ -76,6 +83,8 @@ function surfaceSentence(signals={}) {
   if (signals.route) parts.push(`the task touches route \`${signals.route}\``);
   if (signals.table) parts.push(`the task touches stored data named \`${signals.table}\``);
   if ((signals.dependencies||[]).length) parts.push(`the current file references ${signals.dependencies.slice(0,3).map((value)=>`\`${value}\``).join(', ')}`);
+  const imports=neutralImportReferences(signals);
+  if (imports.length) parts.push(`the current file contains import references ${imports.map(value=>`\`${value}\``).join(', ')} (origins unresolved)`);
   if ((signals.technologies||[]).length) parts.push(`recognized stack signals include ${signals.technologies.slice(0,3).join(', ')}`);
   return parts.length ? `${parts.join('; ')}.` : '';
 }

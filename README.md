@@ -160,7 +160,9 @@ SQL/config task facts stay empty when unavailable. Configuration task symbols ar
 escaped key paths, without values; SQL task tables are named DDL declarations.
 These data sources do not feed code route/table/technology heuristics. Neutral
 `importReferences` retain raw canonical targets; the new managed/dynamic languages
-do not classify unresolved imports as third-party dependencies. Code-language
+do not classify unresolved imports as third-party dependencies. Explanations show
+neutral import names with unresolved origins; current and related import changes
+refresh delivery without turning those names into package-ownership claims. Code-language
 routes, tables, technology signals and the feature map await full canonical
 adoption. Unknown extensions retain file facts and
 bounded inference. Syntax observations do not establish runtime behavior or Proof.
