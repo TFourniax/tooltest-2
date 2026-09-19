@@ -1,0 +1,117 @@
+{
+  "schema": "pm-004l-local-1",
+  "classification": "MACHINE",
+  "development_core": "c8a64fb99ef051ddd35972dfe4866aa0691dee94",
+  "qualified_core": "c8a64fb99ef051ddd35972dfe4866aa0691dee94",
+  "full": {
+    "run": 224,
+    "pass": 224,
+    "skips": 0,
+    "seconds": 16.536
+  },
+  "quality": {
+    "explain": 30,
+    "adversarial": 238,
+    "idlebench": 5,
+    "corpus": 15
+  },
+  "package": "PASS",
+  "actual_optional": "PASS",
+  "actual_base": "PASS",
+  "performance": {
+    "python_ms": [
+      84.3,
+      90.1,
+      108.1,
+      0.2
+    ],
+    "typescript_ms": [
+      84.7,
+      98.1,
+      110.4,
+      0.7
+    ],
+    "json_ms": [
+      85.9,
+      92.9,
+      117.1,
+      0.2
+    ],
+    "budgets_ms": [
+      150,
+      500,
+      750,
+      100
+    ],
+    "measurement": "Sequential after L full/quality/package and Core O full suite. Shared host, no controlled comparison or worst-case guarantee."
+  },
+  "files": {
+    "src/context.mjs": "b0b97b1e7225cf5b2cbdf7564bc983356e234a694497418ced1c9c229a6cc7ee",
+    "src/structure-provider.mjs": "02a0ca7b4d6a70acd4935cbf77a6b841e94e0bbbbad122c076519bd92bdb667d",
+    "test/structure-languages.test.mjs": "6d490bac4365a4e69cd8f38e419a3002f0fa4cde0c1b154711a2e3e3a9fed06a",
+    "scripts/structure-all-providers-smoke.mjs": "8eb092de8fb23f95bec43bb27d5b5213231ddfc202bc3dd1c45a797282978146",
+    "scripts/perf-gate.mjs": "f4d0f1f5c6880f4ab4094d007caa0c3bd4dcfeda79ef81ecd1daf6aead97efa6",
+    "README.md": "6032e317782d70214c4fccb339abd5d5ae021e64428a176e6cb8c081b3779411",
+    ".github/workflows/test.yml": "ea11770c311350736d963e8253f576f1c11e2ee6ac8865750249d5fb57f6327f",
+    "src/explain.mjs": "3558337b559555f33a5b6192209fb8d754f3ca22535f21b459363683514501ec",
+    "src/delivery.mjs": "5f2bdc789398e80460a5b636d3ecf312bebe96432cf82cb37221975f8ae0f622",
+    "test/explain.test.mjs": "79bf8da4fe43549a48526eae80c70bc8163e9882ba85eddbf6f24d4ce95f5d0e"
+  },
+  "logs": {
+    "PM_004L_actual_before.log": "059e5aa74c60639106340bbbe514be41d7a81d1778b0726dffcf89a6feab826a",
+    "PM_004L_actual_first.log": "93ac87dedb643a8d96e4c6425cf51320e59c7f4e4c2b6f16bd65ab41a3ef7815",
+    "PM_004L_actual_rebased.log": "b2a0c32a985ddf8d7908f210c3f37696b4e3806fac2ad1126006c6110103d8df",
+    "PM_004L_adversarial.log": "f29835c93b9f27292a2982128132abdaf628bb4e78b8cc61d2e5ffdd71b41f56",
+    "PM_004L_base.log": "e25c65d91208f7946e6622366e060a878d22946825cec7bf558b3a37037f409f",
+    "PM_004L_base_cache.log": "6addeb448a7708fd0d4456bea630bc346f4a6229bc7bd861faacf74d80267ad1",
+    "PM_004L_base_cache_retry.log": "e25c65d91208f7946e6622366e060a878d22946825cec7bf558b3a37037f409f",
+    "PM_004L_contract.log": "13c79423d665be902fa594a0370f301b8e7b8c21d08db850a06be689a5bf65c8",
+    "PM_004L_contract_before.log": "e2696d7899121399e604cd6f2f6b8d14f201eebd77493002683441425115b46f",
+    "PM_004L_corpus.log": "a348aba6379380548240dcaed6b935e5c860f56e73b69d07c857cc33bea653c1",
+    "PM_004L_corrected_K_actual.log": "b2a0c32a985ddf8d7908f210c3f37696b4e3806fac2ad1126006c6110103d8df",
+    "PM_004L_corrected_K_base.log": "e25c65d91208f7946e6622366e060a878d22946825cec7bf558b3a37037f409f",
+    "PM_004L_explain.log": "53b49728130ecfbe303256c20079627d853f9a1cb420f8625d140e1bed9eb927",
+    "PM_004L_full_final.log": "d0bd814d321c9478f6153bbc690bb42aa9b6badccaa6fca67df2d64e9e22c972",
+    "PM_004L_full_first.log": "7ef139e4849123082f98b2dd90cb731f9e161b5e96d51f5b8a97a69f9de6a685",
+    "PM_004L_idlebench.log": "a13a085f7381526f3aded3332bd4f2a3d3e8d6f6401fcda1d3cb0b3b37c79cfa",
+    "PM_004L_package.log": "1cdf803c3b3d1ea4a9e355fd8a22a86f5e934e23e6e77d39b816435d13eb49a4",
+    "PM_004L_package_final.log": "1cdf803c3b3d1ea4a9e355fd8a22a86f5e934e23e6e77d39b816435d13eb49a4",
+    "PM_004L_perf_json.log": "2bde6d5ee933a8e79ea25ff53670cb9e5e1bc65cf49a84338aa4c775a0a3f62d",
+    "PM_004L_perf_python.log": "89546eb0200cd287cff07c1f4ed04eade75595060003105b2badda3dfc1526bd",
+    "PM_004L_perf_typescript.log": "f6b180767aa979f60db15b2a93c60d682cb449b7851e76313dde8f4d07628259",
+    "PM_004L_review_actual_after.log": "b2a0c32a985ddf8d7908f210c3f37696b4e3806fac2ad1126006c6110103d8df",
+    "PM_004L_review_actual_before.log": "0e110f90f46797992fc4236d1b5319e87cace1bea3bf2a90d8f7ca0a2e2eddd4",
+    "PM_004L_review_adversarial.log": "f29835c93b9f27292a2982128132abdaf628bb4e78b8cc61d2e5ffdd71b41f56",
+    "PM_004L_review_base.log": "e25c65d91208f7946e6622366e060a878d22946825cec7bf558b3a37037f409f",
+    "PM_004L_review_corpus.log": "a348aba6379380548240dcaed6b935e5c860f56e73b69d07c857cc33bea653c1",
+    "PM_004L_review_delivery_before.log": "482ff0875e61b1bd5b5992aadbd651bc85b9e96c5d53f75c99b027ae741e7753",
+    "PM_004L_review_explain_before.log": "b5d21fe63f55fbe4593b45de46c394f937e6c03096c7efbd8f12a0ba43e5cc7c",
+    "PM_004L_review_explainbench.log": "53b49728130ecfbe303256c20079627d853f9a1cb420f8625d140e1bed9eb927",
+    "PM_004L_review_full.log": "eb09b1aa673f667356bffdfc555b99f677d66f8a2c825626046b0a440c38130f",
+    "PM_004L_review_idlebench.log": "a13a085f7381526f3aded3332bd4f2a3d3e8d6f6401fcda1d3cb0b3b37c79cfa",
+    "PM_004L_review_package.log": "1cdf803c3b3d1ea4a9e355fd8a22a86f5e934e23e6e77d39b816435d13eb49a4",
+    "PM_004L_review_perf_json.log": "3db47a432ee06b4d4c4fe7ce106480036126aa513ba03519e322910c8e8d436b",
+    "PM_004L_review_perf_python.log": "c657ecd0df60aa9c5ba598823febab4d4df74202913a27d07722554fc1e288ea",
+    "PM_004L_review_perf_typescript.log": "95826ce2aa89b1bba67d9dc6aa74f70aa717e7442bdd59a5e51d8f4d70fb1044",
+    "PM_004L_review_targeted.log": "6fa27d23b4ea6f0f313166147c258056acc13603119970995ce9fcb865d63a36",
+    "PM_004L_smoke_before.log": "6addeb448a7708fd0d4456bea630bc346f4a6229bc7bd861faacf74d80267ad1"
+  },
+  "human": "NOT RUN",
+  "global_status": "NOT ALPHA READY",
+  "actual_corrected_core_optional": "PASS",
+  "actual_corrected_core_base": "PASS",
+  "dependency_main_evidence_sha256": "0ef46db317a3a557f7e8b2463d85271f594a62e8714401b367fd2620ba350201",
+  "targeted": {
+    "run": 27,
+    "pass": 27
+  },
+  "review": {
+    "id": 5255245872,
+    "comment": 4052789918,
+    "fail_before_explanation": 2,
+    "actual_presentation_before": "FAIL",
+    "actual_import_only_delivery_before": "FAIL",
+    "correction": "Neutral current/related import presentation and bounded deterministic reference-set delivery keys"
+  },
+  "initial_remote": "16/16 PASS on superseded61471ad; not transferred to corrected candidate"
+}

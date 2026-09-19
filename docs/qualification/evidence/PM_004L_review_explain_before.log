@@ -1,0 +1,75 @@
+✔ keeps the exact project filename instead of replacing it with a generic product label (3.104574ms)
+✔ falls back without inventing a responsibility for arbitrary nomenclature (0.988492ms)
+✔ explains route and data surfaces using their real names (0.195505ms)
+✔ unknown libraries stay exact instead of requiring a hard-coded technology catalog (0.200954ms)
+✔ questions are explicitly optional and explanation stands alone (0.497971ms)
+✔ explains each observed touched file from its own facts (0.268785ms)
+✔ plain explanation covers auth without depending on a bespoke business template (0.227383ms)
+✔ plain explanation covers sql without depending on a bespoke business template (0.200723ms)
+✔ plain explanation covers migration without depending on a bespoke business template (0.212059ms)
+✔ plain explanation covers async without depending on a bespoke business template (0.266172ms)
+✔ plain explanation covers react-state without depending on a bespoke business template (0.156536ms)
+✔ plain explanation covers typescript without depending on a bespoke business template (0.191539ms)
+✔ plain explanation covers testing without depending on a bespoke business template (0.096966ms)
+✔ plain explanation covers secrets without depending on a bespoke business template (0.131919ms)
+✔ plain explanation covers http without depending on a bespoke business template (0.122385ms)
+✔ plain explanation covers packages without depending on a bespoke business template (0.110417ms)
+✔ plain explanation covers git without depending on a bespoke business template (0.114513ms)
+✔ plain explanation covers ci without depending on a bespoke business template (0.095474ms)
+✔ plain explanation covers concurrency without depending on a bespoke business template (0.164268ms)
+✔ plain explanation covers accessibility without depending on a bespoke business template (0.082394ms)
+✔ plain explanation covers cache without depending on a bespoke business template (0.251379ms)
+✖ unresolved import references remain visible without third-party ownership claims (3.881195ms)
+✖ related-file references stay attached to their file and duplicate dependency names are not repeated (0.688028ms)
+ℹ tests 23
+ℹ suites 0
+ℹ pass 21
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 97.741947
+
+✖ failing tests:
+
+test at test/explain.test.mjs:82:1
+✖ unresolved import references remain visible without third-party ownership claims (3.881195ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(text.includes('Vendor\\Client'))
+
+      at TestContext.<anonymous> (file:///workspace/scratch/e9f3b6772074/work/idle_all_providers/test/explain.test.mjs:85:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/explain.test.mjs:91:1
+✖ related-file references stay attached to their file and duplicate dependency names are not repeated (0.688028ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(out.doing.includes('`neutral`'))
+
+      at TestContext.<anonymous> (file:///workspace/scratch/e9f3b6772074/work/idle_all_providers/test/explain.test.mjs:94:62)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

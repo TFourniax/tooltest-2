@@ -13,6 +13,8 @@ function compact(value='',max=430) {
   return text.length<=max ? text : `${text.slice(0,max-1).trimEnd()}…`;
 }
 
+const importKey=values=>[...new Set(values||[])].sort().slice(0,24);
+
 function deliveryKey(phase, signals={}, session={}) {
   const payload={
     phase,
@@ -23,6 +25,10 @@ function deliveryKey(phase, signals={}, session={}) {
     route:signals.route||null,
     table:signals.table||null,
     dependencies:(signals.dependencies||[]).slice(0,4),
+    importReferences:importKey(signals.importReferences),
+    relatedImportReferences:(signals.relatedFiles||[]).slice(0,8)
+      .map(item=>({file:item.file||null,references:importKey(item.importReferences)}))
+      .sort((left,right)=>String(left.file).localeCompare(String(right.file))),
     technologies:(signals.technologies||[]).slice(0,4),
     status:session.status||null,
     diff:phase==='handoff' ? session.proof?.diffSha256||null : null
