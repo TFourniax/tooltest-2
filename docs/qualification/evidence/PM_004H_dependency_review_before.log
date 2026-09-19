@@ -1,0 +1,29 @@
+{"file":"plain.ts","symbol":"actual","route":null,"table":null,"technologies":[],"dependencies":["./local.js","node:fs"],"symbols":["actual"],"symbolCount":1,"structureCoverage":{"provider":"tree-sitter-typescript","sourceSha256":"9244cc1575740735904b67c8b8a90b6c198b3234e9211e82fb24341bcc5ed5ab","parsed":true,"canonical":true},"fileRole":{"role":"integration","confidence":"low","evidence":"external dependency references"},"relatedFiles":[{"file":"plain.ts","symbol":"actual","route":null,"table":null,"technologies":[],"dependencies":["./local.js","node:fs"],"symbols":["actual"],"symbolCount":1,"structureCoverage":{"provider":"tree-sitter-typescript","sourceSha256":"9244cc1575740735904b67c8b8a90b6c198b3234e9211e82fb24341bcc5ed5ab","parsed":true,"canonical":true},"fileRole":{"role":"integration","confidence":"low","evidence":"external dependency references"}}]}
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
++ actual - expected
+
++ [
++   './local.js',
++   'node:fs'
++ ]
+- []
+
+    at file:///workspace/scratch/e9f3b6772074/work/idle_languages/[eval1]:4:111
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async node:internal/modules/esm/loader:224:26
+    at async ModuleLoader.executeModuleJob (node:internal/modules/esm/loader:221:20)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5) {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: [ './local.js', 'node:fs' ],
+  expected: [],
+  operator: 'deepStrictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.19.0

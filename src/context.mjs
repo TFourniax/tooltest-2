@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { isBuiltin } from 'node:module';
 import { inferFileRole } from './semantics.mjs';
 import { readProjectSource } from './project-source.mjs';
 import { loadStructureExtractions, supportsStructurePath } from './structure-provider.mjs';
@@ -65,11 +66,25 @@ function symbolsFromText(text) {
   return unique(symbols).slice(0, 60);
 }
 
+function externalDependency(value, language = null) {
+  const target=String(value || '').trim();
+  if(!target||target.startsWith('.')||target.startsWith('/')||target.startsWith('#')
+      ||target.startsWith('node:')||target.startsWith('file:')||target.startsWith('data:')
+      ||/^[A-Za-z]:[\\/]/.test(target)) return null;
+  if(['javascript','typescript'].includes(language)&&isBuiltin(target)) return null;
+  if(language==='rust'&&['crate','self','super','std','core','alloc'].includes(target.replace(/^::/,'').split('::')[0])) return null;
+  // Go standard and unresolved local names have no host-qualified first segment.
+  // Raw imports remain available in canonical extraction; do not label them as
+  // third-party task dependencies without an external-looking module path.
+  if(language==='go'&&!target.split('/')[0].includes('.')) return null;
+  return target;
+}
+
 function dependenciesFromText(text) {
   const dependencies = [];
   const add = (value) => {
-    const cleaned = String(value || '').trim();
-    if (!cleaned || cleaned.startsWith('.') || cleaned.startsWith('/') || cleaned.startsWith('node:')) return;
+    const cleaned = externalDependency(value);
+    if (!cleaned) return;
     dependencies.push(cleaned);
   };
   for (const match of text.matchAll(/\b(?:import|export)\s+(?:[^'"`]*?\s+from\s+)?['"`]([^'"`]+)['"`]/g)) add(match[1]);
@@ -155,7 +170,8 @@ function inspectTaskFile(cwd, file, prompt, admitted, extractions) {
                             : symbolsFromText(evidenceText);
   const routes = routesFromText(`${prompt}\n${evidenceText}`);
   const tables = tablesFromText(`${prompt}\n${evidenceText}`);
-  const dependencies = canonical ? unique(canonical.imports.map(item=>canonical.language==='python' ? item.target.split('.')[0] : item.target)).slice(0,24)
+  const dependencies = canonical ? unique(canonical.imports.map(item=>externalDependency(
+    canonical.language==='python' ? item.target.split('.')[0] : item.target,canonical.language))).slice(0,24)
                                  : dependenciesFromText(evidenceText);
   const base = {
     file:safe.relative,

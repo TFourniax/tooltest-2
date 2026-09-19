@@ -1,0 +1,55 @@
+{
+  "schema": "pm-004h-reviewed-local-1",
+  "classification": "MACHINE",
+  "initial_head": "d1062268a35e01f34130ccbcca2d021a58432c67",
+  "review": 4051821830,
+  "core_pin": "0c342bc2fb12edb2d58da39958e3c0667a22a1db",
+  "full": {
+    "run": 222,
+    "pass": 222,
+    "skips": 0,
+    "seconds": 15.844
+  },
+  "actual_optional_and_base_consumers": "PASS",
+  "quality": {
+    "explain": 30,
+    "adversarial": 238,
+    "idlebench": 5,
+    "corpus": 15
+  },
+  "installed_package": "PASS",
+  "actual_dependency_filter": "FAIL before; PASS after",
+  "perf": [
+    "IdleProof PERF PASS (TypeScript/Core) \u00b7 hook p95 85.4ms \u00b7 max 92.1ms \u00b7 Stop 132.7ms \u00b7 state p95 0.4ms",
+    "IdleProof PERF PASS (Python/Core) \u00b7 hook p95 79.9ms \u00b7 max 88.0ms \u00b7 Stop 117.1ms \u00b7 state p95 0.2ms"
+  ],
+  "files": {
+    "src/structure-provider.mjs": "24aed1a8f963e67a0e233064034b4e89377a22f1de14d218dae2685e500c7395",
+    "src/context.mjs": "ffcda876ccfdbc68fa6cf79e97b9bd88ea290ecfe5f870960454cb51faf65561",
+    "test/structure-languages.test.mjs": "3171d48b644fdbd68d085bd5d1d83f6a77723e0b65fc75be8226be0a3a7c5e1d",
+    "scripts/structure-languages-smoke.mjs": "98816eac88d1a143226f34df38623b2c58656bedd0a31af668f244b5542f92dd",
+    "scripts/structure-dependencies-smoke.mjs": "7f9c11a1eb673cc96d52bace2cceb0dc15a11da74a84f82d1a31795a7fd838fe",
+    "scripts/perf-gate.mjs": "7897c1f4886b51f46df5f87fb193384db2946ac48c2bdbb840131b7de2b6d195",
+    ".github/workflows/test.yml": "047dcf6b863944f04c84a57de5dbe8b0a5ddce835cc589ed2f41a74cb652a4cc"
+  },
+  "logs": {
+    "PM_004H_actual_review.log": "bca9277f84f41a577c52158f88bb06f7129353eabd9176822dd198e280dcad3f",
+    "PM_004H_actual_review_dependency.log": "bca9277f84f41a577c52158f88bb06f7129353eabd9176822dd198e280dcad3f",
+    "PM_004H_adversarial_review.log": "f29835c93b9f27292a2982128132abdaf628bb4e78b8cc61d2e5ffdd71b41f56",
+    "PM_004H_base_review.log": "0c7ba98ced01c1905411a6f7e152801a03b05c2a2c0598f3b4faf7486f032290",
+    "PM_004H_corpus_review.log": "a348aba6379380548240dcaed6b935e5c860f56e73b69d07c857cc33bea653c1",
+    "PM_004H_dependency_review_before.log": "ed611d4b2bab85370b6b98bd33637d2388a8ca3dd93dfd4231963e05e39754da",
+    "PM_004H_dependency_smoke.log": "f1dd6f9f4fe72db7c1ef23efdaa7d92d58cc730826893c6df3ae8cbb6a05062a",
+    "PM_004H_dependency_smoke_before.log": "6fef1892eb654bdcce4b94a5e1c40f861fd09de4d67c605e48d95c28c6adc17c",
+    "PM_004H_explain_review.log": "53b49728130ecfbe303256c20079627d853f9a1cb420f8625d140e1bed9eb927",
+    "PM_004H_full_review.log": "5bff5ee1446c7c3ac43cac86fa36f9df202eea5b2aa37aefdce8ef770ca3decc",
+    "PM_004H_idlebench_review.log": "a13a085f7381526f3aded3332bd4f2a3d3e8d6f6401fcda1d3cb0b3b37c79cfa",
+    "PM_004H_package_review.log": "1cdf803c3b3d1ea4a9e355fd8a22a86f5e934e23e6e77d39b816435d13eb49a4",
+    "PM_004H_python_perf_review.log": "824972006bbc699d8822080ce952577760351783dd5368caf905e01866b4718d",
+    "PM_004H_python_perf_review_dependency.log": "106ad6a2842ca181b01669f31b1cc720519865492368a895a7a955c006e28c3e",
+    "PM_004H_syntax_perf_review.log": "3d9720c2c3daa847bcd4b6fecc24428a6d66abf539eab2bbd9211f9a79f43716",
+    "PM_004H_syntax_perf_review_dependency.log": "a9bed81769824569b7aa84d5c8e6b500966cad6ba5b93eb1a24f69a9dbfac711"
+  },
+  "human": "NOT RUN",
+  "global_status": "NOT ALPHA READY"
+}

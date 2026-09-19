@@ -1,0 +1,127 @@
+{
+  "schema": "diffwitness-qualification-1",
+  "classification": "MACHINE",
+  "unit": "PM-004h initial superseded after review",
+  "repository": "TFourniax/tooltest-2",
+  "sha": "d1062268a35e01f34130ccbcca2d021a58432c67",
+  "tree": "1ffaaeaa2baa5c83f6dff0477301be539f9778fd",
+  "runs": [
+    {
+      "id": 35412716165,
+      "name": "test",
+      "head_sha": "d1062268a35e01f34130ccbcca2d021a58432c67",
+      "event": "pull_request",
+      "attempt": 1,
+      "conclusion": "success",
+      "url": "https://github.com/TFourniax/tooltest-2/actions/runs/35412716165",
+      "jobs": [
+        {
+          "id": 105815345470,
+          "name": "ExplainBench + adversarial quality + performance budgets",
+          "conclusion": "success",
+          "url": "https://github.com/TFourniax/tooltest-2/actions/runs/35412716165/job/105815345470"
+        },
+        {
+          "id": 105815345547,
+          "name": "real Core context consumer (macos-latest)",
+          "conclusion": "success",
+          "url": "https://github.com/TFourniax/tooltest-2/actions/runs/35412716165/job/105815345547"
+        },
+        {
+          "id": 105815345551,
+          "name": "test (macos-latest, 22)",
+          "conclusion": "success",
+          "url": "https://github.com/TFourniax/tooltest-2/actions/runs/35412716165/job/105815345551"
+        },
+        {
+          "id": 105815345583,
+          "name": "real Core context consumer (windows-latest)",
+          "conclusion": "success",
+          "url": "https://github.com/TFourniax/tooltest-2/actions/runs/35412716165/job/105815345583"
+        },
+        {
+          "id": 105815345584,
+          "name": "test (windows-latest, 24)",
+          "conclusion": "success",
+          "url": "https://github.com/TFourniax/tooltest-2/actions/runs/35412716165/job/105815345584"
+        },
+        {
+          "id": 105815345588,
+          "name": "installed package commercial-alpha journey (macos-latest)",
+          "conclusion": "success",
+          "url": "https://github.com/TFourniax/tooltest-2/actions/runs/35412716165/job/105815345588"
+        },
+        {
+          "id": 105815345589,
+          "name": "installed package commercial-alpha journey (windows-latest)",
+          "conclusion": "success",
+          "url": "https://github.com/TFourniax/tooltest-2/actions/runs/35412716165/job/105815345589"
+        },
+        {
+          "id": 105815345604,
+          "name": "test (macos-latest, 20)",
+          "conclusion": "success",
+          "url": "https://github.com/TFourniax/tooltest-2/actions/runs/35412716165/job/105815345604"
+        },
+        {
+          "id": 105815345607,
+          "name": "real Core context consumer (ubuntu-latest)",
+          "conclusion": "success",
+          "url": "https://github.com/TFourniax/tooltest-2/actions/runs/35412716165/job/105815345607"
+        },
+        {
+          "id": 105815345619,
+          "name": "test (ubuntu-latest, 20)",
+          "conclusion": "success",
+          "url": "https://github.com/TFourniax/tooltest-2/actions/runs/35412716165/job/105815345619"
+        },
+        {
+          "id": 105815345625,
+          "name": "installed package commercial-alpha journey (ubuntu-latest)",
+          "conclusion": "success",
+          "url": "https://github.com/TFourniax/tooltest-2/actions/runs/35412716165/job/105815345625"
+        },
+        {
+          "id": 105815345639,
+          "name": "test (ubuntu-latest, 22)",
+          "conclusion": "success",
+          "url": "https://github.com/TFourniax/tooltest-2/actions/runs/35412716165/job/105815345639"
+        },
+        {
+          "id": 105815345643,
+          "name": "test (windows-latest, 20)",
+          "conclusion": "success",
+          "url": "https://github.com/TFourniax/tooltest-2/actions/runs/35412716165/job/105815345643"
+        },
+        {
+          "id": 105815345662,
+          "name": "test (macos-latest, 24)",
+          "conclusion": "success",
+          "url": "https://github.com/TFourniax/tooltest-2/actions/runs/35412716165/job/105815345662"
+        },
+        {
+          "id": 105815345665,
+          "name": "test (ubuntu-latest, 24)",
+          "conclusion": "success",
+          "url": "https://github.com/TFourniax/tooltest-2/actions/runs/35412716165/job/105815345665"
+        },
+        {
+          "id": 105815345691,
+          "name": "test (windows-latest, 22)",
+          "conclusion": "success",
+          "url": "https://github.com/TFourniax/tooltest-2/actions/runs/35412716165/job/105815345691"
+        }
+      ],
+      "artifacts": []
+    }
+  ],
+  "review": [
+    {
+      "id": 4051821830,
+      "url": "https://github.com/TFourniax/tooltest-2/pull/11#discussion_r4051821830",
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Exclude local and platform imports from dependencies**\n\nWhen the JS/TS provider returns textual targets such as `./local.js` or `node:fs` (or Rust returns `std::...`), this branch copies them directly, unlike the legacy extractor that filters relative, Node built-in, and Rust standard-library imports. Because `inferFileRole` treats any dependency as evidence of an external integration and the package explanation describes dependencies as third-party code, projects using only local or platform imports receive false integration and supply-chain claims whenever the optional grammars are installed. Apply the same external-dependency filtering to canonical targets.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.",
+      "commit": "d1062268a35e01f34130ccbcca2d021a58432c67"
+    }
+  ],
+  "status": "INITIAL_CI_PASS_REVIEW_DEFECT_REPRODUCED_NOT_MERGED"
+}
