@@ -4,13 +4,16 @@ import {createHash} from 'node:crypto';
 import * as provider from '../src/structure-provider.mjs';
 
 const specs=[['service.ts','typescript','tree-sitter-typescript'],['View.jsx','javascript','tree-sitter-javascript'],
-             ['service.go','go','tree-sitter-go'],['service.rs','rust','tree-sitter-rust']];
+             ['service.go','go','tree-sitter-go'],['service.rs','rust','tree-sitter-rust'],
+             ['A.java','java','tree-sitter-java'],['A.kt','kotlin','tree-sitter-kotlin'],['A.cs','csharp','tree-sitter-c-sharp'],
+             ['a.rb','ruby','tree-sitter-ruby'],['a.php','php','tree-sitter-php'],['a.sql','sql','tree-sitter-sql'],
+             ['a.json','json','tree-sitter-json'],['a.toml','toml','tree-sitter-toml'],['a.yaml','yaml','tree-sitter-yaml']];
 const sources=specs.map(([relative])=>({relative,text:'actual\n',sha256:createHash('sha256').update('actual\n').digest('hex')}));
 function response(){return {schema_version:'structure-response-1',files:specs.map(([path,language,producer],i)=>({
   schema_version:'structure-extraction-1',path,language,provider:producer,module:path,source_sha256:sources[i].sha256,
   parsed:true,symbols:[{qualified_name:`${path}::actual`,kind:'function',line:1,end_line:1,
     epistemic_status:'OBSERVED',local_call_name:'actual'}],imports:[],calls:[]})),
-  coverage:{files:4,parsed:4,unsupported:0,unparsed:0}};}
+  coverage:{files:specs.length,parsed:specs.length,unsupported:0,unparsed:0}};}
 
 test('shared consumer admits mixed canonical languages in one bounded batch',()=>{
   const value=response();assert.equal(provider.validStructureExtractions(value,sources),true);
@@ -21,7 +24,7 @@ test('shared consumer admits mixed canonical languages in one bounded batch',()=
     assert.deepEqual(JSON.parse(options.input).files.map(file=>file.path),sources.map(source=>source.relative));
     return {status:0,stdout:Buffer.from(JSON.stringify(value))};
   }});
-  assert.equal(count,1);assert.equal(result.byPath.size,4);
+  assert.equal(count,1);assert.equal(result.byPath.size,specs.length);
 });
 
 test('mixed batch cannot change language, provider, module, path, hash or authority',()=>{
@@ -38,12 +41,12 @@ test('mixed batch cannot change language, provider, module, path, hash or author
 
 test('optional unparsed syntax remains empty; unsupported source never invokes Core',()=>{
   const value=response();for(const file of value.files){file.parsed=false;file.symbols=[];}
-  value.coverage.parsed=0;value.coverage.unparsed=4;
+  value.coverage.parsed=0;value.coverage.unparsed=specs.length;
   assert.equal(provider.validStructureExtractions(value,sources),true);
   let calls=0;const result=provider.loadStructureExtractions('.',[{...sources[0],relative:'notes.txt'}],
     {command:'exact-dw',run:()=>{calls++;throw Error('unexpected');}});
   assert.equal(calls,0);assert.equal(result.byPath.size,0);
-  for(const extension of ['js','jsx','mjs','cjs','ts','tsx','mts','cts','go','rs','py'])
+  for(const extension of ['js','jsx','mjs','cjs','ts','tsx','mts','cts','go','rs','py','java','kt','kts','cs','rb','php','sql','json','toml','yaml','yml'])
     assert.equal(provider.supportsStructurePath(`a.${extension}`),true);
   assert.equal(provider.supportsStructurePath('a.txt'),false);
   for(const relative of ['.py','folder/.ts','a.TS',42,null])

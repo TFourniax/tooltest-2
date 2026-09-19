@@ -1,0 +1,85 @@
+{
+  "schema": "pm-004l-local-1",
+  "classification": "MACHINE",
+  "development_core": "c8a64fb99ef051ddd35972dfe4866aa0691dee94",
+  "qualified_core": "c8a64fb99ef051ddd35972dfe4866aa0691dee94",
+  "full": {
+    "run": 222,
+    "pass": 222,
+    "seconds": 15.674
+  },
+  "quality": {
+    "explain": 30,
+    "adversarial": 238,
+    "idlebench": 5,
+    "corpus": 15
+  },
+  "package": "PASS",
+  "actual_optional": "PASS",
+  "actual_base": "PASS",
+  "performance": {
+    "budgets_ms": [
+      150,
+      500,
+      750,
+      100
+    ],
+    "json_ms": [
+      88.7,
+      138.3,
+      124.4,
+      0.2
+    ],
+    "typescript_ms": [
+      88.8,
+      109.6,
+      123.4,
+      0.2
+    ],
+    "python_ms": [
+      86.8,
+      95.8,
+      116.8,
+      0.3
+    ],
+    "measurement": "Sequential after K full/base and L full. Shared host, no controlled comparison."
+  },
+  "files": {
+    "src/context.mjs": "b0b97b1e7225cf5b2cbdf7564bc983356e234a694497418ced1c9c229a6cc7ee",
+    "src/structure-provider.mjs": "02a0ca7b4d6a70acd4935cbf77a6b841e94e0bbbbad122c076519bd92bdb667d",
+    "test/structure-languages.test.mjs": "6d490bac4365a4e69cd8f38e419a3002f0fa4cde0c1b154711a2e3e3a9fed06a",
+    "scripts/structure-all-providers-smoke.mjs": "bc08715b508bdb7e48ac5b3001ee427a4a11a4e22b7f517454d173b68f4105d2",
+    "scripts/perf-gate.mjs": "f4d0f1f5c6880f4ab4094d007caa0c3bd4dcfeda79ef81ecd1daf6aead97efa6",
+    "README.md": "7e16a3fbb5b9209255a84e287864ccf804ff71e046e34eac30b896e61944acf2",
+    ".github/workflows/test.yml": "ea11770c311350736d963e8253f576f1c11e2ee6ac8865750249d5fb57f6327f"
+  },
+  "logs": {
+    "PM_004L_adversarial.log": "f29835c93b9f27292a2982128132abdaf628bb4e78b8cc61d2e5ffdd71b41f56",
+    "PM_004L_perf_json.log": "2bde6d5ee933a8e79ea25ff53670cb9e5e1bc65cf49a84338aa4c775a0a3f62d",
+    "PM_004L_full_final.log": "d0bd814d321c9478f6153bbc690bb42aa9b6badccaa6fca67df2d64e9e22c972",
+    "PM_004L_package.log": "1cdf803c3b3d1ea4a9e355fd8a22a86f5e934e23e6e77d39b816435d13eb49a4",
+    "PM_004L_corpus.log": "a348aba6379380548240dcaed6b935e5c860f56e73b69d07c857cc33bea653c1",
+    "PM_004L_actual_before.log": "059e5aa74c60639106340bbbe514be41d7a81d1778b0726dffcf89a6feab826a",
+    "PM_004L_actual_rebased.log": "b2a0c32a985ddf8d7908f210c3f37696b4e3806fac2ad1126006c6110103d8df",
+    "PM_004L_contract_before.log": "e2696d7899121399e604cd6f2f6b8d14f201eebd77493002683441425115b46f",
+    "PM_004L_idlebench.log": "a13a085f7381526f3aded3332bd4f2a3d3e8d6f6401fcda1d3cb0b3b37c79cfa",
+    "PM_004L_smoke_before.log": "6addeb448a7708fd0d4456bea630bc346f4a6229bc7bd861faacf74d80267ad1",
+    "PM_004L_package_final.log": "1cdf803c3b3d1ea4a9e355fd8a22a86f5e934e23e6e77d39b816435d13eb49a4",
+    "PM_004L_actual_first.log": "93ac87dedb643a8d96e4c6425cf51320e59c7f4e4c2b6f16bd65ab41a3ef7815",
+    "PM_004L_perf_python.log": "89546eb0200cd287cff07c1f4ed04eade75595060003105b2badda3dfc1526bd",
+    "PM_004L_base.log": "e25c65d91208f7946e6622366e060a878d22946825cec7bf558b3a37037f409f",
+    "PM_004L_contract.log": "13c79423d665be902fa594a0370f301b8e7b8c21d08db850a06be689a5bf65c8",
+    "PM_004L_explain.log": "53b49728130ecfbe303256c20079627d853f9a1cb420f8625d140e1bed9eb927",
+    "PM_004L_base_cache.log": "6addeb448a7708fd0d4456bea630bc346f4a6229bc7bd861faacf74d80267ad1",
+    "PM_004L_perf_typescript.log": "f6b180767aa979f60db15b2a93c60d682cb449b7851e76313dde8f4d07628259",
+    "PM_004L_full_first.log": "7ef139e4849123082f98b2dd90cb731f9e161b5e96d51f5b8a97a69f9de6a685",
+    "PM_004L_base_cache_retry.log": "e25c65d91208f7946e6622366e060a878d22946825cec7bf558b3a37037f409f",
+    "PM_004L_corrected_K_actual.log": "b2a0c32a985ddf8d7908f210c3f37696b4e3806fac2ad1126006c6110103d8df",
+    "PM_004L_corrected_K_base.log": "e25c65d91208f7946e6622366e060a878d22946825cec7bf558b3a37037f409f"
+  },
+  "human": "NOT RUN",
+  "global_status": "NOT ALPHA READY",
+  "actual_corrected_core_optional": "PASS",
+  "actual_corrected_core_base": "PASS",
+  "dependency_main_evidence_sha256": "0ef46db317a3a557f7e8b2463d85271f594a62e8714401b367fd2620ba350201"
+}

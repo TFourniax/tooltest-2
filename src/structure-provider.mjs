@@ -15,11 +15,16 @@ const SYNTAX = new Map([
   ['.py',['python','python-ast']],
   ...['.js','.jsx','.mjs','.cjs'].map(suffix=>[suffix,['javascript','tree-sitter-javascript']]),
   ...['.ts','.tsx','.mts','.cts'].map(suffix=>[suffix,['typescript','tree-sitter-typescript']]),
-  ['.go',['go','tree-sitter-go']],['.rs',['rust','tree-sitter-rust']]
+  ['.go',['go','tree-sitter-go']],['.rs',['rust','tree-sitter-rust']],
+  ['.java',['java','tree-sitter-java']],['.cs',['csharp','tree-sitter-c-sharp']],
+  ...['.kt','.kts'].map(suffix=>[suffix,['kotlin','tree-sitter-kotlin']]),
+  ...['ruby','php','sql','json','toml','yaml'].map(language=>[language==='ruby'?'.rb':'.'+language,[language,'tree-sitter-'+language]]),
+  ['.yml',['yaml','tree-sitter-yaml']]
 ]);
 const specFor=relative=>typeof relative==='string'&&relative.lastIndexOf('.')>relative.lastIndexOf('/')+1
   ? SYNTAX.get(relative.slice(relative.lastIndexOf('.'))) : undefined;
 export const supportsStructurePath=relative=>Boolean(specFor(relative));
+export const structureLanguageFor=relative=>specFor(relative)?.[0]||null;
 
 export function validStructureExtractions(response,sources) {
   if (!Array.isArray(sources)||!keys(response,['schema_version','files','coverage'])||response.schema_version!=='structure-response-1'

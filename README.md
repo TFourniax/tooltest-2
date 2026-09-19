@@ -152,12 +152,17 @@ Current signals include:
 - related files in a bounded static Feature Model.
 
 Task-context symbols and imports use the shared Core providers for Python and,
-with Core's optional `structure` installation, JavaScript/TypeScript, Go and Rust.
+with Core's optional `structure` installation, JavaScript/TypeScript, Go, Rust,
+Java/Kotlin/C#, Ruby/PHP, SQL and JSON/TOML/YAML.
 Missing grammars or invalid syntax produce explicit empty unparsed coverage.
-Missing/older Core retains labelled heuristic fallback. Java/Kotlin/C#-style
-declarations, Ruby/PHP-like functions, SQL/config and other text files still use
-bounded existing heuristics; routes, tables, technology signals and the feature
-map await full canonical adoption. Unknown extensions retain file facts and
+Missing/older Core retains labelled heuristic fallback for code languages;
+SQL/config task facts stay empty when unavailable. Configuration task symbols are
+escaped key paths, without values; SQL task tables are named DDL declarations.
+These data sources do not feed code route/table/technology heuristics. Neutral
+`importReferences` retain raw canonical targets; the new managed/dynamic languages
+do not classify unresolved imports as third-party dependencies. Code-language
+routes, tables, technology signals and the feature map await full canonical
+adoption. Unknown extensions retain file facts and
 bounded inference. Syntax observations do not establish runtime behavior or Proof.
 
 The point is not to claim perfect semantic compilation for every language. The point is to extract enough **verifiable local facts** to explain a very large variety of real tasks without hallucinating a fake architecture.
