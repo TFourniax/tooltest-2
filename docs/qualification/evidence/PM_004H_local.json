@@ -1,0 +1,69 @@
+{
+  "schema": "pm-004h-local-1",
+  "classification": "MACHINE",
+  "base": "30a2c5363d49b86d68574214b47c112c6bb75cee",
+  "dependency_gate": "Core PM004g exact-main24+three companions PASS; gate met",
+  "full": {
+    "run": 222,
+    "pass": 222,
+    "skips": 0,
+    "seconds": 15.086
+  },
+  "actual_optional_and_base_consumers": "PASS",
+  "contract_tests": 9,
+  "quality": {
+    "explain": 30,
+    "adversarial": 238,
+    "idlebench": 5,
+    "corpus": 15
+  },
+  "installed_package": "PASS",
+  "perf": [
+    "IdleProof PERF PASS \u00b7 hook p95 2.7ms \u00b7 max 7.3ms \u00b7 Stop 36.1ms \u00b7 state p95 0.4ms",
+    "IdleProof PERF PASS (TypeScript/Core) \u00b7 hook p95 89.3ms \u00b7 max 92.6ms \u00b7 Stop 116.3ms \u00b7 state p95 0.2ms",
+    "IdleProof PERF PASS (Python/Core) \u00b7 hook p95 92.3ms \u00b7 max 99.8ms \u00b7 Stop 115.4ms \u00b7 state p95 0.5ms"
+  ],
+  "files": {
+    "src/structure-provider.mjs": "24aed1a8f963e67a0e233064034b4e89377a22f1de14d218dae2685e500c7395",
+    "src/context.mjs": "0c24443e64a9421cbae870fe12c83ff7f5c56f4155d2034a1d63110ec49cd0f8",
+    "test/structure-languages.test.mjs": "3171d48b644fdbd68d085bd5d1d83f6a77723e0b65fc75be8226be0a3a7c5e1d",
+    "scripts/structure-languages-smoke.mjs": "98816eac88d1a143226f34df38623b2c58656bedd0a31af668f244b5542f92dd",
+    "scripts/perf-gate.mjs": "7897c1f4886b51f46df5f87fb193384db2946ac48c2bdbb840131b7de2b6d195",
+    ".github/workflows/test.yml": "74a29b6673c7c326f5dbca1cd4e105c9f73730e0f531f8defd4e81dc26531f5e"
+  },
+  "logs": {
+    "PM_004H_actual.log": "bca9277f84f41a577c52158f88bb06f7129353eabd9176822dd198e280dcad3f",
+    "PM_004H_actual_initial.log": "cede4df1f56a9305b29fb6b1df9d0a4761eb44b06cebacb8775dfc2dbe7f0632",
+    "PM_004H_adversarial.log": "f29835c93b9f27292a2982128132abdaf628bb4e78b8cc61d2e5ffdd71b41f56",
+    "PM_004H_base.log": "0c7ba98ced01c1905411a6f7e152801a03b05c2a2c0598f3b4faf7486f032290",
+    "PM_004H_before.log": "c7179bfe2f64ccab42fd5bd20d11f8bad84a58d1538522e9ba0a0c603af3ddb9",
+    "PM_004H_contract.log": "ff5d03013ca9c16940721c27423aa24ff979efc042edfdac710f2a2483ebaff9",
+    "PM_004H_contract_before.log": "51927c9647bf7153d3d4cce1f742f0faf774b59d32c152d2583211b1e952023b",
+    "PM_004H_contract_final.log": "f1daa97a50ee246e8af6261d95961501a0d3da2d9cced287ebe4773d77919ac6",
+    "PM_004H_corpus.log": "a348aba6379380548240dcaed6b935e5c860f56e73b69d07c857cc33bea653c1",
+    "PM_004H_explain.log": "53b49728130ecfbe303256c20079627d853f9a1cb420f8625d140e1bed9eb927",
+    "PM_004H_full.log": "4323f50027643c9d6c9e2ffe6501e12551f4dcd27ca1c4caab20156c8471d244",
+    "PM_004H_idlebench.log": "a13a085f7381526f3aded3332bd4f2a3d3e8d6f6401fcda1d3cb0b3b37c79cfa",
+    "PM_004H_installed_package.log": "1cdf803c3b3d1ea4a9e355fd8a22a86f5e934e23e6e77d39b816435d13eb49a4",
+    "PM_004H_package.log": "8865b3168256a97005f7b87bb555d6d62497c0cb579c7b570612ad7148beda16",
+    "PM_004H_perf.log": "6f56cfe9420c6492a0d36b74051b3174c68a39889948d2a1a988c3184757540e",
+    "PM_004H_python_perf.log": "24dd2350388106da30c2e53609cc6a08237b4d184934d9af2557ea77dbca48db",
+    "PM_004H_syntax_perf.log": "f2d98c072b507caec73add29c313ab759353cf4efd14473bf450d5d1c3db3b81",
+    "PM_004H_python_perf_review_dependency.log": "106ad6a2842ca181b01669f31b1cc720519865492368a895a7a955c006e28c3e",
+    "PM_004H_syntax_perf_review_dependency.log": "a9bed81769824569b7aa84d5c8e6b500966cad6ba5b93eb1a24f69a9dbfac711",
+    "PM_004H_actual_review_dependency.log": "bca9277f84f41a577c52158f88bb06f7129353eabd9176822dd198e280dcad3f"
+  },
+  "failures": [
+    "actual baseline picks TypeScript template decoy",
+    "three contract tests fail before generic adapter",
+    "initial actual smoke uses last touched file instead of current file; read-capability fixture correction"
+  ],
+  "human": "NOT RUN",
+  "global_status": "NOT ALPHA READY",
+  "core_pin": "0c342bc2fb12edb2d58da39958e3c0667a22a1db",
+  "core_tree": "07866b4c51b1670aa26b0267b48eefa4bc45f9c7",
+  "latest_corrected_dependency_perf": [
+    "IdleProof PERF PASS (TypeScript/Core) \u00b7 hook p95 88.2ms \u00b7 max 99.4ms \u00b7 Stop 118.1ms \u00b7 state p95 0.2ms",
+    "IdleProof PERF PASS (Python/Core) \u00b7 hook p95 83.6ms \u00b7 max 87.8ms \u00b7 Stop 118.7ms \u00b7 state p95 0.2ms"
+  ]
+}

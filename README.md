@@ -151,7 +151,14 @@ Current signals include:
 - the Git change at handoff;
 - related files in a bounded static Feature Model.
 
-The context extractor currently recognizes useful structures across JavaScript/TypeScript, Python, Go, Rust, Java/Kotlin/C#-style declarations, Ruby/PHP-like functions, SQL/config files and other text files. Unknown extensions do not crash the product: IdleProof falls back to exact file-level facts and bounded inference.
+Task-context symbols and imports use the shared Core providers for Python and,
+with Core's optional `structure` installation, JavaScript/TypeScript, Go and Rust.
+Missing grammars or invalid syntax produce explicit empty unparsed coverage.
+Missing/older Core retains labelled heuristic fallback. Java/Kotlin/C#-style
+declarations, Ruby/PHP-like functions, SQL/config and other text files still use
+bounded existing heuristics; routes, tables, technology signals and the feature
+map await full canonical adoption. Unknown extensions retain file facts and
+bounded inference. Syntax observations do not establish runtime behavior or Proof.
 
 The point is not to claim perfect semantic compilation for every language. The point is to extract enough **verifiable local facts** to explain a very large variety of real tasks without hallucinating a fake architecture.
 

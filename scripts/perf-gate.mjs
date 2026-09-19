@@ -13,6 +13,7 @@ const MAX_HOOK_BUDGET_MS = 500;
 const STOP_BUDGET_MS = 750;
 const STATE_LOAD_BUDGET_MS = 100;
 const pythonCore = process.argv.includes('--python-core');
+const syntaxCore = process.argv.includes('--syntax-core');
 const sourceFile = pythonCore ? 'worker.py' : 'worker.ts';
 
 function percentile(values, fraction) {
@@ -53,8 +54,12 @@ try {
   assert.ok(p95 < P95_HOOK_BUDGET_MS, `hook p95 ${p95.toFixed(1)}ms exceeds ${P95_HOOK_BUDGET_MS}ms`);
   assert.ok(max < MAX_HOOK_BUDGET_MS, `hook max ${max.toFixed(1)}ms exceeds ${MAX_HOOK_BUDGET_MS}ms`);
 
-  if(pythonCore) assert.equal(extractTaskSignals(cwd,{currentResource:`src/${sourceFile}`}).structureCoverage?.canonical,true,
-    'Python performance qualification requires the actual Core provider');
+  if(pythonCore||syntaxCore) {
+    const coverage=extractTaskSignals(cwd,{currentResource:`src/${sourceFile}`}).structureCoverage;
+    assert.equal(coverage?.canonical,true,'Performance qualification requires the actual Core provider');
+    assert.equal(coverage?.parsed,true,'Unparsed coverage cannot qualify provider performance');
+    assert.equal(coverage?.provider,pythonCore?'python-ast':'tree-sitter-typescript');
+  }
   fs.writeFileSync(path.join(cwd, 'src', sourceFile), pythonCore ? 'def processThing(value):\n    return str(value).strip()\n'
     : `export async function processThing(value) { return String(value).trim(); }\n`);
   const stop = timed(()=>processHookLifecycle({ cwd, session_id, source:'claude', hook_event_name:'Stop' }));
@@ -66,7 +71,7 @@ try {
   const stateP95 = percentile(stateSamples, 0.95);
   assert.ok(stateP95 < STATE_LOAD_BUDGET_MS, `warm state load p95 ${stateP95.toFixed(1)}ms exceeds ${STATE_LOAD_BUDGET_MS}ms`);
 
-  console.log(`IdleProof PERF PASS${pythonCore?' (Python/Core)':''} · hook p95 ${p95.toFixed(1)}ms · max ${max.toFixed(1)}ms · Stop ${stop.ms.toFixed(1)}ms · state p95 ${stateP95.toFixed(1)}ms`);
+  console.log(`IdleProof PERF PASS${pythonCore?' (Python/Core)':syntaxCore?' (TypeScript/Core)':''} · hook p95 ${p95.toFixed(1)}ms · max ${max.toFixed(1)}ms · Stop ${stop.ms.toFixed(1)}ms · state p95 ${stateP95.toFixed(1)}ms`);
 } finally {
   fs.rmSync(cwd, { recursive:true, force:true });
 }

@@ -11,19 +11,32 @@ const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
 const safePath=value=>typeof value==='string'&&value.length>0&&value.length<=4096
   &&!/[\\:\u0000-\u001f\u007f]/.test(value)&&value.split('/').every(part=>part&&part!=='.'&&part!=='..');
 
-export function validPythonExtractions(response,sources) {
+const SYNTAX = new Map([
+  ['.py',['python','python-ast']],
+  ...['.js','.jsx','.mjs','.cjs'].map(suffix=>[suffix,['javascript','tree-sitter-javascript']]),
+  ...['.ts','.tsx','.mts','.cts'].map(suffix=>[suffix,['typescript','tree-sitter-typescript']]),
+  ['.go',['go','tree-sitter-go']],['.rs',['rust','tree-sitter-rust']]
+]);
+const specFor=relative=>typeof relative==='string'&&relative.lastIndexOf('.')>relative.lastIndexOf('/')+1
+  ? SYNTAX.get(relative.slice(relative.lastIndexOf('.'))) : undefined;
+export const supportsStructurePath=relative=>Boolean(specFor(relative));
+
+export function validStructureExtractions(response,sources) {
   if (!Array.isArray(sources)||!keys(response,['schema_version','files','coverage'])||response.schema_version!=='structure-response-1'
       ||!Array.isArray(response.files)||response.files.length!==sources.length) return false;
   let parsed=0;
   for (let index=0;index<sources.length;index+=1) {
-    const source=sources[index],value=response.files[index];
+    const source=sources[index],value=response.files[index],spec=specFor(source?.relative);
+    if(!spec||!object(source)||typeof source.text!=='string'||!safePath(source.relative)) return false;
     if (!keys(value,['path','language','provider','source_sha256','module','parsed','symbols','imports','calls','schema_version'])
         ||value.schema_version!=='structure-extraction-1'||value.path!==source.relative
-        ||value.source_sha256!==source.sha256||value.provider!=='python-ast'||value.language!=='python'
+        ||value.source_sha256!==source.sha256||value.provider!==spec[1]||value.language!==spec[0]
         ||typeof value.parsed!=='boolean'||typeof value.module!=='string'||value.module.length>8192) return false;
-    const module=source.relative.slice(0,-3).split('/');
-    if(module.at(-1)==='__init__') module.pop();
-    if(value.module!==module.join('.')) return false;
+    if(value.language==='python') {
+      const module=source.relative.slice(0,-3).split('/');
+      if(module.at(-1)==='__init__') module.pop();
+      if(value.module!==module.join('.')) return false;
+    } else if(value.module!==source.relative) return false;
     const maxLine=source.text.split(/\r\n|\r|\n/).length;
     const line=value=>Number.isInteger(value)&&value>=1&&value<=maxLine;
     for(const name of ['symbols','imports','calls']) {
@@ -34,6 +47,8 @@ export function validPythonExtractions(response,sources) {
           ||!text(symbol.qualified_name)||!text(symbol.kind)||!line(symbol.line)||!line(symbol.end_line)
           ||symbol.end_line<symbol.line||symbol.epistemic_status!=='OBSERVED'
           ||!(symbol.local_call_name===null||text(symbol.local_call_name))) return false;
+      if(value.language!=='python'&&(!symbol.qualified_name.startsWith(`${source.relative}::`)
+          ||symbol.qualified_name.length<=source.relative.length+2)) return false;
     }
     for(const imported of value.imports) {
       if(!keys(imported,['target','epistemic_status'])||!text(imported.target)||imported.epistemic_status!=='OBSERVED') return false;
@@ -48,14 +63,14 @@ export function validPythonExtractions(response,sources) {
     &&response.coverage.unsupported===0&&response.coverage.unparsed===sources.length-parsed;
 }
 
-export function loadPythonExtractions(cwd,sources,{command=null,run=spawnSync}={}) {
+export function loadStructureExtractions(cwd,sources,{command=null,run=spawnSync}={}) {
   const unavailable=reason=>({byPath:new Map(),reason});
   if(!Array.isArray(sources)||sources.length>MAX_FILES) return unavailable('invalid-source-batch');
-  if(!sources.length) return unavailable('no-python-sources');
+  if(!sources.length) return unavailable('no-supported-sources');
   let total=0;
   const paths=new Set(),files=[];
   for(const source of sources) {
-    if(!object(source)||!safePath(source.relative)||!source.relative.endsWith('.py')
+    if(!object(source)||!safePath(source.relative)||!supportsStructurePath(source.relative)
         ||paths.has(source.relative)||typeof source.text!=='string') return unavailable('invalid-source-batch');
     const bytes=Buffer.from(source.text,'utf8');
     total+=bytes.length;
@@ -79,7 +94,18 @@ export function loadPythonExtractions(cwd,sources,{command=null,run=spawnSync}={
     // rejects duplicate keys and alternate encodings without a second parser.
     const compact=raw.replace(/("(?:\\.|[^"\\])*")|\s+/g, (match,string)=>string??'');
     if(JSON.stringify(response)!==compact) return unavailable('core-extraction-rejected');
-    if(!validPythonExtractions(response,sources)) return unavailable('core-extraction-rejected');
+    if(!validStructureExtractions(response,sources)) return unavailable('core-extraction-rejected');
     return {byPath:new Map(response.files.map(file=>[file.path,file])),reason:null};
   } catch { return unavailable('core-extraction-rejected'); }
+}
+
+// Preserve the original Python-only API while all languages share admission.
+const pythonSource=source=>specFor(source?.relative)?.[0]==='python';
+export const validPythonExtractions=(response,sources)=>Array.isArray(sources)
+  &&sources.every(pythonSource)&&validStructureExtractions(response,sources);
+export function loadPythonExtractions(cwd,sources,options) {
+  if(!Array.isArray(sources)||!sources.every(pythonSource))
+    return {byPath:new Map(),reason:'invalid-source-batch'};
+  if(!sources.length) return {byPath:new Map(),reason:'no-python-sources'};
+  return loadStructureExtractions(cwd,sources,options);
 }

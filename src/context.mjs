@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { inferFileRole } from './semantics.mjs';
 import { readProjectSource } from './project-source.mjs';
-import { loadPythonExtractions } from './structure-provider.mjs';
+import { loadStructureExtractions, supportsStructurePath } from './structure-provider.mjs';
 
 const MAX_RELATED_FILES = 8;
 const cache = new Map();
@@ -144,17 +144,18 @@ function inspectTaskFile(cwd, file, prompt, admitted, extractions) {
   const structureCoverage = canonical
     ? {provider:canonical.provider,sourceSha256:safe.sha256,parsed:canonical.parsed,canonical:true}
     : {provider:'legacy-heuristic',sourceSha256:safe.sha256,parsed:null,canonical:false,
-       reason:safe.relative.endsWith('.py') ? extractions.reason : 'language-adapter-pending'};
+       reason:supportsStructurePath(safe.relative) ? extractions.reason : 'language-adapter-pending'};
   const cacheKey = JSON.stringify([safe.absolute, safe.sha256, createHash('sha256').update(prompt).digest('hex'),
                                  canonical||structureCoverage]);
   if (cache.has(cacheKey)) return structuredClone(cache.get(cacheKey));
 
   const evidenceText = stripCommentEvidence(safe.text);
-  const symbols = canonical ? unique(canonical.symbols.map(symbol=>symbol.qualified_name.split('.').at(-1))).slice(0,60)
+  const symbols = canonical ? unique(canonical.symbols.map(symbol=>
+    (canonical.language==='python' ? symbol.qualified_name : symbol.qualified_name.slice(safe.relative.length+2)).split('.').at(-1))).slice(0,60)
                             : symbolsFromText(evidenceText);
   const routes = routesFromText(`${prompt}\n${evidenceText}`);
   const tables = tablesFromText(`${prompt}\n${evidenceText}`);
-  const dependencies = canonical ? unique(canonical.imports.map(item=>item.target.split('.')[0])).slice(0,24)
+  const dependencies = canonical ? unique(canonical.imports.map(item=>canonical.language==='python' ? item.target.split('.')[0] : item.target)).slice(0,24)
                                  : dependenciesFromText(evidenceText);
   const base = {
     file:safe.relative,
@@ -179,8 +180,8 @@ export function extractTaskSignals(cwd = process.cwd(), session = {}) {
   const candidates = unique([currentFile, ...(session.touchedFiles || []).slice(-MAX_RELATED_FILES)]).filter(Boolean).slice(-MAX_RELATED_FILES);
   const admitted = new Map(unique([currentFile,...candidates]).map(file=>[file,readProjectSource(cwd,file)]));
   const sources = [...new Map([...admitted.values()].filter(Boolean).map(source=>[source.relative,source])).values()]
-    .filter(source=>source.relative.endsWith('.py'));
-  const extractions = loadPythonExtractions(cwd,sources);
+    .filter(source=>supportsStructurePath(source.relative));
+  const extractions = loadStructureExtractions(cwd,sources);
   const current = inspectTaskFile(cwd, currentFile, prompt, admitted, extractions);
   const relatedFiles = candidates.map((file) => inspectTaskFile(cwd, file, prompt, admitted, extractions));
   const allTechnologies = unique([...(current.technologies || []), ...relatedFiles.flatMap((item) => item.technologies || [])]).slice(0, 16);
