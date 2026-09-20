@@ -182,11 +182,12 @@ export function buildFeatureModel(cwd=process.cwd(),session={}, {structureOption
     for(const read of batch) {
       const canonical=extracted.byPath.get(read.relative), language=structureLanguageFor(read.relative);
       const dataSource=['sql','json','toml','yaml'].includes(language);
-      const fallback=!canonical&&!dataSource&&['core-extraction-unavailable','no-supported-sources'].includes(extracted.reason);
+      const supported=supportsStructurePath(read.relative);
+      const fallback=!canonical&&!dataSource&&(!supported||['core-extraction-unavailable','no-supported-sources'].includes(extracted.reason));
       const syntaxUsable=Boolean(canonical?.parsed);
       const source={path:read.relative,source_sha256:read.sha256};
       const itemCoverage={...source,language,provider:canonical?.provider||null,canonical:Boolean(canonical),parsed:syntaxUsable,
-        reason:canonical ? (syntaxUsable?null:'source-unparsed') : extracted.reason,
+        reason:canonical ? (syntaxUsable?null:'source-unparsed') : !supported?'unsupported-source-language':extracted.reason,
         importsTruncated:Math.max(0,(canonical?.imports.length||0)-LIMITS.imports),
         symbolsTruncated:Math.max(0,(canonical?.symbols.length||0)-LIMITS.symbols),legacyHeuristics:fallback};
       coverage.push(itemCoverage);

@@ -67,6 +67,21 @@ test('canonical unparsed/rejected source cannot resurrect legacy import guesses'
  }
 });
 
+test('unsupported-file fallback is independent of supported peers in the extraction batch',t=>{
+ const cwd=project(t,{'entry.vue':"<script>import './child.js'; const route='/api/example';</script>",
+  'child.js':'export const value=1;','unrelated.js':'export const other=2;'});
+ const alone=buildFeatureModel(cwd,{currentResource:'entry.vue'},{structureOptions:producer()});
+ for(const options of [producer(),{command:'broken',run:()=>({status:0,stdout:Buffer.from('{}')})}]){
+  const mixed=buildFeatureModel(cwd,{currentResource:'entry.vue',touchedFiles:['unrelated.js']},{structureOptions:options});
+  assert.deepEqual(mixed.edges.filter(e=>e.from==='file:entry.vue'),alone.edges.filter(e=>e.from==='file:entry.vue'));
+  assert.ok(mixed.nodes.some(n=>n.label==='child.js'));
+  const coverage=mixed.generatedFrom.coverage.find(c=>c.path==='entry.vue');
+  assert.equal(coverage.legacyHeuristics,true);
+  assert.equal(coverage.canonical,false);
+  assert.equal(coverage.reason,'unsupported-source-language');
+ }
+});
+
 test('relative Python imports beyond the lexical package stay unresolved even when a same-name file exists',t=>{
  const cwd=project(t,{'root.py':'from .outside import value\n','pkg/entry.py':'from ..outside import value\n',
   'outside.py':'value=1\n','pkg/sub/entry.py':'from ..valid import value\n','pkg/valid.py':'value=2\n'});

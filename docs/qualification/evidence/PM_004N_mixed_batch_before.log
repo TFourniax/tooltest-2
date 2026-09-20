@@ -1,0 +1,55 @@
+✖ unsupported-file fallback is independent of supported peers in the extraction batch (27.739909ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 135.748374
+
+✖ failing tests:
+
+test at test/feature-canonical.test.mjs:70:1
+✖ unsupported-file fallback is independent of supported peers in the extraction batch (27.739909ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+  + []
+  - [
+  -   {
+  -     epistemic_status: 'INFERRED',
+  -     extraction: 'legacy-heuristic',
+  -     from: 'file:entry.vue',
+  -     kind: 'imports',
+  -     source: {
+  -       path: 'entry.vue',
+  -       source_sha256: 'fcc90d39f6d166c8eeefa2348f6e139d7a2f747611a524cdb158dad7e80fb556'
+  -     },
+  -     to: 'file:child.js'
+  -   },
+  -   {
+  -     epistemic_status: 'INFERRED',
+  -     extraction: 'legacy-heuristic',
+  -     from: 'file:entry.vue',
+  -     kind: 'references-route',
+  -     source: {
+  -       path: 'entry.vue',
+  -       source_sha256: 'fcc90d39f6d166c8eeefa2348f6e139d7a2f747611a524cdb158dad7e80fb556'
+  -     },
+  -     to: 'route:/api/example'
+  -   }
+  - ]
+
+      at TestContext.<anonymous> (file:///workspace/scratch/e9f3b6772074/work/idle_feature_graph/test/feature-canonical.test.mjs:76:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.start (node:internal/test_runner/test:1242:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [],
+    expected: [ { from: 'file:entry.vue', to: 'file:child.js', kind: 'imports', epistemic_status: 'INFERRED', source: [Object], extraction: 'legacy-heuristic' }, { from: 'file:entry.vue', to: 'route:/api/example', kind: 'references-route', epistemic_status: 'INFERRED', source: [Object], extraction: 'legacy-heuristic' } ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }

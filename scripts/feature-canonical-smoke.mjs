@@ -20,6 +20,12 @@ try{
   const edge=js.edges.find(e=>e.kind==='imports');assert.equal(edge.to,'file:actual.js');assert.equal(edge.epistemic_status,'INFERRED');
   assert.equal(edge.source.line,3);assert.equal(edge.source.source_sha256,createHash('sha256').update(entry).digest('hex'));
  }else assert.equal(js.edges.length,0);
+ put('legacy.vue',"<script>import './actual.js'; const route='/api/example';</script>");
+ const alone=buildFeatureModel(cwd,{currentResource:'legacy.vue'});
+ const mixed=buildFeatureModel(cwd,{currentResource:'legacy.vue',touchedFiles:['entry.js']});
+ assert.deepEqual(mixed.edges.filter(e=>e.from==='file:legacy.vue'),alone.edges.filter(e=>e.from==='file:legacy.vue'));
+ assert.ok(mixed.nodes.some(n=>n.label==='actual.js'));
+ assert.equal(mixed.generatedFrom.coverage.find(c=>c.path==='legacy.vue').reason,'unsupported-source-language');
  put('loader.cjs',"const first=require('./worker.cjs');\nconst second=import('./later.mjs');\n");
  put('worker.cjs','module.exports = 1;');put('later.mjs','export default 1;');put('ignored.cjs','module.exports = 2;');
  const loader=buildFeatureModel(cwd,{currentResource:'loader.cjs'});
