@@ -26,15 +26,16 @@ const specFor=relative=>typeof relative==='string'&&relative.lastIndexOf('.')>re
 export const supportsStructurePath=relative=>Boolean(specFor(relative));
 export const structureLanguageFor=relative=>specFor(relative)?.[0]||null;
 
-export function validStructureExtractions(response,sources) {
-  if (!Array.isArray(sources)||!keys(response,['schema_version','files','coverage'])||response.schema_version!=='structure-response-1'
+export function validStructureExtractions(response,sources,{details=false}={}) {
+  if (typeof details!=='boolean'||!Array.isArray(sources)||!keys(response,['schema_version','files','coverage'])
+      ||response.schema_version!==(details?'structure-response-2':'structure-response-1')
       ||!Array.isArray(response.files)||response.files.length!==sources.length) return false;
   let parsed=0;
   for (let index=0;index<sources.length;index+=1) {
     const source=sources[index],value=response.files[index],spec=specFor(source?.relative);
     if(!spec||!object(source)||typeof source.text!=='string'||!safePath(source.relative)) return false;
     if (!keys(value,['path','language','provider','source_sha256','module','parsed','symbols','imports','calls','schema_version'])
-        ||value.schema_version!=='structure-extraction-1'||value.path!==source.relative
+        ||value.schema_version!==(details?'structure-extraction-2':'structure-extraction-1')||value.path!==source.relative
         ||value.source_sha256!==source.sha256||value.provider!==spec[1]||value.language!==spec[0]
         ||typeof value.parsed!=='boolean'||typeof value.module!=='string'||value.module.length>8192) return false;
     if(value.language==='python') {
@@ -56,7 +57,12 @@ export function validStructureExtractions(response,sources) {
           ||symbol.qualified_name.length<=source.relative.length+2)) return false;
     }
     for(const imported of value.imports) {
-      if(!keys(imported,['target','epistemic_status'])||!text(imported.target)||imported.epistemic_status!=='OBSERVED') return false;
+      if(!keys(imported,details?['target','epistemic_status','source_target','members','line','end_line']:['target','epistemic_status'])
+          ||!text(imported.target)||imported.epistemic_status!=='OBSERVED') return false;
+      if(details&&(!(imported.source_target===null||text(imported.source_target))
+          ||!(imported.members===null||(Array.isArray(imported.members)&&imported.members.length<=100000&&imported.members.every(text)))
+          ||!((imported.line===null&&imported.end_line===null)
+               ||(line(imported.line)&&line(imported.end_line)&&imported.end_line>=imported.line)))) return false;
     }
     for(const call of value.calls) {
       if(!keys(call,['name','line','epistemic_status'])||!text(call.name)||!line(call.line)||call.epistemic_status!=='INFERRED') return false;
@@ -68,8 +74,10 @@ export function validStructureExtractions(response,sources) {
     &&response.coverage.unsupported===0&&response.coverage.unparsed===sources.length-parsed;
 }
 
-export function loadStructureExtractions(cwd,sources,{command=null,run=spawnSync}={}) {
+export function loadStructureExtractions(cwd,sources,{command=null,run=spawnSync,details=false,timeoutMs=TIMEOUT_MS}={}) {
   const unavailable=reason=>({byPath:new Map(),reason});
+  if(typeof details!=='boolean'||!Number.isInteger(timeoutMs)||timeoutMs<=0||timeoutMs>TIMEOUT_MS)
+    return unavailable('invalid-extraction-options');
   if(!Array.isArray(sources)||sources.length>MAX_FILES) return unavailable('invalid-source-batch');
   if(!sources.length) return unavailable('no-supported-sources');
   let total=0;
@@ -89,8 +97,8 @@ export function loadStructureExtractions(cwd,sources,{command=null,run=spawnSync
     } catch { return unavailable('invalid-integration-configuration'); }
   }
   try {
-    const result=run(command,['state','extract','--json'],{cwd,input:JSON.stringify({schema_version:'structure-request-1',files}),
-      windowsHide:true,timeout:TIMEOUT_MS,maxBuffer:RESPONSE_BYTES});
+    const result=run(command,['state','extract','--json'],{cwd,input:JSON.stringify({schema_version:details?'structure-request-2':'structure-request-1',files}),
+      windowsHide:true,timeout:timeoutMs,maxBuffer:RESPONSE_BYTES});
     if(result.error||result.status!==0) return unavailable('core-extraction-unavailable');
     if(!Buffer.isBuffer(result.stdout)||result.stdout.length>RESPONSE_BYTES) return unavailable('core-extraction-rejected');
     const raw=new TextDecoder('utf-8',{fatal:true}).decode(result.stdout);
@@ -99,7 +107,7 @@ export function loadStructureExtractions(cwd,sources,{command=null,run=spawnSync
     // rejects duplicate keys and alternate encodings without a second parser.
     const compact=raw.replace(/("(?:\\.|[^"\\])*")|\s+/g, (match,string)=>string??'');
     if(JSON.stringify(response)!==compact) return unavailable('core-extraction-rejected');
-    if(!validStructureExtractions(response,sources)) return unavailable('core-extraction-rejected');
+    if(!validStructureExtractions(response,sources,{details})) return unavailable('core-extraction-rejected');
     return {byPath:new Map(response.files.map(file=>[file.path,file])),reason:null};
   } catch { return unavailable('core-extraction-rejected'); }
 }

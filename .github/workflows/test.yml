@@ -69,6 +69,7 @@ jobs:
           node --check ./scripts/structure-languages-smoke.mjs
           node --check ./scripts/structure-dependencies-smoke.mjs
           node --check ./scripts/structure-all-providers-smoke.mjs
+          node --check ./scripts/feature-canonical-smoke.mjs
           node --check ./public/app.js
           node --check ./public/feature-review.js
       - name: Validate JSON examples and schemas
@@ -111,7 +112,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: TFourniax/tooltest
-          ref: c8a64fb99ef051ddd35972dfe4866aa0691dee94
+          ref: 8c4f879688efbd3019c92a25349ff1426a8cc4f1
           path: core-context-fixture
           persist-credentials: false
       - uses: actions/setup-python@v7
@@ -130,6 +131,8 @@ jobs:
         run: node scripts/structure-languages-smoke.mjs --without-grammars
       - name: Verify all new provider families remain explicitly unparsed without grammars
         run: node scripts/structure-all-providers-smoke.mjs --without-grammars
+      - name: Verify feature-map canonical imports without optional grammars
+        run: node scripts/feature-canonical-smoke.mjs --without-grammars
       - name: Install exact Core optional syntax providers
         run: python -m pip install "./core-context-fixture[structure]"
       - name: Verify actual JS/TS/Go/Rust task context
@@ -138,6 +141,8 @@ jobs:
         run: node scripts/structure-dependencies-smoke.mjs
       - name: Verify actual managed, dynamic, SQL and configuration task providers
         run: node scripts/structure-all-providers-smoke.mjs
+      - name: Verify cited canonical feature-map references and fresh source reads
+        run: node scripts/feature-canonical-smoke.mjs
       - name: Enforce existing hook budgets with actual Python provider
         if: runner.os == 'Linux'
         run: node scripts/perf-gate.mjs --python-core
