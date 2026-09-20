@@ -245,6 +245,30 @@ This map is useful context, **not a runtime call graph**. The UI says so explici
 
 Historical feature memory, feature drift, Project Mental Model history and long-term Knowledge Debt belong to the Portal product rather than the Local cockpit.
 
+For technical inspection of Project Memory, `idleproof feature-lineage` can link
+locally retained feature observations to file-relocation hypotheses imported by
+DiffWitness Core. It requires a Core version with `state lineage` (qualified
+reference `6ea6fbbec251fe06b55b7852ca7822b4b40705c4`). Import the relevant Git
+history with `dw state bootstrap-git --all-branches --include-lineage`, following
+its cursor when more pages remain, then inspect:
+
+```bash
+idleproof feature-lineage --list --json
+idleproof feature-lineage --from OLD_KEY --to NEW_KEY --json
+idleproof feature-lineage --from OLD_KEY --to NEW_KEY --language fr
+```
+
+Both features must already have source-bound observations captured during normal
+use. Old memories without those observations remain unavailable. Up to eight
+distinct observations per feature are retained; discarded observations and result
+limits are reported. The command queries imported history without changing the
+state or importing more history. Its **INFERRED** links cite observation IDs and
+Core event IDs, hashes and commits. They relate recorded snapshots with the same
+anchor bytes, and do not establish current applicability, feature intent, symbol
+identity or complete lifetime history. Keys, learning scores, declarations and
+Proof authority stay separate. The Local cockpit and Portal product boundaries
+above are unchanged by this technical inspection command.
+
 ---
 
 ## Optional understanding checks

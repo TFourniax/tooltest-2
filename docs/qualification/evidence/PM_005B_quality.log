@@ -1,0 +1,4 @@
+ExplainBench PASS · 30 cross-domain scenarios · exact paths 30/30 · safe fallbacks 2
+Explain TortureBench PASS · 238 adversarial project forms · exact paths 234/234 · live symbols 234/234
+IdleBench PASS · 5 contextual quality cases + wait-window Explain-first contracts
+IdleBench Corpus PASS · 15 domains + anti-hallucination + wait-window ergonomics
