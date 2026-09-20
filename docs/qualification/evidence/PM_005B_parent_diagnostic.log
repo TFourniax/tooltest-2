@@ -1,0 +1,13 @@
+IdleProof PERF PASS (TypeScript/Core) · hook p95 145.0ms · max 241.5ms · Stop 291.0ms · state p95 0.3ms
+node:internal/errors:542
+      throw error;
+      ^
+
+TypeError [ERR_INVALID_ARG_TYPE]: The "path" argument must be of type string or an instance of Buffer or URL. Received undefined
+    at Object.writeFileSync (node:fs:2480:14)
+    at process.<anonymous> (/workspace/scratch/e9f3b6772074/outputs/profile_hook_processes.cjs:29:6)
+    at process.emit (node:events:509:28) {
+  code: 'ERR_INVALID_ARG_TYPE'
+}
+
+Node.js v24.19.0

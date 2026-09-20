@@ -51,6 +51,8 @@ Policy:
   idleproof approve <fingerprint> [--minutes 10] [--uses 1]
 
 Evidence:
+  idleproof feature-lineage --list [--json]
+  idleproof feature-lineage --from KEY --to KEY [--json] [--language en|fr]
   idleproof trace [--json] [--limit N]
   idleproof bom [--json]
   idleproof responsibility [--json]
@@ -293,6 +295,10 @@ export async function main(args) {
   if (cmd === 'run') return generic(args.slice(1));
   if (cmd === 'edition') return printEdition(args);
   if (cmd === 'portal-preview') return printPortalPreview(cwd,args);
+  if (cmd === 'feature-lineage') {
+    const { featureLineageCli } = await import('./feature-lineage.mjs');
+    return featureLineageCli(cwd,loadState(cwd),args.slice(1));
+  }
 
   if (cmd === 'install') { installAdapters(cwd, sub); return; }
   if (cmd === 'uninstall') {

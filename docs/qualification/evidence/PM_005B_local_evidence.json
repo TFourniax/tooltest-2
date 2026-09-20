@@ -1,0 +1,167 @@
+{
+  "schema": "local-source-qualification-1",
+  "unit": "PM005b",
+  "classification": "MACHINE",
+  "status": "FUNCTIONAL_PASS_LOCAL_TYPESCRIPT_GATE_FAILED",
+  "base": "242714f1ab4fac12956359e9fb2105b795f8e89d",
+  "core": "6ea6fbbec251fe06b55b7852ca7822b4b40705c4",
+  "full_tests": {
+    "tests": 247,
+    "pass": 247,
+    "seconds": 27.209033886
+  },
+  "quality": {
+    "explain": 30,
+    "adversarial": 238,
+    "idlebench": 5,
+    "corpus": 15
+  },
+  "performance_initial": {
+    "generic_with_core": {
+      "p95_ms": 118.8,
+      "max_ms": 246.4,
+      "stop_ms": 264.4,
+      "status": "PASS"
+    },
+    "python": {
+      "p95_ms": 91.6,
+      "max_ms": 143.1,
+      "stop_ms": 209.6,
+      "status": "PASS"
+    },
+    "typescript": {
+      "p95_ms": 186.0,
+      "limit_ms": 150,
+      "status": "FAIL",
+      "stop": "NOT_REACHED"
+    },
+    "json": {
+      "p95_ms": 116.3,
+      "max_ms": 126.4,
+      "stop_ms": 261.0,
+      "status": "PASS"
+    }
+  },
+  "non_qualifying_diagnostic": {
+    "parent_first": "output path environment variable absent; timings unavailable; instrument exit error retained",
+    "parent_configured_p95_ms": 199.5,
+    "candidate_instrumented_p95_ms": 147.8,
+    "qualification_transfer": false
+  },
+  "files": [
+    {
+      "path": "src/feature-memory.mjs",
+      "sha256": "524c09d73e1655725db7f8a5f23324bae034a130957dba2d67cd76e27d5e264e"
+    },
+    {
+      "path": "src/feature-observations.mjs",
+      "sha256": "54a663fb7e02da9646f7d86846e3f96c417544627dc552ab4772355a5b8e81b7"
+    },
+    {
+      "path": "src/feature-lineage.mjs",
+      "sha256": "6192f5c6da78d4ed4c8ae59585dd4f8dfce163a612c350b9f6de18d6721c2814"
+    },
+    {
+      "path": "src/cli.mjs",
+      "sha256": "ff89fad180b218a5152a13cf098c15b69ae762351d19e8e4deef0d77fec5804e"
+    },
+    {
+      "path": "scripts/feature-lineage-smoke.mjs",
+      "sha256": "02688e1537aac3ebee7146255f2caa8f6006929d5abb7817ebbb0f0f1f0d1228"
+    },
+    {
+      "path": "test/feature-lineage.test.mjs",
+      "sha256": "353c4a687897b009fc45826e0318409657572c054a9b8693feb5e554b5c086b5"
+    },
+    {
+      "path": ".github/workflows/test.yml",
+      "sha256": "84444222799ae90e29976976762bc0f203ee8085fd06e5eba1faa6792be75e44"
+    },
+    {
+      "path": "README.md",
+      "sha256": "44aabf673d550e212cf5a30015d8f232aacbf84c86160caffca45fbc9ed2197c"
+    },
+    {
+      "path": "docs/qualification/PM_005B.md",
+      "sha256": "957703daf5ac6460a48c8baedeb529e685e70db0ca0afa87d9d928bc8c89348b"
+    }
+  ],
+  "evidence": [
+    {
+      "path": "docs/qualification/evidence/PM_005B_fail_before.log",
+      "raw_sha256": "b0fb32e96379fadf47368350b509f8d613b2b70c21c45274f110507fbe5cc77b",
+      "archived_sha256": "b0fb32e96379fadf47368350b509f8d613b2b70c21c45274f110507fbe5cc77b"
+    },
+    {
+      "path": "docs/qualification/evidence/PM_005B_final_full_tests.log",
+      "raw_sha256": "6fd8a83968fb27985d426f8328ce64670019155baea0975ab05ec89cc0b2f4d7",
+      "archived_sha256": "6fd8a83968fb27985d426f8328ce64670019155baea0975ab05ec89cc0b2f4d7"
+    },
+    {
+      "path": "docs/qualification/evidence/PM_005B_quality.log",
+      "raw_sha256": "27974185990a8b45226603845e4f7fd114a39c79e2f3f95abe76e5993bf6d3eb",
+      "archived_sha256": "27974185990a8b45226603845e4f7fd114a39c79e2f3f95abe76e5993bf6d3eb"
+    },
+    {
+      "path": "docs/qualification/evidence/PM_005B_actual_smoke_final.log",
+      "raw_sha256": "dfe3cea8fefb36ffcb5ecff1f2c015acf56fbdc65d49d7a098bad35b50279bbd",
+      "archived_sha256": "dfe3cea8fefb36ffcb5ecff1f2c015acf56fbdc65d49d7a098bad35b50279bbd"
+    },
+    {
+      "path": "docs/qualification/evidence/PM_005B_base_core_smoke.log",
+      "raw_sha256": "07e4ba41f4573fbb60c0253841fc981cf8c9728620d7b152799d5a66863cc644",
+      "archived_sha256": "07e4ba41f4573fbb60c0253841fc981cf8c9728620d7b152799d5a66863cc644"
+    },
+    {
+      "path": "docs/qualification/evidence/PM_005B_perf_base.log",
+      "raw_sha256": "3b5b81d938a5f4ac220741a09cde7b5a8fdd6d3fc987d15a3dc2b8b19ce5ca95",
+      "archived_sha256": "3b5b81d938a5f4ac220741a09cde7b5a8fdd6d3fc987d15a3dc2b8b19ce5ca95"
+    },
+    {
+      "path": "docs/qualification/evidence/PM_005B_perf_python.log",
+      "raw_sha256": "4e5d615e858e907e818c60261ef28c76bf25e292c5a83508ebc358d7f01bf38d",
+      "archived_sha256": "4e5d615e858e907e818c60261ef28c76bf25e292c5a83508ebc358d7f01bf38d"
+    },
+    {
+      "path": "docs/qualification/evidence/PM_005B_perf_typescript.log",
+      "raw_sha256": "c1b574d3e8211ed23fe978df9e7436cc64ee90d1133c5329a657474bd45e417d",
+      "archived_sha256": "c1b574d3e8211ed23fe978df9e7436cc64ee90d1133c5329a657474bd45e417d"
+    },
+    {
+      "path": "docs/qualification/evidence/PM_005B_perf_json.log",
+      "raw_sha256": "a38249f55f5db5d0b66f13bfc2d40ab68a6cbe915bcd03c53994c094a554321c",
+      "archived_sha256": "a38249f55f5db5d0b66f13bfc2d40ab68a6cbe915bcd03c53994c094a554321c"
+    },
+    {
+      "path": "docs/qualification/evidence/PM_005B_parent_diagnostic.log",
+      "raw_sha256": "6ad58ce8664262f1a979f961e835dbfdde69ccc623b0919c6a18eacf49225f12",
+      "archived_sha256": "6ad58ce8664262f1a979f961e835dbfdde69ccc623b0919c6a18eacf49225f12"
+    },
+    {
+      "path": "docs/qualification/evidence/PM_005B_parent_diagnostic_configured.log",
+      "raw_sha256": "126f32b8b4d70e0adf36db524722dc63340d8d7372c8ff0191c68308f11000e9",
+      "archived_sha256": "126f32b8b4d70e0adf36db524722dc63340d8d7372c8ff0191c68308f11000e9"
+    },
+    {
+      "path": "docs/qualification/evidence/PM_005B_candidate_diagnostic.log",
+      "raw_sha256": "715d3f0102f30ac2cd571161a6dd8c437c00bf13ebc10d153919213ebef1de79",
+      "archived_sha256": "715d3f0102f30ac2cd571161a6dd8c437c00bf13ebc10d153919213ebef1de79"
+    },
+    {
+      "path": "docs/qualification/evidence/PM_005B_parent_processes.json",
+      "raw_sha256": "dc4e65e378f2e953dcb747d0ca654e6661c5ad07d311d86173ed90fcbea116ef",
+      "archived_sha256": "dc4e65e378f2e953dcb747d0ca654e6661c5ad07d311d86173ed90fcbea116ef"
+    },
+    {
+      "path": "docs/qualification/evidence/PM_005B_candidate_processes.json",
+      "raw_sha256": "d2d957ef55f8a72ed3603819ef9a4a81cf7d4ab9366e651775526d8e2928ef8a",
+      "archived_sha256": "d2d957ef55f8a72ed3603819ef9a4a81cf7d4ab9366e651775526d8e2928ef8a"
+    }
+  ],
+  "limitations": [
+    "Bounded retained observations and direct file relocation hypotheses only.",
+    "No score, identity, assertion applicability or Proof transfer.",
+    "Initial local TypeScript failure remains unqualified; diagnostic pass does not replace it.",
+    "Fresh canonical PR/main gates and review pending; full PM005/PM012/HUMAN/global release remain open."
+  ]
+}

@@ -1,0 +1,45 @@
+✖ feature memory retains source-bound observations without migrating scores (2.506942ms)
+✖ observation retention is bounded, content deduplicated and explicitly incomplete (1.122735ms)
+✔ legacy or unparsed models cannot fabricate source-bound history (1.235857ms)
+✖ corrupt retained observations fail before mutation (0.360054ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 1
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 136.1353
+
+✖ failing tests:
+
+test at test/feature-lineage.test.mjs:14:1
+✖ feature memory retains source-bound observations without migrating scores (2.506942ms)
+  TypeError: Cannot read properties of undefined (reading 'items')
+      at TestContext.<anonymous> (file:///workspace/scratch/e9f3b6772074/work/idle_feature_lineage/test/feature-lineage.test.mjs:19:38)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.start (node:internal/test_runner/test:1242:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17)
+
+test at test/feature-lineage.test.mjs:25:1
+✖ observation retention is bounded, content deduplicated and explicitly incomplete (1.122735ms)
+  TypeError: Cannot read properties of undefined (reading 'items')
+      at TestContext.<anonymous> (file:///workspace/scratch/e9f3b6772074/work/idle_feature_lineage/test/feature-lineage.test.mjs:28:56)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
+
+test at test/feature-lineage.test.mjs:41:1
+✖ corrupt retained observations fail before mutation (0.360054ms)
+  TypeError: Cannot read properties of undefined (reading 'items')
+      at TestContext.<anonymous> (file:///workspace/scratch/e9f3b6772074/work/idle_feature_lineage/test/feature-lineage.test.mjs:42:84)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7)

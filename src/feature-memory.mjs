@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { buildFeatureModel } from './feature-model.mjs';
 import { taskContextQuery, taskDisplayText } from './task.mjs';
+import { featureAnchor, observeFeature } from './feature-observations.mjs';
 
 
 function unique(values) {
@@ -13,18 +14,6 @@ function sorted(values) {
 
 function stableHash(value) {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex').slice(0, 24);
-}
-
-function featureAnchor(model = {}) {
-  const storyFiles = (model.story || []).filter((step) => step.type === 'file');
-  const entry = storyFiles.find((step) => ['ui', 'api', 'core'].includes(step.role)) || storyFiles[0] || null;
-  const route = model.surfaces?.routes?.[0] || null;
-  const technology = model.surfaces?.technologies?.[0] || null;
-  return {
-    entry: entry?.label || null,
-    route,
-    technology: !entry && !route ? technology : null
-  };
 }
 
 export function featureKey(model = {}) {
@@ -140,6 +129,7 @@ export function rememberFeature(state, session, model, { exposure = true } = {})
   const legacy = model.fingerprint ? state.features[model.fingerprint] : null;
   const current = state.features[key] || legacy || baseMemory(model, session);
   const nextSnapshot = featureSnapshot(model);
+  const lineageObservations = observeFeature(current.lineageObservations, model, nextSnapshot);
   const drift = current.snapshot ? compareFeatureSnapshots(current.snapshot, nextSnapshot) : { changed: false, level: 'none', score: 0, added: {}, removed: {}, summary: 'First observed model for this feature.' };
 
   if (exposure && session?.id && !current.sessionIds?.includes(session.id)) current.exposures = (current.exposures || 0) + 1;
@@ -155,6 +145,7 @@ export function rememberFeature(state, session, model, { exposure = true } = {})
   current.tests = (model.tests || []).slice(0, 12);
   current.riskNotes = (model.riskNotes || []).slice(0, 6);
   current.snapshot = nextSnapshot;
+  if (lineageObservations) current.lineageObservations = lineageObservations;
 
   if (drift.changed) {
     current.lastDrift = { ...drift, at: new Date().toISOString(), fromFingerprint: current.previousFingerprint, toFingerprint: model.fingerprint };
