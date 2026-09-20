@@ -162,10 +162,20 @@ These data sources do not feed code route/table/technology heuristics. Neutral
 `importReferences` retain raw canonical targets; the new managed/dynamic languages
 do not classify unresolved imports as third-party dependencies. Explanations show
 neutral import names with unresolved origins; current and related import changes
-refresh delivery without turning those names into package-ownership claims. Code-language
-routes, tables, technology signals and the feature map await full canonical
-adoption. Unknown extensions retain file facts and
-bounded inference. Syntax observations do not establish runtime behavior or Proof.
+refresh delivery without turning those names into package-ownership claims.
+
+The feature map also requests the shared detailed import contract: references
+retain source hashes and available positions/member names, while unique local
+candidate links remain INFERRED. SQL/config feature facts use admitted DDL/key
+syntax, never configuration values. Every build rereads bounded sources instead
+of reusing a mutable session-keyed model. Coverage records unavailable/unparsed
+providers and truncated facts; limits remain24 files,640KiB and depth2, with a
+shared500ms extraction budget. Older/missing Core uses labelled code heuristics.
+Code-language route/table/technology heuristics remain explicitly INFERRED;
+Literal CommonJS and dynamic import references use the same Core contract;
+known loader shadowing stays unresolved. Complete canonical surfaces, computed
+loaders and package origins remain open.
+Unknown extensions retain file facts and bounded inference. Syntax observations do not establish runtime behavior or Proof.
 
 The point is not to claim perfect semantic compilation for every language. The point is to extract enough **verifiable local facts** to explain a very large variety of real tasks without hallucinating a fake architecture.
 

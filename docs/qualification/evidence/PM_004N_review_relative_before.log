@@ -1,0 +1,41 @@
+✔ canonical feature imports ignore comment/string decoys and cite the exact bytes (28.22916ms)
+✔ configuration values never create feature facts, including unavailable or rejected Core (5.954668ms)
+✔ Python package references preserve members without inventing member-module edges or resolving ambiguity (7.70932ms)
+✔ canonical unparsed/rejected source cannot resurrect legacy import guesses (2.06379ms)
+✖ relative Python imports beyond the lexical package stay unresolved even when a same-name file exists (7.962354ms)
+✔ fresh feature models see same-size timestamp-preserved edits and cannot share caller mutation (21.867953ms)
+✔ canonical breadth and depth remain bounded and source exclusions still apply (15.784524ms)
+✔ a changed canonical symbol projection changes the model fingerprint on identical bytes (1.471849ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 7
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 258.744642
+
+✖ failing tests:
+
+test at test/feature-canonical.test.mjs:70:1
+✖ relative Python imports beyond the lexical package stay unresolved even when a same-name file exists (7.962354ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + 'local-candidate'
+  - 'unresolved'
+
+      at TestContext.<anonymous> (file:///workspace/scratch/e9f3b6772074/work/idle_feature_graph/test/feature-canonical.test.mjs:77:55)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'local-candidate',
+    expected: 'unresolved',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

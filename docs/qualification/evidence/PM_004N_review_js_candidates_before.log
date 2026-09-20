@@ -1,0 +1,42 @@
+✔ canonical feature imports ignore comment/string decoys and cite the exact bytes (21.411713ms)
+✔ configuration values never create feature facts, including unavailable or rejected Core (4.671791ms)
+✔ Python package references preserve members without inventing member-module edges or resolving ambiguity (6.92923ms)
+✔ canonical unparsed/rejected source cannot resurrect legacy import guesses (2.301303ms)
+✔ relative Python imports beyond the lexical package stay unresolved even when a same-name file exists (5.358927ms)
+✖ JavaScript local candidates include CTS and MTS ambiguity without guessing Python extensions (8.051883ms)
+✔ fresh feature models see same-size timestamp-preserved edits and cannot share caller mutation (14.603663ms)
+✔ canonical breadth and depth remain bounded and source exclusions still apply (15.594071ms)
+✔ a changed canonical symbol projection changes the model fingerprint on identical bytes (1.955164ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 8
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 193.06165
+
+✖ failing tests:
+
+test at test/feature-canonical.test.mjs:82:1
+✖ JavaScript local candidates include CTS and MTS ambiguity without guessing Python extensions (8.051883ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + 'local-candidate'
+  - 'unresolved'
+
+      at TestContext.<anonymous> (file:///workspace/scratch/e9f3b6772074/work/idle_feature_graph/test/feature-canonical.test.mjs:88:9)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'local-candidate',
+    expected: 'unresolved',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

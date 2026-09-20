@@ -1,0 +1,53 @@
+{
+  "schema": "diffwitness-local-qualification-1",
+  "classification": "MACHINE",
+  "unit": "PM-004n",
+  "base": "6109ffec2b98fd2c76962382d5f63c2a7a7576e8",
+  "core": "8c4f879688efbd3019c92a25349ff1426a8cc4f1",
+  "files": {
+    ".github/workflows/test.yml": "9813d06a530f432fdd643a08d629e83030d7f72c5d456ed2f191f24005ccdf6f",
+    "README.md": "fe39bee10081e6eca7c928416278134f05b9292152dc959bd910316b3f00eb6f",
+    "docs/qualification/HANDOFF_PM_004N_2026_09_19.md": "790769991d39895d2d992659b043907a4750a4b4ac8207466ddd6c5e69c94ada",
+    "docs/qualification/HANDOFF_PM_004N_2026_09_20.md": "ed2418fe0610f5a30b4a524d73c6d69a4b89b419dd8e5c57c7623aa05e69485e",
+    "docs/qualification/JOURNAL_2026_09_19.md": "1c45e4a9349e8ab98d0a4286cf666bd744a3877c4628785503afc5c6286e1c17",
+    "docs/qualification/JOURNAL_2026_09_20.md": "b1b0f7bdc8e16900603308f75a52efd7cb3c06032b2b9cf8b480f5e4ba822871",
+    "docs/qualification/PM_004N.md": "b712af288274da1640f5748d00ebe571697a74d0478ef26e1251920594b089d8",
+    "docs/qualification/evidence/PM_004L_PR_evidence.json": "c20a04105029f4f6a6825d699a4b154fd39d02f745b4b65c70b3e2f17c1368ab",
+    "docs/qualification/evidence/PM_004L_main_evidence.json": "60b069df3349d0eaa1a349950d0378db4b5c23733d21cb63cfec90ee8bf99652",
+    "docs/qualification/evidence/PM_004N_details_before.log": "a4508f96b93ee57a211bc002bc49552ab6ca72d0332b02a01bc9f892a8a336cb",
+    "docs/qualification/evidence/PM_004N_feature_after.log": "b5d25959c1fec250a5fcc81274d74ec07bf281c85dd792cd6932125287aef8ca",
+    "docs/qualification/evidence/PM_004N_feature_before.log": "41386cfcba847f57763b8235e509b40e6c62b92c102d223dcb8bc49d18fcfaac",
+    "docs/qualification/evidence/PM_004N_feature_discovery_actual.json": "00e561d476c9ca9fd35d7b025b94f5de95be4eeb6c40d56432cc91f4b387174c",
+    "docs/qualification/evidence/PM_004N_local.json": "d405f304ced29c542b40abb87aea8fcca8a7756526bd1138d90881c8c6e8f246",
+    "docs/qualification/evidence/PM_004N_review_final_perf_json.log": "1f990bf6a292fbf7749d44ae1ddb3902b53ced4eef9e6422c54483425c86bd60",
+    "docs/qualification/evidence/PM_004N_review_final_perf_python.log": "d2a76ff9cd3df53cb4f9626ac86c9b8be32519cc36efd7b0e352d3128021b242",
+    "docs/qualification/evidence/PM_004N_review_final_perf_typescript.log": "199db08e5b4a686631d624f6b77698f9be73567f2826c870071fee12b452a8ff",
+    "docs/qualification/evidence/PM_004N_review_js_candidates_before.log": "3abb5a7a69c6a54d6a72f32cc74c7fcb3594ccdf111dc4bd41d8289541f359d5",
+    "docs/qualification/evidence/PM_004N_review_perf_L_baseline_python.log": "309fa12f3a1ef8c54da3beeafed0e56d61a7542b53c558853bf1322857dc4f97",
+    "docs/qualification/evidence/PM_004N_review_relative_actual_before.log": "deb8dc842810a5fde488bee84dcadbb9dc5f13da052f412edd6b1f7ae382dd69",
+    "docs/qualification/evidence/PM_004N_review_relative_before.log": "3d9c7737b3561c36bc2e150f4f078d1b8cd38881af088561be1c208d0f584fde",
+    "docs/qualification/evidence/PM_004N_reviewed_local.json": "fbd16278bc6554cfd84d90c711fce81570c1cc4dd2a0addbc6f6169c7321a5e3",
+    "docs/qualification/evidence/PM_004N_symbol_fingerprint_before.log": "19172b65e29838d794024b1847529184f3c59c1c9df2d698c1a2eee015d045b0",
+    "scripts/feature-canonical-smoke.mjs": "94b4419a516865004627eb447fda8ca1fb8fc60f9fb8fb76193c738709b546fe",
+    "src/feature-memory.mjs": "2846353c1da683cac1e8692ce26e6ceed26b9149f215530d46c6f811f02d0a24",
+    "src/feature-model.mjs": "10df3707278d4dcac2501c98db43a89d24cf2f552e27eee763eaa5c02a8a4771",
+    "src/structure-provider.mjs": "aeaae9070f5dcb99a4bf5f2be28e768776688e296514ff6795b5a52753a0ff1b",
+    "test/feature-canonical.test.mjs": "a1fa17b35bec431e5a3083f5a58e5490cca77ddd55f623c36f0dc2708c5e6491",
+    "test/feature-memory.test.mjs": "e558243a7f644f61711bf56e590f860ee2c8170235462ce77b40927a8e841534",
+    "test/structure-details.test.mjs": "1b124b9028f29bda4bd8828164561b266de25179c02555ffb54d14de4beff8b0"
+  },
+  "logs": {
+    "PM_004N_final_adversarial.log": "f29835c93b9f27292a2982128132abdaf628bb4e78b8cc61d2e5ffdd71b41f56",
+    "PM_004N_final_corpus.log": "a348aba6379380548240dcaed6b935e5c860f56e73b69d07c857cc33bea653c1",
+    "PM_004N_final_explain.log": "53b49728130ecfbe303256c20079627d853f9a1cb420f8625d140e1bed9eb927",
+    "PM_004N_final_idle.log": "a13a085f7381526f3aded3332bd4f2a3d3e8d6f6401fcda1d3cb0b3b37c79cfa",
+    "PM_004N_final_package.log": "1cdf803c3b3d1ea4a9e355fd8a22a86f5e934e23e6e77d39b816435d13eb49a4",
+    "PM_004N_final_tests.log": "0bb07b20e0321c04f5a823a0baac0e4f3cc74f93984974da7e997ee58e08435f"
+  },
+  "final_performance": "pending; retain historical FAIL",
+  "full_tests": {
+    "run": 235,
+    "pass": 235,
+    "skipped": 0
+  }
+}

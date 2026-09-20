@@ -1,10 +1,7 @@
-import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { buildFeatureModel } from './feature-model.mjs';
 import { taskContextQuery, taskDisplayText } from './task.mjs';
 
-const modelCache = new Map();
-const MAX_CACHE = 80;
 
 function unique(values) {
   return [...new Set((values || []).filter(Boolean))];
@@ -80,8 +77,8 @@ export function compareFeatureSnapshots(previous = null, current = null) {
   const summaries = [];
   if (diffs.routes.added.length) summaries.push(`new route ${diffs.routes.added.join(', ')}`);
   if (diffs.routes.removed.length) summaries.push(`removed route ${diffs.routes.removed.join(', ')}`);
-  if (diffs.technologies.added.length) summaries.push(`new external boundary ${diffs.technologies.added.join(', ')}`);
-  if (diffs.technologies.removed.length) summaries.push(`removed external boundary ${diffs.technologies.removed.join(', ')}`);
+  if (diffs.technologies.added.length) summaries.push(`new technology reference ${diffs.technologies.added.join(', ')}`);
+  if (diffs.technologies.removed.length) summaries.push(`removed technology reference ${diffs.technologies.removed.join(', ')}`);
   if (diffs.tables.added.length) summaries.push(`new persistence surface ${diffs.tables.added.join(', ')}`);
   if (diffs.tables.removed.length) summaries.push(`removed persistence surface ${diffs.tables.removed.join(', ')}`);
   if (!summaries.length && changed) summaries.push('the connected code/test structure changed');
@@ -95,30 +92,14 @@ export function compareFeatureSnapshots(previous = null, current = null) {
   };
 }
 
-function cacheKey(cwd, session = {}) {
-  return JSON.stringify({
-    cwd: path.resolve(cwd),
-    id: session.id || null,
-    task: session.task?.id || null,
-    taskFocus: session.task?.latestFocusSha256 || null,
-    event: session.lastEventAt || null,
-    resource: session.currentResource || null,
-    files: (session.touchedFiles || []).slice(-8),
-    signalFile: session.taskSignals?.file || null,
-    technologies: session.taskSignals?.technologies || []
-  });
-}
-
 export function cachedFeatureModel(cwd = process.cwd(), session = {}) {
-  const key = cacheKey(cwd, session);
-  if (modelCache.has(key)) return modelCache.get(key);
+  // A session/event key cannot attest source bytes or negative resolutions.
+  // Rebuild within the existing source limits and return independently owned data.
   // The feature mapper needs the stable task plus its substantive focus, not the latest conversational
   // acknowledgement. This keeps feature ranking/fingerprints meaningful after turns like "yes, continue".
   const semanticSession = { ...session, prompt: taskContextQuery(session) || session.prompt || '' };
   const model = buildFeatureModel(cwd, semanticSession);
   model.featureKey = featureKey(model);
-  modelCache.set(key, model);
-  if (modelCache.size > MAX_CACHE) modelCache.delete(modelCache.keys().next().value);
   return model;
 }
 

@@ -45,7 +45,8 @@ test('feature identity survives prompt changes while version fingerprint can cha
     const first = cachedFeatureModel(cwd, session('Add Stripe checkout', '2026-08-17T00:00:00Z'));
     const cached = cachedFeatureModel(cwd, session('Add Stripe checkout', '2026-08-17T00:00:00Z'));
     const second = cachedFeatureModel(cwd, session('Improve checkout errors without changing the feature boundary', '2026-08-17T00:01:00Z', 's2'));
-    assert.strictEqual(cached, first);
+    assert.notStrictEqual(cached, first);
+    assert.deepEqual(cached, first);
     assert.equal(first.featureKey, second.featureKey);
     assert.notEqual(first.fingerprint, second.fingerprint);
     assert.deepEqual(compareFeatureSnapshots(featureSnapshot(first), featureSnapshot(second)).changed, false);

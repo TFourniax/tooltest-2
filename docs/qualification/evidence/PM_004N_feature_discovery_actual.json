@@ -1,0 +1,24 @@
+{
+  "classification": "MACHINE",
+  "stage": "DISCOVERY",
+  "commented_import_edges": [
+    {
+      "from": "file:entry.js",
+      "to": "file:invented.js",
+      "kind": "imports"
+    }
+  ],
+  "data_surfaces": {
+    "routes": [
+      "/api/private-value"
+    ],
+    "tables": [
+      "invented"
+    ],
+    "technologies": [
+      "Stripe"
+    ]
+  },
+  "stale_same_object": true,
+  "mutation_leaks": true
+}

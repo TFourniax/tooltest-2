@@ -1,0 +1,94 @@
+✔ canonical feature imports ignore comment/string decoys and cite the exact bytes (15.246642ms)
+✔ configuration values never create feature facts, including unavailable or rejected Core (4.699049ms)
+✔ Python package references preserve members without inventing member-module edges or resolving ambiguity (3.169882ms)
+✔ canonical unparsed/rejected source cannot resurrect legacy import guesses (2.570228ms)
+✔ fresh feature models see same-size timestamp-preserved edits and cannot share caller mutation (8.13686ms)
+✔ canonical breadth and depth remain bounded and source exclusions still apply (3.977971ms)
+✖ feature identity survives prompt changes while version fingerprint can change (30.148914ms)
+✔ material boundary drift marks feature fluency for refresh and a correct check clears it (6.470953ms)
+✔ Python feature model follows project-local imports and FastAPI/SQLAlchemy boundaries (24.975138ms)
+✔ Next.js file-system API routes become feature surfaces without runtime claims (3.018024ms)
+✔ feature model follows bounded local imports and surfaces feature responsibilities (29.817033ms)
+✔ feature model refuses traversal outside the project and remains bounded (3.635054ms)
+✔ details are explicitly requested and strictly admitted without changing v1 defaults (2.654355ms)
+✔ v2 rejects forged source detail, authority, schema and widened time budgets (0.632564ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 13
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 142.374542
+
+✖ failing tests:
+
+test at test/feature-memory.test.mjs:42:1
+✖ feature identity survives prompt changes while version fingerprint can change (30.148914ms)
+  AssertionError [ERR_ASSERTION]: Values have same structure but are not reference-equal:
+
+  ... Skipped lines
+  {
+    challenge: {
+      answer: 0,
+      explanation: 'The bounded map associates Stripe with src/services/stripe.ts. This is an inferred reference; package origin and runtime use are unresolved.',
+      kind: 'feature-boundary',
+      options: [
+        'src/services/stripe.ts references Stripe',
+        'Stripe is a local database table',
+        'Stripe is only a CSS dependency'
+      ],
+      question: 'In this feature map, which file is associated with the Stripe reference?'
+    },
+    confidence: 'bounded-static',
+    disclaimer: 'This is a bounded static mental model of cited source syntax, inferred local links and explicitly labelled legacy heuristics. It is not a proven runtime call graph.',
+    edges: [
+      {
+        epistemic_status: 'INFERRED',
+        extraction: 'legacy-heuristic',
+        from: 'file:src/api/checkout.ts',
+        kind: 'imports',
+        source: {
+          path: 'src/api/checkout.ts',
+          source_sha256: '2f735875b548eb7dbfa7d77bdab6f6e0ab051385eed35bda602b039eec0eb4ae'
+        },
+        to: 'file:src/services/stripe.ts'
+      },
+      {
+        epistemic_status: 'INFERRED',
+        extraction: 'legacy-heuristic',
+        from: 'file:src/api/checkout.ts',
+        kind: 'references-route',
+        source: {
+          path: 'src/api/checkout.ts',
+          source_sha256: '2f735875b548eb7dbfa7d77bdab6f6e0ab051385eed35bda602b039eec0eb4ae'
+        },
+        to: 'route:/api/checkout'
+      },
+      {
+        epistemic_status: 'INFERRED',
+        extraction: 'legacy-heuristic',
+        from: 'file:src/api/checkout.ts',
+        kind: 'references-technology',
+        source: {
+          path: 'src/api/checkout.ts',
+          source_sha256: '2f735875b548eb7dbfa7d77bdab6f6e0ab051385eed35bda602b039eec0eb4ae'
+        },
+        to: 'technology:Stripe'
+      },
+      {
+        epistemic_status: 'INFERRED',
+  ...}
+
+      at TestContext.<anonymous> (file:///workspace/scratch/e9f3b6772074/work/idle_feature_graph/test/feature-memory.test.mjs:48:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.start (node:internal/test_runner/test:1242:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { schema: 'idleproof.feature-model.v1', fingerprint: '3b25b0fa3314ca3c560816b2', confidence: 'bounded-static', generatedFrom: { seedFiles: [Array], filesInspected: 2, bytesInspected: 325, maxDepth: 2, coverage: [Array] }, nodes: [ [Object], [Object], [Object], [Object] ], edges: [ [Object], [Object], [Object], [Object] ], references: [], symbols: [], story: [ [Object], [Object], [Object] ], surfaces: { routes: [Array], tables: [], technologies: [Array] }, tests: [], riskNotes: [ 'No related test file was observed in the bounded local feature map.', 'Inferred or task-declared technology references: Stripe. Origins and runtime use are unresolved.', 'Structure coverage is incomplete; inspect per-file coverage before relying on this map.' ], challenge: { kind: 'feature-boundary', question: 'In this feature map, which file is associated with the Stripe reference?', options: [Array], answer: 0, explanation: 'The bounded map associates Stripe with src/services/stripe.ts. This is an inferred reference; package origin and runtime use are unresolved.' }, explainBack: 'Explain this feature back in one sentence: src/api/checkout.ts → src/services/stripe.ts → Stripe. Focus on responsibility, not syntax.', disclaimer: 'This is a bounded static mental model of cited source syntax, inferred local links and explicitly labelled legacy heuristics. It is not a proven runtime call graph.', featureKey: '60361ee7ab1a331367140baf' },
+    expected: { schema: 'idleproof.feature-model.v1', fingerprint: '3b25b0fa3314ca3c560816b2', confidence: 'bounded-static', generatedFrom: { seedFiles: [Array], filesInspected: 2, bytesInspected: 325, maxDepth: 2, coverage: [Array] }, nodes: [ [Object], [Object], [Object], [Object] ], edges: [ [Object], [Object], [Object], [Object] ], references: [], symbols: [], story: [ [Object], [Object], [Object] ], surfaces: { routes: [Array], tables: [], technologies: [Array] }, tests: [], riskNotes: [ 'No related test file was observed in the bounded local feature map.', 'Inferred or task-declared technology references: Stripe. Origins and runtime use are unresolved.', 'Structure coverage is incomplete; inspect per-file coverage before relying on this map.' ], challenge: { kind: 'feature-boundary', question: 'In this feature map, which file is associated with the Stripe reference?', options: [Array], answer: 0, explanation: 'The bounded map associates Stripe with src/services/stripe.ts. This is an inferred reference; package origin and runtime use are unresolved.' }, explainBack: 'Explain this feature back in one sentence: src/api/checkout.ts → src/services/stripe.ts → Stripe. Focus on responsibility, not syntax.', disclaimer: 'This is a bounded static mental model of cited source syntax, inferred local links and explicitly labelled legacy heuristics. It is not a proven runtime call graph.', featureKey: '60361ee7ab1a331367140baf' },
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

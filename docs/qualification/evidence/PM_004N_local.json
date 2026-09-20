@@ -1,0 +1,97 @@
+{
+  "schema": "pm-004n-local-1",
+  "classification": "MACHINE",
+  "development_parent": "ef797f90b5877a2ac1b744e79c220039d497ab53",
+  "qualified_parent": null,
+  "qualified_core": null,
+  "workflow_pin_pending": true,
+  "core_source_manifest_sha256": "c48e9346570bdcf2c95800df99f3c46dc3ee6f6db7d3894d2c61ab623ebcb528",
+  "targeted": {
+    "run": 15,
+    "pass": 15
+  },
+  "full": {
+    "run": 231,
+    "pass": 231,
+    "skips": 0,
+    "seconds": 16.057
+  },
+  "actual_optional": "PASS",
+  "actual_base": "PASS",
+  "installed_package": "PASS",
+  "quality_before_fingerprint_only_review": {
+    "explain": 30,
+    "adversarial": 238,
+    "exact_paths_and_symbols": 234,
+    "idlebench": 5,
+    "corpus": 15
+  },
+  "performance": {
+    "budgets_ms": [
+      150,
+      500,
+      750,
+      100
+    ],
+    "python_ms": [
+      85.4,
+      93.0,
+      189.4,
+      0.2
+    ],
+    "typescript_ms": [
+      86.4,
+      89.6,
+      205.5,
+      0.2
+    ],
+    "json_ms": [
+      88.3,
+      91.5,
+      211.9,
+      0.5
+    ],
+    "measurement": "Sequential after suites and package; shared host, not a controlled comparison or worst-case qualification."
+  },
+  "files": {
+    "src/feature-model.mjs": "0bba9a2a1c3fe67bbb609e2677ff83ee215ec5b2980a577c3dc9d94facd34003",
+    "src/feature-memory.mjs": "2846353c1da683cac1e8692ce26e6ceed26b9149f215530d46c6f811f02d0a24",
+    "src/structure-provider.mjs": "aeaae9070f5dcb99a4bf5f2be28e768776688e296514ff6795b5a52753a0ff1b",
+    "test/feature-canonical.test.mjs": "3cd40d79d58d1a9bb0c27542e426c8b9d2fe3ee8b90e8c005a51d6c92b4e513a",
+    "test/feature-memory.test.mjs": "e558243a7f644f61711bf56e590f860ee2c8170235462ce77b40927a8e841534",
+    "test/structure-details.test.mjs": "1b124b9028f29bda4bd8828164561b266de25179c02555ffb54d14de4beff8b0",
+    "scripts/feature-canonical-smoke.mjs": "d714a6c6100d95ac4a4cca96230c836382ce83af87df954f393b977aa19b709a",
+    "scripts/perf-gate.mjs": "f4d0f1f5c6880f4ab4094d007caa0c3bd4dcfeda79ef81ecd1daf6aead97efa6",
+    "README.md": "d993ad45f16ea97ed8472c711b109e64dcc517f25a729b685c516dd2de21c752"
+  },
+  "logs": {
+    "PM_004N_actual_base.log": "20b33eacd2c07e77e1a42251c382e8df1a8e5a40b46e44c7466e69273bdd60a4",
+    "PM_004N_actual_first.log": "e34bb673642db8cca0a225b39c328ee0a9ebdb95f5d5e4c299582e696b6494d2",
+    "PM_004N_corpus.log": "a348aba6379380548240dcaed6b935e5c860f56e73b69d07c857cc33bea653c1",
+    "PM_004N_details_after.log": "e43b4fe9b9a443c43bbffae1abd45f41027a33465ea460acc9f4767344e3fe08",
+    "PM_004N_details_before.log": "b0c5e6f63f3aba404862e9d24daa067494f12d47fd2f6db33984db5db8f616c0",
+    "PM_004N_explainbench.log": "53b49728130ecfbe303256c20079627d853f9a1cb420f8625d140e1bed9eb927",
+    "PM_004N_feature_after.log": "8a5c515dd4b5c3e64af4b01cff932b6edd833201279c65f90588b81fb447580b",
+    "PM_004N_feature_before.log": "10d6122d97fdf28233c7c2db34c02ed79393f0133031691e9cec6ee6b0cd7d6f",
+    "PM_004N_feature_detached_after.log": "16f90542e2d0e0d5cc1231131a25752430f13ebaad0716d966bcc63e12d5f151",
+    "PM_004N_feature_discovery_actual.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "PM_004N_full_first.log": "501c72616d48b10f31611ac6737dba24fbbb57328e684eab4dffedd767c82139",
+    "PM_004N_idlebench.log": "a13a085f7381526f3aded3332bd4f2a3d3e8d6f6401fcda1d3cb0b3b37c79cfa",
+    "PM_004N_package.log": "1cdf803c3b3d1ea4a9e355fd8a22a86f5e934e23e6e77d39b816435d13eb49a4",
+    "PM_004N_perf_json.log": "11b90f0b7fab2439fa440a44a6c51f8a5c3c3076744cc4d30984a1dc3d564848",
+    "PM_004N_perf_python.log": "971f5f3c9260eb55318082106d82ab2b4fd85d062f5ca416225777007e5ec474",
+    "PM_004N_perf_typescript.log": "816ae6faa58d835baf133826f8f2f86e4d7c4bf3844b9b516404c1c29d2634d7",
+    "PM_004N_reviewed_actual.log": "e34bb673642db8cca0a225b39c328ee0a9ebdb95f5d5e4c299582e696b6494d2",
+    "PM_004N_reviewed_actual_base.log": "20b33eacd2c07e77e1a42251c382e8df1a8e5a40b46e44c7466e69273bdd60a4",
+    "PM_004N_reviewed_full.log": "e403e3d577b2b03719320cf025afa700e317dcfea5ca18ddac741b0d5ebc64ba",
+    "PM_004N_reviewed_package.log": "1cdf803c3b3d1ea4a9e355fd8a22a86f5e934e23e6e77d39b816435d13eb49a4",
+    "PM_004N_reviewed_perf_json.log": "a805d53138f93733981da57ceec5bc63b04649aa73a788000cc61611fe7570bd",
+    "PM_004N_reviewed_perf_python.log": "1620f2b664c02bb6af264577ff88684a76e275065803b21955e508f918ea7189",
+    "PM_004N_reviewed_perf_typescript.log": "d188c35ee1c2a68bcb93f6dc270c364ea457b86da0ed7a116de12e438a7a77c0",
+    "PM_004N_reviewed_targeted.log": "982b09c569bf6a767108f610fa1458dc43ba6fa012fe26bc0839a1101e905bbe",
+    "PM_004N_symbol_fingerprint_before.log": "2d64eb8bd3464e5a2663a7c225543e369821620ed1e2473a22a9d2f10fe66cb9",
+    "PM_004N_torturebench.log": "f29835c93b9f27292a2982128132abdaf628bb4e78b8cc61d2e5ffdd71b41f56"
+  },
+  "human": "NOT RUN",
+  "global_status": "NOT ALPHA READY"
+}
