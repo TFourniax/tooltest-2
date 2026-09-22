@@ -12,6 +12,13 @@ const matches = (value,pattern) => typeof value === 'string' && pattern.test(val
 const hash = (value,pattern) => value === null || matches(value,pattern);
 const integer = value => Number.isSafeInteger(value) && value>=0;
 
+function source(value) {
+  if (value === undefined) return true; // Legacy contexts are explicitly uncited.
+  return object(value) && Object.keys(value).sort().join('|')==='eventHash|eventId|kind'
+    && value.kind==='project-event' && matches(value.eventId,/^dwev_[a-f0-9]{24}$/)
+    && matches(value.eventHash,/^[a-f0-9]{64}$/);
+}
+
 function lifecycle(value) {
   if (value === undefined) return true; // Compatible with older Core contexts.
   if (!object(value)) return false;
@@ -19,12 +26,14 @@ function lifecycle(value) {
   return value.action==='confirmed' && value.active===true && value.epistemicStatus==='DECLARED'
     && text(value.reason,4096) && value.reason.trim().length>0
     && matches(value.sourceEventId,/^dwev_[a-f0-9]{24}$/) && matches(value.assertionEventId,/^dwev_[a-f0-9]{24}$/)
+    && value.sourceEventId!==value.assertionEventId
     && text(value.updatedAt,80) && value.replacementId===null && value.replacementEventId===null;
 }
 
 function entity(value,kind) {
   return object(value) && identity(value.id) && value.kind===kind && nullableText(value.label,2000)
-    && status(value.epistemicStatus) && object(value.details) && lifecycle(value.lifecycle);
+    && status(value.epistemicStatus) && object(value.details) && lifecycle(value.lifecycle) && source(value.source)
+    && !(value.source && value.lifecycle?.action==='confirmed' && value.lifecycle.assertionEventId!==value.source.eventId);
 }
 
 function boundedJson(value) {

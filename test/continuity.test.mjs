@@ -9,8 +9,8 @@ function fixture() {
     schema_version:'continuity-context-1', context_id:`dwctx_${'a'.repeat(24)}`,
     generated_at:'2026-09-18T10:00:00Z', project:{name:'fixture',fingerprint:`dwrepo_${'b'.repeat(24)}`},
     task:'Refund safety', state:{eventHead:'c'.repeat(64),structureTree:'d'.repeat(40),structureCoverage:null},
-    objectives:[], tasks:[{id:'TASK-REFUND',kind:'task',label:'Refund safety',epistemicStatus:'DECLARED',details:{anchor_sha256:'PRIVATE_DIGEST',why:'Private details'},lifecycle:{}}],
-    decisions:[{id:'DEC-RETRY',kind:'decision',label:'Retry safely',epistemicStatus:'OBSERVED',details:{},lifecycle:{
+    objectives:[], tasks:[{id:'TASK-REFUND',kind:'task',label:'Refund safety',epistemicStatus:'DECLARED',details:{anchor_sha256:'PRIVATE_DIGEST',why:'Private details'},source:{kind:'project-event',eventId:`dwev_${'2'.repeat(24)}`,eventHash:'3'.repeat(64)},lifecycle:{}}],
+    decisions:[{id:'DEC-RETRY',kind:'decision',label:'Retry safely',epistemicStatus:'OBSERVED',details:{},source:{kind:'project-event',eventId:`dwev_${'f'.repeat(24)}`,eventHash:'4'.repeat(64)},lifecycle:{
       action:'confirmed',active:true,reason:'Reviewed current policy',epistemicStatus:'DECLARED',
       sourceEventId:`dwev_${'e'.repeat(24)}`,assertionEventId:`dwev_${'f'.repeat(24)}`,
       updatedAt:'2026-09-18T10:00:00Z',replacementId:null,replacementEventId:null}}],
@@ -76,4 +76,38 @@ test('absent or unusable Core degrades to no advisory context', () => {
   assert.equal(loadContinuityContext('/a-nonexistent-project-for-context-test','refund'),null);
   assert.equal(loadContinuityContext('.', ''),null);
   assert.equal(renderContinuityForAgent(null),'');
+});
+
+test('assertion and review references remain complete beside claims within every budget', () => {
+  const context=fixture();
+  const full=renderContinuityForAgent(context);
+  assert.ok(full.includes(`event head ${context.state.eventHead}`));
+  assert.ok(full.includes(`structure tree ${context.state.structureTree}`));
+  for(const entity of [...context.tasks,...context.decisions]) {
+    const row=full.split('\n').find(line=>line.startsWith(`- ${entity.id} `));
+    assert.ok(row.includes(entity.source.eventId)); assert.ok(row.includes(entity.source.eventHash));
+  }
+  assert.ok(full.includes(`review ${context.decisions[0].lifecycle.sourceEventId}`));
+  for(let maxChars=500;maxChars<=full.length;maxChars+=7) {
+    const text=renderContinuityForAgent(context,{maxChars});
+    assert.ok(text.length<=maxChars);
+    for(const row of text.split('\n').filter(line=>line.startsWith('- '))) assert.ok(full.split('\n').includes(row),row);
+  }
+  delete context.tasks[0].source;
+  assert.match(renderContinuityForAgent(context),/TASK-REFUND .*source unavailable/);
+  context.tasks[0].id='TASK-'+ 'a'.repeat(500);
+  assert.ok(renderContinuityForAgent(context).includes(context.tasks[0].id));
+});
+
+test('source admission rejects malformed or mismatched references without upgrading authority', () => {
+  for(const mutate of [
+    c=>c.tasks[0].source=null, c=>c.tasks[0].source={}, c=>c.tasks[0].source.kind='proof',
+    c=>c.tasks[0].source.eventId=['dwev_'+'2'.repeat(24)], c=>c.tasks[0].source.eventHash='3'.repeat(63),
+    c=>c.tasks[0].source.extra='PRIVATE', c=>c.decisions[0].source.eventId='dwev_'+'a'.repeat(24),
+    c=>c.decisions[0].lifecycle.sourceEventId=c.decisions[0].lifecycle.assertionEventId,
+  ]) {
+    const context=fixture(); mutate(context);
+    assert.equal(__continuityTest.validContext(context),false,String(mutate));
+    assert.equal(renderContinuityForAgent(context),'');
+  }
 });

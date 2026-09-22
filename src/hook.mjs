@@ -109,20 +109,20 @@ function sessionForEvent(state, event) {
 
 function loadingOutput(cwd, state, event) {
   const session = sessionForEvent(state, event);
-  if (!session?.task?.id) return null;
+  if (!/^dwtask_[a-f0-9]{24}$/.test(session?.task?.id || '')) return null;
   const query = taskContinuityQuery(session);
   const continuity = loadContinuityContext(cwd, query);
   const counts = continuityCounts(continuity);
-  const continuityText = renderContinuityForAgent(continuity, { maxChars: 5200 });
   const primary = taskDisplayText(session) || 'current task';
   const focus = String(session.task?.latestFocus || '').replace(/\s+/g, ' ').trim();
   const focusLine = focus && focus !== session.task.anchor ? `\nCurrent focus: ${focus.slice(0, 260)}` : '';
-  const taskContext = [
+  const taskHeader = [
     `ACTIVE TASK ${session.task.id}`,
     `Primary objective: ${String(session.task.anchor || primary).slice(0, 1000)}`,
-    focusLine ? focusLine.trimStart() : null,
-    continuityText || null
+    focusLine ? focusLine.trimStart() : null
   ].filter(Boolean).join('\n\n');
+  const continuityText = renderContinuityForAgent(continuity, { maxChars: Math.min(5200,6500-taskHeader.length-2) });
+  const taskContext = [taskHeader,continuityText].filter(Boolean).join('\n\n');
   const contextSummary = counts
     ? `${counts.tasks} related task(s) · ${counts.objectives} objective(s) · ${counts.decisions} decision(s) · ${counts.criticalInvariants || counts.invariants} invariant(s) · ${counts.debt} open debt item(s)`
     : 'task identity ready · project memory unavailable or rejected';
@@ -136,7 +136,7 @@ function loadingOutput(cwd, state, event) {
     systemMessage,
     hookSpecificOutput: {
       hookEventName: 'UserPromptSubmit',
-      additionalContext: taskContext.slice(0, 6500)
+      additionalContext: taskContext
     }
   };
 }

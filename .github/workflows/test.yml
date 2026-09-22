@@ -115,7 +115,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: TFourniax/tooltest
-          ref: 6ea6fbbec251fe06b55b7852ca7822b4b40705c4
+          ref: 8c0481f5107c500b125cdfa368670c60c2ec8e9e
           path: core-context-fixture
           persist-credentials: false
       - uses: actions/setup-python@v7

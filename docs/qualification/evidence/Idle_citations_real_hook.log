@@ -1,0 +1,1 @@
+{"schema":"idleproof-core-context-smoke-3","passed":true,"coreVersion":"diffwitness 0.4.0a1","tasks":1,"review":"DECLARED","assertionCitationsPreserved":true,"reviewCitationsPreserved":true,"wholeRowsWithinBudget":true,"actualHookChars":5652,"actualHookCitedRows":4,"retiredExcluded":true,"nativePrompts":12,"human":"NOT_RUN"}
