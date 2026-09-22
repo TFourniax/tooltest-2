@@ -1,0 +1,30 @@
+✖ upgraded legacy sessions retain their loading header without unbounded identity output (66.45326ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 175.550027
+
+✖ failing tests:
+
+test at test/hook.test.mjs:60:1
+✖ upgraded legacy sessions retain their loading header without unbounded identity output (66.45326ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /ACTIVE TASK \(legacy identity unavailable\)/. Input:
+  
+  'ACTIVE TASK unsafe\x85identity\n\nPrimary objective: Refund safety'
+  
+      at TestContext.<anonymous> (file:///workspace/scratch/6732e14eb939/idle_citations/test/hook.test.mjs:74:23)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.start (node:internal/test_runner/test:1242:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'ACTIVE TASK unsafe\x85identity\n\nPrimary objective: Refund safety',
+    expected: /ACTIVE TASK \(legacy identity unavailable\)/,
+    operator: 'match',
+    diff: 'simple'
+  }

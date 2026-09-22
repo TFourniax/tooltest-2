@@ -61,7 +61,7 @@ test('upgraded legacy sessions retain their loading header without unbounded ide
   const cwd=tempRepo(), sessionId='persisted-legacy';
   try {
     processHookEvent({cwd,session_id:sessionId,hook_event_name:'UserPromptSubmit',prompt:'Refund safety'});
-    for(const id of ['historical-task','legacy-'+ 'a'.repeat(500),'unsafe\n'+ 'x'.repeat(9000)]) {
+    for(const [id,usable] of [['historical-task',true],['legacy-'+ 'a'.repeat(500),true],['unsafe\n'+ 'x'.repeat(9000),false],['unsafe\u0085identity',false],['unsafe\u0080identity',false],['unsafe\u009fidentity',false]]) {
       const state=loadState(cwd); state.sessions[sessionId].task.id=id; saveState(cwd,state);
       for(const prompt of ['continue','Inspect refund behavior']) {
         const result=processHookLifecycle({cwd,session_id:sessionId,hook_event_name:'UserPromptSubmit',prompt});
@@ -70,7 +70,7 @@ test('upgraded legacy sessions retain their loading header without unbounded ide
         assert.ok(context.length<=6500);
         assert.ok(context.includes('Primary objective: Refund safety'));
         assert.equal(result.state.sessions[sessionId].task.id,id,'display must not rewrite durable identity');
-        if(id.length<=512) assert.ok(context.startsWith(`ACTIVE TASK ${id}\n`));
+        if(usable) assert.ok(context.startsWith(`ACTIVE TASK ${id}\n`));
         else { assert.match(context,/ACTIVE TASK \(legacy identity unavailable\)/); assert.ok(!context.includes('unsafe')); }
       }
     }

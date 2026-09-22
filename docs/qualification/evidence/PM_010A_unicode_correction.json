@@ -1,0 +1,70 @@
+{
+  "classification": "MACHINE",
+  "parent_head": "a4260107cdcd64597d8871248ffbc1e2280f16d6",
+  "review_corrected": 4076450401,
+  "prior_ci": {
+    "run": 35783376406,
+    "attempt": 1,
+    "success_jobs": 15,
+    "failure_jobs": 1,
+    "failed_job": 106934110037,
+    "python_p95_ms": 222.0,
+    "budget_ms": 150,
+    "rerun": false,
+    "root_cause": "UNRESOLVED",
+    "typescript_json_latency": "NOT RUN"
+  },
+  "current_full_tap": {
+    "total": 250,
+    "passed": 250,
+    "failed": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "duration_ms": 16589.514139
+  },
+  "actual_core": "PASS, legacy identity and assertion/review citations",
+  "corrected_source_local_perf_p95_ms": {
+    "python": 53.3,
+    "typescript": 73.1,
+    "json": 70.3
+  },
+  "no_claim": "The Unicode correction is not asserted to fix the unrelated CI slowdown. Instrumented local profile is diagnostic only. Prior failure retained. Fresh exact-source CI and root-cause follow-up required.",
+  "raw_files": [
+    {
+      "path": "Idle_legacy_CI_python_failure.log",
+      "sha256": "9ab239e51f5984df851917cb11e78da784d9a59e579147e9382088959696dc7e"
+    },
+    {
+      "path": "Idle_legacy_profile.log",
+      "sha256": "89aed7d61117108c1ff84b7cd746fb674282339e98de34394a9702332ab50363"
+    },
+    {
+      "path": "Idle_legacy_unicode_before.log",
+      "sha256": "f2c2455b1fce18e7ceef714dd417b36232ea1253e277a732ca4da7f052f06ac0"
+    },
+    {
+      "path": "Idle_legacy_unicode_after.log",
+      "sha256": "79b6e0c5ee7ca07f87890f35fd3c4ecd172dbec41ef54a43f46d59c95e0010f9"
+    },
+    {
+      "path": "Idle_legacy_unicode_full_tap.log",
+      "sha256": "0bb3c690c275bce8b28a2e53f9be4dad6a4709a471b26a3e6baea805a9b914ae"
+    },
+    {
+      "path": "Idle_legacy_unicode_actual_core.log",
+      "sha256": "9a36954f8cc801f7357342cdc31f87fcf971583dea9de0b575f4d07f124390d8"
+    },
+    {
+      "path": "Idle_unicode_python_perf.log",
+      "sha256": "71313cf7d2f0c82e859afeef751daaae2bce54b0c03a03a51a32365233699cec"
+    },
+    {
+      "path": "Idle_unicode_typescript_perf.log",
+      "sha256": "4f985a8bc4857570d8bfbf4b89f4576ece7703d118f4b02efeb3c3a1eed68201"
+    },
+    {
+      "path": "Idle_unicode_json_perf.log",
+      "sha256": "ef6173f3b813073ac5791725ffe5a9944398e207a5a458da265b28f6a4bbd01b"
+    }
+  ]
+}
