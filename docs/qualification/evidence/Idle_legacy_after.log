@@ -1,0 +1,10 @@
+✔ hook lifecycle records stable task identity, exposure, footprint, trust findings, and a diff-bound receipt (111.054557ms)
+✔ upgraded legacy sessions retain their loading header without unbounded identity output (51.82574ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 265.932751

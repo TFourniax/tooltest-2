@@ -8,6 +8,7 @@ import { loadContinuityContext, renderContinuityForAgent } from '../src/continui
 import { __portalTest } from '../src/portal-snapshot.mjs';
 import { updateSessionTask, taskContinuityQuery } from '../src/task.mjs';
 import { processHookLifecycle } from '../src/hook.mjs';
+import { saveState } from '../src/state.mjs';
 
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'idleproof-core-context-'));
 const run=(command,args,input)=>execFileSync(command,args,{cwd:root,input,encoding:'utf8',windowsHide:true,timeout:30000,stdio:[input === undefined ? 'ignore' : 'pipe','pipe','pipe']});
@@ -66,6 +67,15 @@ try {
     assert.ok(item && row.includes(item.source.eventId) && row.includes(item.source.eventHash));
     assert.ok(row.includes(`review ${item.lifecycle.sourceEventId} of ${item.lifecycle.assertionEventId}`));
   }
+  hooked.state.sessions[sessionId].task.id='historical-task';
+  saveState(root,hooked.state);
+  const legacy=processHookLifecycle({cwd:root,session_id:sessionId,hook_event_name:'UserPromptSubmit',prompt:'continue'});
+  const legacyText=legacy.hookOutput.hookSpecificOutput.additionalContext;
+  assert.ok(legacyText.startsWith('ACTIVE TASK historical-task\n'));
+  assert.ok(legacyText.includes('PROJECT CONTINUITY'));
+  assert.ok(legacyText.includes(hookedContext.objectives[0].source.eventHash));
+  assert.ok(legacyText.length<=6500);
+  assert.equal(legacy.state.sessions[sessionId].task.id,'historical-task');
   let nativePrompts=0;
   const anchors = ['🧪'.repeat(11999) + 'é private suffix outside prefix',
     'a'.repeat(1198) + '🧪 suite privée', '\u0085Implement\u001cUnicode\u001fparity\ufeff'];
@@ -85,7 +95,7 @@ try {
     const retained=loadContinuityContext(root,taskContinuityQuery(session),{timeoutMs:5000});
     assert.ok(retained?.tasks.some(task=>task.id===session.task.id));
   }
-  console.log(JSON.stringify({schema:'idleproof-core-context-smoke-3',passed:true,coreVersion:run('dw',['--version']).trim(),tasks:result.tasks.length,review:'DECLARED',assertionCitationsPreserved:true,reviewCitationsPreserved:true,wholeRowsWithinBudget:true,actualHookChars:additional.length,actualHookCitedRows:citedRows.length,retiredExcluded:true,nativePrompts,human:'NOT_RUN'}));
+  console.log(JSON.stringify({schema:'idleproof-core-context-smoke-3',passed:true,coreVersion:run('dw',['--version']).trim(),tasks:result.tasks.length,review:'DECLARED',assertionCitationsPreserved:true,reviewCitationsPreserved:true,wholeRowsWithinBudget:true,actualHookChars:additional.length,actualHookCitedRows:citedRows.length,legacyLoadingAndCitationsPreserved:true,retiredExcluded:true,nativePrompts,human:'NOT_RUN'}));
 } finally {
   fs.rmSync(root,{recursive:true,force:true,maxRetries:8,retryDelay:50});
 }

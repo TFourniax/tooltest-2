@@ -1,0 +1,35 @@
+{
+  "classification": "MACHINE",
+  "previous_head": "0b26780687e27900c821bebed162b258534bedd1",
+  "previous_CI": 35781906260,
+  "previous_jobs": "16/16 SUCCESS attempt1",
+  "review_finding": 4076324524,
+  "before": "FAIL: retained legacy session lost loading block",
+  "after": "PASS: bounded legacy header/context retained; malformed identity hides lookup but retains active objective; durable ID unchanged",
+  "full_suite": "250/250 PASS; explicit TAP totals and returncode0 in authoritative diagnostic",
+  "real_Core_legacy_context_and_citations": "PASS",
+  "human": "NOT RUN",
+  "evidence": [
+    {
+      "file": "Idle_legacy_before.log",
+      "sha256": "03615c24714df1a3df7db0e1bb3042f14765bfdf46d8100a2b3a50b7491c4a12"
+    },
+    {
+      "file": "Idle_legacy_after.log",
+      "sha256": "6742ea5e33a870db9467a913eef522a7fbd40d475af16b81e9246a5eb7ee86ca"
+    },
+    {
+      "file": "Idle_legacy_full.log",
+      "sha256": "ef807c249467a7533a3fe7d6b936093458c69b79be109e6e3bae9d23f7c7f11a"
+    },
+    {
+      "file": "Idle_legacy_real_hook.log",
+      "sha256": "9a36954f8cc801f7357342cdc31f87fcf971583dea9de0b575f4d07f124390d8"
+    },
+    {
+      "file": "Idle_legacy_full_tap.log",
+      "sha256": "bf573605ccbe80b9a1839e693d153f6cbc27fd9e769842406e9713ed320a2f26"
+    }
+  ],
+  "initial_full_reporter_attempt": "exit0 but incomplete59-line log without totals: NOT QUALIFIED; retained"
+}

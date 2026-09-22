@@ -109,15 +109,18 @@ function sessionForEvent(state, event) {
 
 function loadingOutput(cwd, state, event) {
   const session = sessionForEvent(state, event);
-  if (!/^dwtask_[a-f0-9]{24}$/.test(session?.task?.id || '')) return null;
+  if (!session?.task?.id) return null;
+  const retainedId=session.task.id;
+  const usableId=typeof retainedId==='string' && retainedId.length<=512 && !/[\s\x00-\x1f\x7f]/u.test(retainedId);
+  const displayId=usableId ? retainedId : '(legacy identity unavailable)';
   const query = taskContinuityQuery(session);
-  const continuity = loadContinuityContext(cwd, query);
+  const continuity = usableId ? loadContinuityContext(cwd, query) : null;
   const counts = continuityCounts(continuity);
   const primary = taskDisplayText(session) || 'current task';
   const focus = String(session.task?.latestFocus || '').replace(/\s+/g, ' ').trim();
   const focusLine = focus && focus !== session.task.anchor ? `\nCurrent focus: ${focus.slice(0, 260)}` : '';
   const taskHeader = [
-    `ACTIVE TASK ${session.task.id}`,
+    `ACTIVE TASK ${displayId}`,
     `Primary objective: ${String(session.task.anchor || primary).slice(0, 1000)}`,
     focusLine ? focusLine.trimStart() : null
   ].filter(Boolean).join('\n\n');
@@ -127,7 +130,7 @@ function loadingOutput(cwd, state, event) {
     ? `${counts.tasks} related task(s) · ${counts.objectives} objective(s) · ${counts.decisions} decision(s) · ${counts.criticalInvariants || counts.invariants} invariant(s) · ${counts.debt} open debt item(s)`
     : 'task identity ready · project memory unavailable or rejected';
   const systemMessage = [
-    `IdleProof · loading ${session.task.id}`,
+    `IdleProof · loading ${displayId}`,
     `Task: ${primary}`,
     `Context: ${contextSummary}`,
     'Engine: local/backoffice · correctness remains a DiffWitness evidence claim at handoff.'
