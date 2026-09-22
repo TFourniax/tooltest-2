@@ -105,6 +105,7 @@ test('source admission rejects malformed or mismatched references without upgrad
     c=>c.tasks[0].source.eventId=['dwev_'+'2'.repeat(24)], c=>c.tasks[0].source.eventHash='3'.repeat(63),
     c=>c.tasks[0].source.extra='PRIVATE', c=>c.decisions[0].source.eventId='dwev_'+'a'.repeat(24),
     c=>c.decisions[0].lifecycle.sourceEventId=c.decisions[0].lifecycle.assertionEventId,
+    c=>{c.tasks[0].lifecycle=structuredClone(c.decisions[0].lifecycle);c.tasks[0].lifecycle.assertionEventId=c.tasks[0].source.eventId;},
   ]) {
     const context=fixture(); mutate(context);
     assert.equal(__continuityTest.validContext(context),false,String(mutate));

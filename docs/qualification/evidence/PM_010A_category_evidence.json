@@ -1,0 +1,26 @@
+{
+  "classification": "MACHINE",
+  "initial_head": "0db2fd85fa1cd18cb455b218ca54cf9b1c3c45b4",
+  "initial_CI": 35781089153,
+  "initial_jobs": "16/16 SUCCESS attempt1",
+  "initial_review_no_major_issues": 5783770122,
+  "cross_repo_review": 4076214883,
+  "task_lifecycle_regression": "FAIL before / PASS after",
+  "full_suite": "249/249 PASS",
+  "real_hook": "PASS:5652characters4citedrows12nativecases",
+  "human": "NOT RUN",
+  "evidence": [
+    {
+      "file": "Idle_categories_before.log",
+      "sha256": "0f2cf2f7892776396172f4cc700beb3a4ac98085d558926bcafefc374bdc21db"
+    },
+    {
+      "file": "Idle_categories_full.log",
+      "sha256": "db07d144dde055a56e5905f2b4eeff1610d808804fc148291541ebdd16c4577f"
+    },
+    {
+      "file": "Idle_categories_hook.log",
+      "sha256": "73a8538b5adbac5e14dd1d8e3713c86a8599765903e21aba02d9eb01dafad6b6"
+    }
+  ]
+}

@@ -33,6 +33,7 @@ function lifecycle(value) {
 function entity(value,kind) {
   return object(value) && identity(value.id) && value.kind===kind && nullableText(value.label,2000)
     && status(value.epistemicStatus) && object(value.details) && lifecycle(value.lifecycle) && source(value.source)
+    && !(kind==='task' && value.lifecycle?.action==='confirmed')
     && !(value.source && value.lifecycle?.action==='confirmed' && value.lifecycle.assertionEventId!==value.source.eventId);
 }
 
