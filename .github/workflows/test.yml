@@ -100,9 +100,10 @@ jobs:
           node ./scripts/idlebench.mjs
           node ./scripts/idlebench-corpus.mjs
       - name: Enforce local hook latency budgets
+        id: perf_default
         run: node ./scripts/perf-gate.mjs
       - name: Diagnose failed quality gate without changing its result
-        if: failure()
+        if: failure() && steps.perf_default.conclusion == 'failure'
         run: node ./scripts/perf-diagnostics.mjs
 
   core-context:
@@ -152,17 +153,26 @@ jobs:
       - name: Verify cited canonical feature-map references and fresh source reads
         run: node scripts/feature-canonical-smoke.mjs
       - name: Enforce existing hook budgets with actual Python provider
+        id: perf_python
         if: runner.os == 'Linux'
         run: node scripts/perf-gate.mjs --python-core
+      - name: Diagnose failed Python gate without changing its result
+        if: failure() && steps.perf_python.conclusion == 'failure'
+        run: node scripts/perf-diagnostics.mjs --python-core
       - name: Enforce existing hook budgets with actual TypeScript provider
+        id: perf_typescript
         if: runner.os == 'Linux'
         run: node scripts/perf-gate.mjs --syntax-core
+      - name: Diagnose failed TypeScript gate without changing its result
+        if: failure() && steps.perf_typescript.conclusion == 'failure'
+        run: node scripts/perf-diagnostics.mjs --syntax-core
       - name: Enforce existing hook budgets with actual configuration provider
+        id: perf_json
         if: runner.os == 'Linux'
         run: node scripts/perf-gate.mjs --data-core
-      - name: Diagnose failed Core hook job without changing its result
-        if: failure() && runner.os == 'Linux'
-        run: node scripts/perf-diagnostics.mjs --python-core
+      - name: Diagnose failed JSON gate without changing its result
+        if: failure() && steps.perf_json.conclusion == 'failure'
+        run: node scripts/perf-diagnostics.mjs --data-core
 
   package-e2e:
     name: installed package commercial-alpha journey (${{ matrix.os }})
