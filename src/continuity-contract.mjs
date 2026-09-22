@@ -4,13 +4,21 @@ const STATUS = new Set(['DECLARED','INFERRED','OBSERVED','VERIFIED']);
 const CLAIMS = new Set(['causal','preservation','validation','not-required','inconclusive','unknown']);
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const text = (value, max=4096) => typeof value === 'string' && value.length <= max;
-const identity = value => text(value,512) && value.length>0 && !/[\s\x00-\x1f\x7f]/u.test(value);
+export const validContextIdentity = value => text(value,512) && value.length>0 && !/[\s\x00-\x1f\x7f-\x9f]/u.test(value);
+const identity = validContextIdentity;
 const status = value => STATUS.has(value);
 const nullableText = (value,max) => value === null || text(value,max);
 const array = (value,validate,max=128) => Array.isArray(value) && value.length<=max && value.every(validate);
 const matches = (value,pattern) => typeof value === 'string' && pattern.test(value);
 const hash = (value,pattern) => value === null || matches(value,pattern);
 const integer = value => Number.isSafeInteger(value) && value>=0;
+
+function source(value) {
+  if (value === undefined) return true; // Legacy contexts are explicitly uncited.
+  return object(value) && Object.keys(value).sort().join('|')==='eventHash|eventId|kind'
+    && value.kind==='project-event' && matches(value.eventId,/^dwev_[a-f0-9]{24}$/)
+    && matches(value.eventHash,/^[a-f0-9]{64}$/);
+}
 
 function lifecycle(value) {
   if (value === undefined) return true; // Compatible with older Core contexts.
@@ -19,12 +27,15 @@ function lifecycle(value) {
   return value.action==='confirmed' && value.active===true && value.epistemicStatus==='DECLARED'
     && text(value.reason,4096) && value.reason.trim().length>0
     && matches(value.sourceEventId,/^dwev_[a-f0-9]{24}$/) && matches(value.assertionEventId,/^dwev_[a-f0-9]{24}$/)
+    && value.sourceEventId!==value.assertionEventId
     && text(value.updatedAt,80) && value.replacementId===null && value.replacementEventId===null;
 }
 
 function entity(value,kind) {
   return object(value) && identity(value.id) && value.kind===kind && nullableText(value.label,2000)
-    && status(value.epistemicStatus) && object(value.details) && lifecycle(value.lifecycle);
+    && status(value.epistemicStatus) && object(value.details) && lifecycle(value.lifecycle) && source(value.source)
+    && !(kind==='task' && value.lifecycle?.action==='confirmed')
+    && !(value.source && value.lifecycle?.action==='confirmed' && value.lifecycle.assertionEventId!==value.source.eventId);
 }
 
 function boundedJson(value) {

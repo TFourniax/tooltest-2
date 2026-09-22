@@ -1,0 +1,48 @@
+{
+  "classification": "MACHINE",
+  "base": "a37cb4fe7a9e1a2f51522e7e81529f83de6a107c",
+  "core_main": "8c0481f5107c500b125cdfa368670c60c2ec8e9e",
+  "core_tree": "c82908377a5f74a594c5d456debb42ad7e308fd6",
+  "actual_installed_core_wheel": "64f85015e1d0f030a88eac9ce2ad59831905d4d2b45345ff23b8e506c6fb00d5",
+  "before": "2 new regression tests FAIL",
+  "full_tests": "249/249 PASS",
+  "actual_hook_chars": 5652,
+  "actual_hook_cited_rows": 4,
+  "native_prompt_cases": 12,
+  "pack_dry_run": "PASS",
+  "actual_optional_hooks_p95_ms": [
+    58.2,
+    72.5,
+    75.2
+  ],
+  "thresholds_unchanged": true,
+  "portal_projection": "unchanged allowlist; assertion citations are not yet projected",
+  "human": "NOT RUN",
+  "global_readiness": "NOT READY",
+  "evidence": [
+    {
+      "file": "Idle_citations_before.log",
+      "sha256": "f63b213cec8060f1ed74b53558fef80425195f4747cca9e390e5785abe0817e2"
+    },
+    {
+      "file": "Idle_citations_final_full.log",
+      "sha256": "3ad1cba8a84477400ddf206e0d534c693f59385c9b0962b5597aa13763dad0ea"
+    },
+    {
+      "file": "Idle_citations_real_hook.log",
+      "sha256": "73a8538b5adbac5e14dd1d8e3713c86a8599765903e21aba02d9eb01dafad6b6"
+    },
+    {
+      "file": "Idle_citations_python.log",
+      "sha256": "67268346dd7bf6f73863d63e26e4dab1382c9e4494d9140c9e67702cd10cb7da"
+    },
+    {
+      "file": "Idle_citations_typescript.log",
+      "sha256": "3e7c149456d3de0f5ec1ce70ce1d7f5a06d6bac2853cc300dd35f01578856df1"
+    },
+    {
+      "file": "Idle_citations_json.log",
+      "sha256": "e4ea4c846a5f176841183ec0a2331d2c919f176b74d719838470407eb4a4c87d"
+    }
+  ]
+}

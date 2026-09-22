@@ -7,6 +7,8 @@ import { execFileSync } from 'node:child_process';
 import { loadContinuityContext, renderContinuityForAgent } from '../src/continuity.mjs';
 import { __portalTest } from '../src/portal-snapshot.mjs';
 import { updateSessionTask, taskContinuityQuery } from '../src/task.mjs';
+import { processHookLifecycle } from '../src/hook.mjs';
+import { saveState } from '../src/state.mjs';
 
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'idleproof-core-context-'));
 const run=(command,args,input)=>execFileSync(command,args,{cwd:root,input,encoding:'utf8',windowsHide:true,timeout:30000,stdio:[input === undefined ? 'ignore' : 'pipe','pipe','pipe']});
@@ -25,12 +27,55 @@ try {
   assert.ok(result.tasks.some(item=>item.id==='TASK-REFUND'));
   assert.equal(result.decisions.find(item=>item.id==='DEC-RETRY').lifecycle.epistemicStatus,'DECLARED');
   assert.match(renderContinuityForAgent(result),/Reviewed current refund policy/);
+  const rendered=renderContinuityForAgent(result);
+  for(const item of [...result.tasks,...result.decisions]) {
+    assert.ok(rendered.includes(item.source.eventId));
+    assert.ok(rendered.includes(item.source.eventHash));
+  }
+  const decision=result.decisions.find(item=>item.id==='DEC-RETRY');
+  assert.equal(decision.source.eventId,decision.lifecycle.assertionEventId);
+  assert.ok(rendered.includes(`review ${decision.lifecycle.sourceEventId}`));
+  assert.ok(rendered.includes(`event head ${result.state.eventHead}`));
+  for(const maxChars of [500,700,1200,1800,5200]) {
+    const bounded=renderContinuityForAgent(result,{maxChars});
+    assert.ok(bounded.length<=maxChars);
+    for(const row of bounded.split('\n').filter(line=>line.startsWith('- '))) assert.ok(rendered.split('\n').includes(row));
+  }
   const portal=__portalTest.safeContinuityMemory(result);
   assert.ok(portal.tasks.some(item=>item.id==='TASK-REFUND'));
   assert.equal(portal.decisions.find(item=>item.id==='DEC-RETRY').lifecycle.status,'DECLARED');
   run('dw',['decision','retire','DEC-RETRY','--reason','Replaced policy']);
   const after=loadContinuityContext(root,query,{timeoutMs:5000});
   assert.ok(after); assert.ok(!after.decisions.some(item=>item.id==='DEC-RETRY'));
+  // A long active-task header must never force an outer slice through a citation.
+  for(let index=0;index<8;index+=1) {
+    const id=`OBJ-BUDGET-${index}`;
+    run('dw',['objective','add',`Refund safety ${'label '.repeat(60)}`,'--id',id]);
+    run('dw',['objective','confirm',id,'--reason',`Refund review ${'reason '.repeat(60)}`]);
+  }
+  const sessionId='cited-hook-budget';
+  processHookLifecycle({cwd:root,session_id:sessionId,hook_event_name:'UserPromptSubmit',prompt:`Refund safety ${'anchor '.repeat(180)}`});
+  const hooked=processHookLifecycle({cwd:root,session_id:sessionId,hook_event_name:'UserPromptSubmit',prompt:`Inspect refund safety ${'focus '.repeat(70)}`});
+  const additional=hooked.hookOutput.hookSpecificOutput.additionalContext;
+  assert.ok(additional.length<=6500);
+  assert.match(additional,/truncated to local budget …$/);
+  const hookedContext=loadContinuityContext(root,taskContinuityQuery(hooked.state.sessions[sessionId]),{timeoutMs:5000});
+  const citedRows=additional.split('\n').filter(line=>line.startsWith('- OBJ-BUDGET-'));
+  assert.ok(citedRows.length>0);
+  for(const row of citedRows) {
+    const item=hookedContext.objectives.find(item=>row.startsWith(`- ${item.id} `));
+    assert.ok(item && row.includes(item.source.eventId) && row.includes(item.source.eventHash));
+    assert.ok(row.includes(`review ${item.lifecycle.sourceEventId} of ${item.lifecycle.assertionEventId}`));
+  }
+  hooked.state.sessions[sessionId].task.id='historical-task';
+  saveState(root,hooked.state);
+  const legacy=processHookLifecycle({cwd:root,session_id:sessionId,hook_event_name:'UserPromptSubmit',prompt:'continue'});
+  const legacyText=legacy.hookOutput.hookSpecificOutput.additionalContext;
+  assert.ok(legacyText.startsWith('ACTIVE TASK historical-task\n'));
+  assert.ok(legacyText.includes('PROJECT CONTINUITY'));
+  assert.ok(legacyText.includes(hookedContext.objectives[0].source.eventHash));
+  assert.ok(legacyText.length<=6500);
+  assert.equal(legacy.state.sessions[sessionId].task.id,'historical-task');
   let nativePrompts=0;
   const anchors = ['🧪'.repeat(11999) + 'é private suffix outside prefix',
     'a'.repeat(1198) + '🧪 suite privée', '\u0085Implement\u001cUnicode\u001fparity\ufeff'];
@@ -50,7 +95,7 @@ try {
     const retained=loadContinuityContext(root,taskContinuityQuery(session),{timeoutMs:5000});
     assert.ok(retained?.tasks.some(task=>task.id===session.task.id));
   }
-  console.log(JSON.stringify({schema:'idleproof-core-context-smoke-2',passed:true,coreVersion:run('dw',['--version']).trim(),tasks:result.tasks.length,review:'DECLARED',retiredExcluded:true,nativePrompts,human:'NOT_RUN'}));
+  console.log(JSON.stringify({schema:'idleproof-core-context-smoke-3',passed:true,coreVersion:run('dw',['--version']).trim(),tasks:result.tasks.length,review:'DECLARED',assertionCitationsPreserved:true,reviewCitationsPreserved:true,wholeRowsWithinBudget:true,actualHookChars:additional.length,actualHookCitedRows:citedRows.length,legacyLoadingAndCitationsPreserved:true,retiredExcluded:true,nativePrompts,human:'NOT_RUN'}));
 } finally {
   fs.rmSync(root,{recursive:true,force:true,maxRetries:8,retryDelay:50});
 }

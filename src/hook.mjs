@@ -18,6 +18,7 @@ import { buildHookDelivery } from './delivery.mjs';
 import { captureBaselineIdentity, finalizeChangeIdentity } from './change-identity.mjs';
 import { schedulePortalSync } from './portal-client.mjs';
 import { taskContinuityQuery, taskDisplayText, taskMetadata, updateSessionTask } from './task.mjs';
+import { validContextIdentity } from './continuity-contract.mjs';
 import { continuityCounts, loadContinuityContext, renderContinuityForAgent } from './continuity.mjs';
 
 function now() {
@@ -110,24 +111,27 @@ function sessionForEvent(state, event) {
 function loadingOutput(cwd, state, event) {
   const session = sessionForEvent(state, event);
   if (!session?.task?.id) return null;
+  const retainedId=session.task.id;
+  const usableId=validContextIdentity(retainedId);
+  const displayId=usableId ? retainedId : '(legacy identity unavailable)';
   const query = taskContinuityQuery(session);
-  const continuity = loadContinuityContext(cwd, query);
+  const continuity = usableId ? loadContinuityContext(cwd, query) : null;
   const counts = continuityCounts(continuity);
-  const continuityText = renderContinuityForAgent(continuity, { maxChars: 5200 });
   const primary = taskDisplayText(session) || 'current task';
   const focus = String(session.task?.latestFocus || '').replace(/\s+/g, ' ').trim();
   const focusLine = focus && focus !== session.task.anchor ? `\nCurrent focus: ${focus.slice(0, 260)}` : '';
-  const taskContext = [
-    `ACTIVE TASK ${session.task.id}`,
+  const taskHeader = [
+    `ACTIVE TASK ${displayId}`,
     `Primary objective: ${String(session.task.anchor || primary).slice(0, 1000)}`,
-    focusLine ? focusLine.trimStart() : null,
-    continuityText || null
+    focusLine ? focusLine.trimStart() : null
   ].filter(Boolean).join('\n\n');
+  const continuityText = renderContinuityForAgent(continuity, { maxChars: Math.min(5200,6500-taskHeader.length-2) });
+  const taskContext = [taskHeader,continuityText].filter(Boolean).join('\n\n');
   const contextSummary = counts
     ? `${counts.tasks} related task(s) · ${counts.objectives} objective(s) · ${counts.decisions} decision(s) · ${counts.criticalInvariants || counts.invariants} invariant(s) · ${counts.debt} open debt item(s)`
     : 'task identity ready · project memory unavailable or rejected';
   const systemMessage = [
-    `IdleProof · loading ${session.task.id}`,
+    `IdleProof · loading ${displayId}`,
     `Task: ${primary}`,
     `Context: ${contextSummary}`,
     'Engine: local/backoffice · correctness remains a DiffWitness evidence claim at handoff.'
@@ -136,7 +140,7 @@ function loadingOutput(cwd, state, event) {
     systemMessage,
     hookSpecificOutput: {
       hookEventName: 'UserPromptSubmit',
-      additionalContext: taskContext.slice(0, 6500)
+      additionalContext: taskContext
     }
   };
 }

@@ -1,0 +1,66 @@
+{
+  "classification": "MACHINE",
+  "parent": "13d967f8cd8f13ab4790dba660f9b9721f54da9c",
+  "review_corrected": 4076598615,
+  "current_full_tests": {
+    "total": 251,
+    "passed": 251,
+    "failed": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "duration_ms": 17028.98483
+  },
+  "actual_core": "PASS, installed PM007 main-equivalent wheel; legacy and assertion/review citations",
+  "prior_ci": {
+    "run": 35785063986,
+    "attempt": 1,
+    "failed_job": 106939755207,
+    "default_provider_p95_ms": 180.9,
+    "budget_ms": 150,
+    "core_job": 106939755779,
+    "core_p95_ms": [
+      63.4,
+      89.0,
+      90.9
+    ],
+    "root_cause": "UNRESOLVED",
+    "rerun": false
+  },
+  "diagnostic_observer": "Locally exercised; instrumented timings do not qualify latency. CI executes only after failure; original failure remains blocking.",
+  "test_draft": "Initial before/after draft had missing test helper, retained as INVALID EVIDENCE. Corrected regression fails on old admission and passes after.",
+  "human": "NOT RUN",
+  "raw_files": [
+    {
+      "path": "Idle_entity_C1_actual_core.log",
+      "sha256": "9a36954f8cc801f7357342cdc31f87fcf971583dea9de0b575f4d07f124390d8"
+    },
+    {
+      "path": "Idle_entity_C1_after.log",
+      "sha256": "586e2e00b044a13e5057777508aafe9ec2f541e53a6a640e9475e97f6d083d8a"
+    },
+    {
+      "path": "Idle_entity_C1_after_invalid_test.log",
+      "sha256": "750d1a142d70d9477e1d538f58c22b0486d357f78f32f8e4690e49328cc1a41b"
+    },
+    {
+      "path": "Idle_entity_C1_before.log",
+      "sha256": "0c8a12c7fec92d3aace3677718851279289a37081778b3cff4e69c1e7b86371f"
+    },
+    {
+      "path": "Idle_entity_C1_before_invalid_test.log",
+      "sha256": "cb572e4d5e744ad4d5b7fc8b9eb18ac4dd21ca7dc85e3efb87e791d03af78b81"
+    },
+    {
+      "path": "Idle_entity_C1_diagnostic_local.log",
+      "sha256": "62f829f106bb06981c235750dd9291a98610ac51ed0ed363ee6a818441dbb881"
+    },
+    {
+      "path": "Idle_entity_C1_full_tap.log",
+      "sha256": "f1c18c43cce1f72cc16514a84a121791209dc52d3ce0a3cf1265ece1cd23bacc"
+    },
+    {
+      "path": "Idle_unicode_quality_failure.log",
+      "sha256": "845cdcd4d06cf53aeb1f014692fbbe29a8a26be5e5c296d4085324511bf8ce8a"
+    }
+  ]
+}

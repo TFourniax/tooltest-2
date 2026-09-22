@@ -4,8 +4,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { buildReceipt, processHookEvent } from '../src/hook.mjs';
-import { loadState } from '../src/state.mjs';
+import { buildReceipt, processHookEvent, processHookLifecycle } from '../src/hook.mjs';
+import { loadState, saveState } from '../src/state.mjs';
 import { projectPaths } from '../src/paths.mjs';
 
 function tempRepo() {
@@ -55,4 +55,24 @@ test('hook lifecycle records stable task identity, exposure, footprint, trust fi
   } finally {
     fs.rmSync(cwd, { recursive: true, force: true });
   }
+});
+
+test('upgraded legacy sessions retain their loading header without unbounded identity output', () => {
+  const cwd=tempRepo(), sessionId='persisted-legacy';
+  try {
+    processHookEvent({cwd,session_id:sessionId,hook_event_name:'UserPromptSubmit',prompt:'Refund safety'});
+    for(const [id,usable] of [['historical-task',true],['legacy-'+ 'a'.repeat(500),true],['unsafe\n'+ 'x'.repeat(9000),false],['unsafe\u0085identity',false],['unsafe\u0080identity',false],['unsafe\u009fidentity',false]]) {
+      const state=loadState(cwd); state.sessions[sessionId].task.id=id; saveState(cwd,state);
+      for(const prompt of ['continue','Inspect refund behavior']) {
+        const result=processHookLifecycle({cwd,session_id:sessionId,hook_event_name:'UserPromptSubmit',prompt});
+        const context=result.hookOutput?.hookSpecificOutput?.additionalContext;
+        assert.ok(context,'retained legacy sessions need a loading block');
+        assert.ok(context.length<=6500);
+        assert.ok(context.includes('Primary objective: Refund safety'));
+        assert.equal(result.state.sessions[sessionId].task.id,id,'display must not rewrite durable identity');
+        if(usable) assert.ok(context.startsWith(`ACTIVE TASK ${id}\n`));
+        else { assert.match(context,/ACTIVE TASK \(legacy identity unavailable\)/); assert.ok(!context.includes('unsafe')); }
+      }
+    }
+  } finally {fs.rmSync(cwd,{recursive:true,force:true});}
 });

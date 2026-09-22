@@ -1,0 +1,211 @@
+﻿2026-09-22T21:11:17.4033798Z Current runner version: '2.337.0'
+2026-09-22T21:11:17.4051413Z ##[group]Runner Image Provisioner
+2026-09-22T21:11:17.4052101Z Hosted Compute Agent
+2026-09-22T21:11:17.4052515Z Version: 20260828.587
+2026-09-22T21:11:17.4052953Z Commit: abac92662cab4cc7352de4f9f9d2e2419aad9c29
+2026-09-22T21:11:17.4053495Z Build Date: 2026-08-28T16:44:25Z
+2026-09-22T21:11:17.4054048Z Worker ID: {fca2104f-999d-4ad6-b4a6-23dd47721333}
+2026-09-22T21:11:17.4054554Z Azure Region: centralus
+2026-09-22T21:11:17.4055006Z ##[endgroup]
+2026-09-22T21:11:17.4056071Z ##[group]Operating System
+2026-09-22T21:11:17.4056559Z Ubuntu
+2026-09-22T21:11:17.4056948Z 24.04.5
+2026-09-22T21:11:17.4057327Z LTS
+2026-09-22T21:11:17.4057709Z ##[endgroup]
+2026-09-22T21:11:17.4058098Z ##[group]Runner Image
+2026-09-22T21:11:17.4058526Z Image: ubuntu-24.04
+2026-09-22T21:11:17.4058941Z Version: 20260907.300.1
+2026-09-22T21:11:17.4059857Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260907.300/images/ubuntu/Ubuntu2404-Readme.md
+2026-09-22T21:11:17.4060915Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260907.300
+2026-09-22T21:11:17.4061590Z ##[endgroup]
+2026-09-22T21:11:17.4062397Z ##[group]GITHUB_TOKEN Permissions
+2026-09-22T21:11:17.4063968Z Contents: read
+2026-09-22T21:11:17.4064443Z Metadata: read
+2026-09-22T21:11:17.4064845Z ##[endgroup]
+2026-09-22T21:11:17.4066605Z Secret source: Actions
+2026-09-22T21:11:17.4067234Z Cache mode: write
+2026-09-22T21:11:17.4067753Z Prepare workflow directory
+2026-09-22T21:11:17.4326559Z Prepare all required actions
+2026-09-22T21:11:17.4361716Z Getting action download info
+2026-09-22T21:11:17.6587438Z Download action repository 'actions/checkout@v7' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+2026-09-22T21:11:17.9659455Z Download action repository 'actions/setup-node@v7' (SHA:820762786026740c76f36085b0efc47a31fe5020)
+2026-09-22T21:11:18.5811507Z Complete job name: ExplainBench + adversarial quality + performance budgets
+2026-09-22T21:11:18.6615743Z ##[group]Run actions/checkout@v7
+2026-09-22T21:11:18.6617316Z with:
+2026-09-22T21:11:18.6618300Z   repository: TFourniax/tooltest-2
+2026-09-22T21:11:18.6626075Z   token: ***
+2026-09-22T21:11:18.6627047Z   ssh-strict: true
+2026-09-22T21:11:18.6627882Z   ssh-user: git
+2026-09-22T21:11:18.6628741Z   persist-credentials: true
+2026-09-22T21:11:18.6629674Z   clean: true
+2026-09-22T21:11:18.6630544Z   sparse-checkout-cone-mode: true
+2026-09-22T21:11:18.6631550Z   fetch-depth: 1
+2026-09-22T21:11:18.6632384Z   fetch-tags: false
+2026-09-22T21:11:18.6633257Z   show-progress: true
+2026-09-22T21:11:18.6634116Z   lfs: false
+2026-09-22T21:11:18.6635018Z   submodules: false
+2026-09-22T21:11:18.6636021Z   set-safe-directory: true
+2026-09-22T21:11:18.6637059Z   allow-unsafe-pr-checkout: false
+2026-09-22T21:11:18.6638260Z ##[endgroup]
+2026-09-22T21:11:18.7528275Z Syncing repository: TFourniax/tooltest-2
+2026-09-22T21:11:18.7530699Z ##[group]Getting Git version info
+2026-09-22T21:11:18.7532048Z Working directory is '/home/runner/work/tooltest-2/tooltest-2'
+2026-09-22T21:11:18.7533916Z [command]/usr/bin/git version
+2026-09-22T21:11:19.3697338Z git version 2.55.0
+2026-09-22T21:11:19.3711808Z ##[endgroup]
+2026-09-22T21:11:19.3721086Z Temporarily overriding HOME='/home/runner/work/_temp/faee1b91-e05d-4985-aaad-f61b17fad099' before making global git config changes
+2026-09-22T21:11:19.3721876Z Adding repository directory to the temporary git global config as a safe directory
+2026-09-22T21:11:19.3725630Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/tooltest-2/tooltest-2
+2026-09-22T21:11:19.3846278Z Deleting the contents of '/home/runner/work/tooltest-2/tooltest-2'
+2026-09-22T21:11:19.3849829Z ##[group]Determining repository object format
+2026-09-22T21:11:19.3851624Z ##[endgroup]
+2026-09-22T21:11:19.3852459Z ##[group]Initializing the repository
+2026-09-22T21:11:19.3855960Z [command]/usr/bin/git init /home/runner/work/tooltest-2/tooltest-2
+2026-09-22T21:11:19.5816640Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-09-22T21:11:19.5817655Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-09-22T21:11:19.5818273Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-09-22T21:11:19.5818817Z hint: call:
+2026-09-22T21:11:19.5819336Z hint:
+2026-09-22T21:11:19.5819726Z hint: 	git config --global init.defaultBranch <name>
+2026-09-22T21:11:19.5820069Z hint:
+2026-09-22T21:11:19.5820395Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-09-22T21:11:19.5820864Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-09-22T21:11:19.5821233Z hint:
+2026-09-22T21:11:19.5821512Z hint: 	git branch -m <name>
+2026-09-22T21:11:19.5821804Z hint:
+2026-09-22T21:11:19.5822142Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-09-22T21:11:19.5822940Z Initialized empty Git repository in /home/runner/work/tooltest-2/tooltest-2/.git/
+2026-09-22T21:11:19.5827823Z [command]/usr/bin/git remote add origin https://github.com/TFourniax/tooltest-2
+2026-09-22T21:11:19.6255408Z ##[endgroup]
+2026-09-22T21:11:19.6256121Z ##[group]Disabling automatic garbage collection
+2026-09-22T21:11:19.6258486Z [command]/usr/bin/git config --local gc.auto 0
+2026-09-22T21:11:19.6282430Z ##[endgroup]
+2026-09-22T21:11:19.6282935Z ##[group]Setting up auth
+2026-09-22T21:11:19.6283267Z Removing SSH command configuration
+2026-09-22T21:11:19.6286168Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-09-22T21:11:19.6311309Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-09-22T21:11:20.0074171Z Removing HTTP extra header
+2026-09-22T21:11:20.0080714Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-09-22T21:11:20.0106423Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-09-22T21:11:20.0277233Z Removing includeIf entries pointing to credentials config files
+2026-09-22T21:11:20.0282471Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-09-22T21:11:20.0305806Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-09-22T21:11:20.0471094Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-f3fd2772-7b8c-4430-8611-22c41e728d6c.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-09-22T21:11:20.0499761Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/tooltest-2/tooltest-2/.git.path /home/runner/work/_temp/git-credentials-f3fd2772-7b8c-4430-8611-22c41e728d6c.config
+2026-09-22T21:11:20.0522331Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/tooltest-2/tooltest-2/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-f3fd2772-7b8c-4430-8611-22c41e728d6c.config
+2026-09-22T21:11:20.0547081Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-f3fd2772-7b8c-4430-8611-22c41e728d6c.config
+2026-09-22T21:11:20.0571078Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-f3fd2772-7b8c-4430-8611-22c41e728d6c.config
+2026-09-22T21:11:20.0592201Z ##[endgroup]
+2026-09-22T21:11:20.0592802Z ##[group]Fetching the repository
+2026-09-22T21:11:20.0597411Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +dc40c2d14396ca01022bf40a58acca507c2ac831:refs/remotes/pull/15/merge
+2026-09-22T21:11:20.9666739Z From https://github.com/TFourniax/tooltest-2
+2026-09-22T21:11:20.9667520Z  * [new ref]         dc40c2d14396ca01022bf40a58acca507c2ac831 -> pull/15/merge
+2026-09-22T21:11:20.9674506Z ##[endgroup]
+2026-09-22T21:11:20.9675257Z ##[group]Determining the checkout info
+2026-09-22T21:11:20.9676181Z ##[endgroup]
+2026-09-22T21:11:20.9677794Z [command]/usr/bin/git sparse-checkout disable
+2026-09-22T21:11:20.9717969Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-09-22T21:11:20.9739777Z ##[group]Checking out the ref
+2026-09-22T21:11:20.9743440Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/15/merge
+2026-09-22T21:11:20.9876495Z Note: switching to 'refs/remotes/pull/15/merge'.
+2026-09-22T21:11:20.9876888Z 
+2026-09-22T21:11:20.9877155Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-09-22T21:11:20.9877761Z changes and commit them, and you can discard any commits you make in this
+2026-09-22T21:11:20.9878258Z state without impacting any branches by switching back to a branch.
+2026-09-22T21:11:20.9878562Z 
+2026-09-22T21:11:20.9878838Z If you want to create a new branch to retain commits you create, you may
+2026-09-22T21:11:20.9879258Z do so (now or later) by using -c with the switch command. Example:
+2026-09-22T21:11:20.9879605Z 
+2026-09-22T21:11:20.9880634Z   git switch -c <new-branch-name>
+2026-09-22T21:11:20.9880884Z 
+2026-09-22T21:11:20.9881111Z Or undo this operation with:
+2026-09-22T21:11:20.9881325Z 
+2026-09-22T21:11:20.9881484Z   git switch -
+2026-09-22T21:11:20.9881682Z 
+2026-09-22T21:11:20.9881912Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-09-22T21:11:20.9882277Z 
+2026-09-22T21:11:20.9882633Z HEAD is now at dc40c2d Merge 13d967f8cd8f13ab4790dba660f9b9721f54da9c into a37cb4fe7a9e1a2f51522e7e81529f83de6a107c
+2026-09-22T21:11:20.9884715Z ##[endgroup]
+2026-09-22T21:11:20.9916148Z [command]/usr/bin/git log -1 --format=%H
+2026-09-22T21:11:20.9933412Z dc40c2d14396ca01022bf40a58acca507c2ac831
+2026-09-22T21:11:21.0137681Z ##[group]Run actions/setup-node@v7
+2026-09-22T21:11:21.0138254Z with:
+2026-09-22T21:11:21.0138510Z   node-version: 22
+2026-09-22T21:11:21.0138754Z   check-latest: false
+2026-09-22T21:11:21.0140759Z   token: ***
+2026-09-22T21:11:21.0140999Z   package-manager-cache: true
+2026-09-22T21:11:21.0141269Z ##[endgroup]
+2026-09-22T21:11:21.1637430Z Found in cache @ /opt/hostedtoolcache/node/22.23.2/x64
+2026-09-22T21:11:21.1638551Z ##[group]Environment details
+2026-09-22T21:11:22.9936538Z node: v22.23.2
+2026-09-22T21:11:22.9936891Z npm: 10.9.8
+2026-09-22T21:11:22.9937219Z yarn: 1.22.22
+2026-09-22T21:11:22.9938384Z ##[endgroup]
+2026-09-22T21:11:23.0038143Z ##[group]Run node ./scripts/explainbench.mjs
+2026-09-22T21:11:23.0038569Z [36;1mnode ./scripts/explainbench.mjs[0m
+2026-09-22T21:11:23.0038894Z [36;1mnode ./scripts/explain-torturebench.mjs[0m
+2026-09-22T21:11:23.0039221Z [36;1mnode ./scripts/idlebench.mjs[0m
+2026-09-22T21:11:23.0039515Z [36;1mnode ./scripts/idlebench-corpus.mjs[0m
+2026-09-22T21:11:23.2198324Z shell: /usr/bin/bash -e {0}
+2026-09-22T21:11:23.2198795Z ##[endgroup]
+2026-09-22T21:11:23.2554543Z ExplainBench PASS · 30 cross-domain scenarios · exact paths 30/30 · safe fallbacks 2
+2026-09-22T21:11:23.7548282Z Explain TortureBench PASS · 238 adversarial project forms · exact paths 234/234 · live symbols 234/234
+2026-09-22T21:11:23.7830350Z IdleBench PASS · 5 contextual quality cases + wait-window Explain-first contracts
+2026-09-22T21:11:23.8141249Z IdleBench Corpus PASS · 15 domains + anti-hallucination + wait-window ergonomics
+2026-09-22T21:11:23.8188979Z ##[group]Run node ./scripts/perf-gate.mjs
+2026-09-22T21:11:23.8189304Z [36;1mnode ./scripts/perf-gate.mjs[0m
+2026-09-22T21:11:23.8207404Z shell: /usr/bin/bash -e {0}
+2026-09-22T21:11:23.8207705Z ##[endgroup]
+2026-09-22T21:11:28.0842614Z {"schema":"idleproof-hook-latency-samples-1","provider":"default","node":"v22.23.2","platform":"linux","arch":"x64","cpus":4,"p95Ms":180.869637,"maxMs":283.89285900000004,"budgets":{"p95Ms":150,"maxMs":500},"samples":[{"event":"PreToolUse","ms":4.449870000000004},{"event":"PostToolUse","ms":6.4940269999999884},{"event":"PreToolUse","ms":1.348210999999992},{"event":"PostToolUse","ms":57.823756},{"event":"PreToolUse","ms":14.46278000000001},{"event":"PostToolUse","ms":189.512625},{"event":"PreToolUse","ms":97.33579500000002},{"event":"PostToolUse","ms":96.375225},{"event":"PreToolUse","ms":4.3413699999999835},{"event":"PostToolUse","ms":2.6202729999999974},{"event":"PreToolUse","ms":165.27934400000004},{"event":"PostToolUse","ms":3.1571029999998927},{"event":"PreToolUse","ms":95.42439100000001},{"event":"PostToolUse","ms":2.4356339999999363},{"event":"PreToolUse","ms":0.8589170000000195},{"event":"PostToolUse","ms":2.583966000000032},{"event":"PreToolUse","ms":14.568081000000006},{"event":"PostToolUse","ms":2.6434339999999565},{"event":"PreToolUse","ms":0.8399269999999888},{"event":"PostToolUse","ms":2.1875519999999824},{"event":"PreToolUse","ms":0.8209140000000161},{"event":"PostToolUse","ms":2.076855000000023},{"event":"PreToolUse","ms":0.8904489999999896},{"event":"PostToolUse","ms":2.3684050000000525},{"event":"PreToolUse","ms":0.8451769999999215},{"event":"PostToolUse","ms":13.73545999999999},{"event":"PreToolUse","ms":0.8159010000000535},{"event":"PostToolUse","ms":7.307556999999974},{"event":"PreToolUse","ms":0.7829649999999901},{"event":"PostToolUse","ms":11.280651999999918},{"event":"PreToolUse","ms":0.8881669999999531},{"event":"PostToolUse","ms":139.86097500000005},{"event":"PreToolUse","ms":0.9026550000000952},{"event":"PostToolUse","ms":55.083094000000074},{"event":"PreToolUse","ms":1.2001830000001519},{"event":"PostToolUse","ms":4.172794999999951},{"event":"PreToolUse","ms":34.12277499999982},{"event":"PostToolUse","ms":2.0411730000000716},{"event":"PreToolUse","ms":133.23454100000004},{"event":"PostToolUse","ms":3.19094599999994},{"event":"PreToolUse","ms":0.9151049999998122},{"event":"PostToolUse","ms":123.67583999999988},{"event":"PreToolUse","ms":132.07293000000004},{"event":"PostToolUse","ms":193.26416900000004},{"event":"PreToolUse","ms":126.68172300000015},{"event":"PostToolUse","ms":180.869637},{"event":"PreToolUse","ms":98.56861799999979},{"event":"PostToolUse","ms":111.41407200000003},{"event":"PreToolUse","ms":110.26167299999997},{"event":"PostToolUse","ms":100.781297},{"event":"PreToolUse","ms":119.44956899999988},{"event":"PostToolUse","ms":113.87451399999964},{"event":"PreToolUse","ms":114.26489100000026},{"event":"PostToolUse","ms":119.59774400000015},{"event":"PreToolUse","ms":111.66310299999986},{"event":"PostToolUse","ms":118.39172600000029},{"event":"PreToolUse","ms":111.36619399999972},{"event":"PostToolUse","ms":122.29642899999999},{"event":"PreToolUse","ms":283.89285900000004},{"event":"PostToolUse","ms":230.23711400000002},{"event":"PreToolUse","ms":111.2816670000002},{"event":"PostToolUse","ms":3.020147000000179},{"event":"PreToolUse","ms":86.31692800000019},{"event":"PostToolUse","ms":2.9454600000008213},{"event":"PreToolUse","ms":17.994943999999123},{"event":"PostToolUse","ms":2.1921149999998306},{"event":"PreToolUse","ms":0.9575230000000374},{"event":"PostToolUse","ms":2.138469000000441},{"event":"PreToolUse","ms":1.2889509999995425},{"event":"PostToolUse","ms":2.164682000000539},{"event":"PreToolUse","ms":0.9881359999999404},{"event":"PostToolUse","ms":2.1683810000004087},{"event":"PreToolUse","ms":1.446183000000019},{"event":"PostToolUse","ms":2.2041079999999056},{"event":"PreToolUse","ms":2.8854590000000826},{"event":"PostToolUse","ms":2.1962439999997514},{"event":"PreToolUse","ms":1.0670669999999518},{"event":"PostToolUse","ms":2.4134500000000116},{"event":"PreToolUse","ms":0.9787850000002436},{"event":"PostToolUse","ms":2.1888979999994262}]}
+2026-09-22T21:11:28.0881202Z node:internal/modules/run_main:123
+2026-09-22T21:11:28.0881789Z     triggerUncaughtException(
+2026-09-22T21:11:28.0882742Z     ^
+2026-09-22T21:11:28.0886598Z 
+2026-09-22T21:11:28.0887493Z AssertionError [ERR_ASSERTION]: hook p95 180.9ms exceeds 150ms
+2026-09-22T21:11:28.0888283Z     at file:///home/runner/work/tooltest-2/tooltest-2/scripts/perf-gate.mjs:63:10
+2026-09-22T21:11:28.0888919Z     at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+2026-09-22T21:11:28.0889834Z     at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+2026-09-22T21:11:28.0890490Z     at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5) {
+2026-09-22T21:11:28.0890966Z   generatedMessage: false,
+2026-09-22T21:11:28.0891268Z   code: 'ERR_ASSERTION',
+2026-09-22T21:11:28.0891555Z   actual: false,
+2026-09-22T21:11:28.0891852Z   expected: true,
+2026-09-22T21:11:28.0892087Z   operator: '==',
+2026-09-22T21:11:28.0892340Z   diff: 'simple'
+2026-09-22T21:11:28.0892582Z }
+2026-09-22T21:11:28.0892715Z 
+2026-09-22T21:11:28.0892807Z Node.js v22.23.2
+2026-09-22T21:11:28.0918147Z ##[error]Process completed with exit code 1.
+2026-09-22T21:11:28.1030210Z Post job cleanup.
+2026-09-22T21:11:28.1689130Z [command]/usr/bin/git version
+2026-09-22T21:11:28.1718572Z git version 2.55.0
+2026-09-22T21:11:28.1741494Z Temporarily overriding HOME='/home/runner/work/_temp/e2b2ee27-74f9-4a8b-ad68-09a0ee65c3f1' before making global git config changes
+2026-09-22T21:11:28.1742782Z Adding repository directory to the temporary git global config as a safe directory
+2026-09-22T21:11:28.1745254Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/tooltest-2/tooltest-2
+2026-09-22T21:11:28.1765804Z Removing SSH command configuration
+2026-09-22T21:11:28.1770469Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-09-22T21:11:28.1794078Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-09-22T21:11:28.1949946Z Removing HTTP extra header
+2026-09-22T21:11:28.1952595Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-09-22T21:11:28.1973431Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-09-22T21:11:28.2137420Z Removing includeIf entries pointing to credentials config files
+2026-09-22T21:11:28.2141613Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-09-22T21:11:28.2159139Z includeif.gitdir:/home/runner/work/tooltest-2/tooltest-2/.git.path
+2026-09-22T21:11:28.2159808Z includeif.gitdir:/home/runner/work/tooltest-2/tooltest-2/.git/worktrees/*.path
+2026-09-22T21:11:28.2160372Z includeif.gitdir:/github/workspace/.git.path
+2026-09-22T21:11:28.2160906Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-09-22T21:11:28.2165509Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/tooltest-2/tooltest-2/.git.path
+2026-09-22T21:11:28.2186922Z /home/runner/work/_temp/git-credentials-f3fd2772-7b8c-4430-8611-22c41e728d6c.config
+2026-09-22T21:11:28.2189008Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/tooltest-2/tooltest-2/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-f3fd2772\-7b8c\-4430\-8611\-22c41e728d6c\.config
+2026-09-22T21:11:28.2213976Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/tooltest-2/tooltest-2/.git/worktrees/*.path
+2026-09-22T21:11:28.2228633Z /home/runner/work/_temp/git-credentials-f3fd2772-7b8c-4430-8611-22c41e728d6c.config
+2026-09-22T21:11:28.2234661Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/tooltest-2/tooltest-2/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-f3fd2772\-7b8c\-4430\-8611\-22c41e728d6c\.config
+2026-09-22T21:11:28.2260915Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-09-22T21:11:28.2275805Z /github/runner_temp/git-credentials-f3fd2772-7b8c-4430-8611-22c41e728d6c.config
+2026-09-22T21:11:28.2280968Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-f3fd2772\-7b8c\-4430\-8611\-22c41e728d6c\.config
+2026-09-22T21:11:28.2300680Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-09-22T21:11:28.2316112Z /github/runner_temp/git-credentials-f3fd2772-7b8c-4430-8611-22c41e728d6c.config
+2026-09-22T21:11:28.2322457Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-f3fd2772\-7b8c\-4430\-8611\-22c41e728d6c\.config
+2026-09-22T21:11:28.2484753Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-09-22T21:11:28.2624530Z Removing credentials config '/home/runner/work/_temp/git-credentials-f3fd2772-7b8c-4430-8611-22c41e728d6c.config'
+2026-09-22T21:11:28.2912106Z Cleaning up orphan processes

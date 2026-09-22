@@ -1,0 +1,20 @@
+✖ full entity identities reject every C1 control even after the old display boundary (1.177441ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 83.769191
+
+✖ failing tests:
+
+test at test/continuity.test.mjs:102:1
+✖ full entity identities reject every C1 control even after the old display boundary (1.177441ms)
+  ReferenceError: validContext is not defined
+      at TestContext.<anonymous> (file:///workspace/scratch/6732e14eb939/idle_citations/test/continuity.test.mjs:106:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.start (node:internal/test_runner/test:1242:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17)

@@ -52,6 +52,14 @@ try {
 
   const p95 = percentile(samples, 0.95);
   const max = Math.max(...samples);
+  // Retain the first failing distribution, too. One assertion value cannot
+  // distinguish a broad slowdown from a small number of long hook calls.
+  console.log(JSON.stringify({schema:'idleproof-hook-latency-samples-1',
+    provider:pythonCore?'python-ast':syntaxCore?'tree-sitter-typescript':dataCore?'tree-sitter-json':'default',
+    node:process.version,platform:process.platform,arch:process.arch,
+    cpus:os.availableParallelism(),p95Ms:p95,maxMs:max,
+    budgets:{p95Ms:P95_HOOK_BUDGET_MS,maxMs:MAX_HOOK_BUDGET_MS},
+    samples:samples.map((ms,index)=>({event:index%2===0?'PreToolUse':'PostToolUse',ms}))}));
   assert.ok(p95 < P95_HOOK_BUDGET_MS, `hook p95 ${p95.toFixed(1)}ms exceeds ${P95_HOOK_BUDGET_MS}ms`);
   assert.ok(max < MAX_HOOK_BUDGET_MS, `hook max ${max.toFixed(1)}ms exceeds ${MAX_HOOK_BUDGET_MS}ms`);
 
