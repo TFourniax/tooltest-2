@@ -18,6 +18,7 @@ import { buildHookDelivery } from './delivery.mjs';
 import { captureBaselineIdentity, finalizeChangeIdentity } from './change-identity.mjs';
 import { schedulePortalSync } from './portal-client.mjs';
 import { taskContinuityQuery, taskDisplayText, taskMetadata, updateSessionTask } from './task.mjs';
+import { validContextIdentity } from './continuity-contract.mjs';
 import { continuityCounts, loadContinuityContext, renderContinuityForAgent } from './continuity.mjs';
 
 function now() {
@@ -111,7 +112,7 @@ function loadingOutput(cwd, state, event) {
   const session = sessionForEvent(state, event);
   if (!session?.task?.id) return null;
   const retainedId=session.task.id;
-  const usableId=typeof retainedId==='string' && retainedId.length<=512 && !/[\s\x00-\x1f\x7f-\x9f]/u.test(retainedId);
+  const usableId=validContextIdentity(retainedId);
   const displayId=usableId ? retainedId : '(legacy identity unavailable)';
   const query = taskContinuityQuery(session);
   const continuity = usableId ? loadContinuityContext(cwd, query) : null;

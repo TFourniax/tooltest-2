@@ -99,6 +99,14 @@ test('assertion and review references remain complete beside claims within every
   assert.ok(renderContinuityForAgent(context).includes(context.tasks[0].id));
 });
 
+test('full entity identities reject every C1 control even after the old display boundary', () => {
+  for(let code=0x80;code<=0x9f;code++) {
+    const context=fixture();
+    context.tasks[0].id='TASK-'+ 'a'.repeat(100)+String.fromCharCode(code)+'suffix';
+    assert.equal(__continuityTest.validContext(context),false,`C1 ${code.toString(16)}`);
+  }
+});
+
 test('source admission rejects malformed or mismatched references without upgrading authority', () => {
   for(const mutate of [
     c=>c.tasks[0].source=null, c=>c.tasks[0].source={}, c=>c.tasks[0].source.kind='proof',

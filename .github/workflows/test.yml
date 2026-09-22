@@ -101,6 +101,9 @@ jobs:
           node ./scripts/idlebench-corpus.mjs
       - name: Enforce local hook latency budgets
         run: node ./scripts/perf-gate.mjs
+      - name: Diagnose failed quality gate without changing its result
+        if: failure()
+        run: node ./scripts/perf-diagnostics.mjs
 
   core-context:
     name: real Core context consumer (${{ matrix.os }})
@@ -157,6 +160,9 @@ jobs:
       - name: Enforce existing hook budgets with actual configuration provider
         if: runner.os == 'Linux'
         run: node scripts/perf-gate.mjs --data-core
+      - name: Diagnose failed Core hook job without changing its result
+        if: failure() && runner.os == 'Linux'
+        run: node scripts/perf-diagnostics.mjs --python-core
 
   package-e2e:
     name: installed package commercial-alpha journey (${{ matrix.os }})

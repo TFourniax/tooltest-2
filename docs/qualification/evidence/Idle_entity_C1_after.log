@@ -1,0 +1,10 @@
+✔ full entity identities reject every C1 control even after the old display boundary (4.179454ms)
+✔ upgraded legacy sessions retain their loading header without unbounded identity output (83.769416ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 187.200835

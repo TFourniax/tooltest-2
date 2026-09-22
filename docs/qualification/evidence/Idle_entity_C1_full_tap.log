@@ -1,0 +1,1516 @@
+TAP version 13
+# Subtest: detectConcepts maps agent activity to relevant cognitive concepts
+ok 1 - detectConcepts maps agent activity to relevant cognitive concepts
+  ---
+  duration_ms: 1.777943
+  type: 'test'
+  ...
+# Subtest: hook protocol/session metadata does not fabricate an auth concept
+ok 2 - hook protocol/session metadata does not fabricate an auth concept
+  ---
+  duration_ms: 2.498547
+  type: 'test'
+  ...
+# Subtest: auth evidence matches whole identifier tokens, not substrings of unrelated words
+ok 3 - auth evidence matches whole identifier tokens, not substrings of unrelated words
+  ---
+  duration_ms: 1.354837
+  type: 'test'
+  ...
+# Subtest: hook protocol metadata is not semantic evidence
+ok 4 - hook protocol metadata is not semantic evidence
+  ---
+  duration_ms: 0.549286
+  type: 'test'
+  ...
+# Subtest: estimateWindow recognizes long-running validation commands
+ok 5 - estimateWindow recognizes long-running validation commands
+  ---
+  duration_ms: 0.270717
+  type: 'test'
+  ...
+# Subtest: analyzeDiff flags deterministic high-signal trust risks
+ok 6 - analyzeDiff flags deterministic high-signal trust risks
+  ---
+  duration_ms: 0.523948
+  type: 'test'
+  ...
+# Subtest: captureGitSnapshot includes untracked source in proof hash and checks
+ok 7 - captureGitSnapshot includes untracked source in proof hash and checks
+  ---
+  duration_ms: 31.922304
+  type: 'test'
+  ...
+# Subtest: captureGitSnapshot excludes IdleProof runtime/config artifacts from its own proof
+ok 8 - captureGitSnapshot excludes IdleProof runtime/config artifacts from its own proof
+  ---
+  duration_ms: 24.66467
+  type: 'test'
+  ...
+# Subtest: creates a signed DSSE in-toto attestation and verifies it
+ok 9 - creates a signed DSSE in-toto attestation and verifies it
+  ---
+  duration_ms: 18.436614
+  type: 'test'
+  ...
+# Subtest: signature verification fails after payload tampering
+ok 10 - signature verification fails after payload tampering
+  ---
+  duration_ms: 7.743915
+  type: 'test'
+  ...
+# Subtest: a self-signed replacement is rejected when verifier pins the original recorder key
+ok 11 - a self-signed replacement is rejected when verifier pins the original recorder key
+  ---
+  duration_ms: 12.7742
+  type: 'test'
+  ...
+# Subtest: background Local cockpit starts, identifies itself, and stops without occupying the terminal
+ok 12 - background Local cockpit starts, identifies itself, and stops without occupying the terminal
+  ---
+  duration_ms: 415.835917
+  type: 'test'
+  ...
+# Subtest: normal start automatically avoids an occupied legacy default port
+ok 13 - normal start automatically avoids an occupied legacy default port
+  ---
+  duration_ms: 412.329694
+  type: 'test'
+  ...
+# Subtest: idleproof on auto-detects an existing Codex project instead of silently installing Claude hooks
+ok 14 - idleproof on auto-detects an existing Codex project instead of silently installing Claude hooks
+  ---
+  duration_ms: 442.141714
+  type: 'test'
+  ...
+# Subtest: stop never signals an unrelated process referenced by a stale server record
+ok 15 - stop never signals an unrelated process referenced by a stale server record
+  ---
+  duration_ms: 117.731599
+  type: 'test'
+  ...
+# Subtest: change id is byte-compatible with the frozen DiffWitness change-envelope contract
+ok 16 - change id is byte-compatible with the frozen DiffWitness change-envelope contract
+  ---
+  duration_ms: 1.19704
+  type: 'test'
+  ...
+# Subtest: clean Git session produces exact before/after tree identity while local agent plumbing stays out of the change
+ok 17 - clean Git session produces exact before/after tree identity while local agent plumbing stays out of the change
+  ---
+  duration_ms: 71.855558
+  type: 'test'
+  ...
+# Subtest: nested monorepo session binds sibling changes into the same full Git candidate tree
+ok 18 - nested monorepo session binds sibling changes into the same full Git candidate tree
+  ---
+  duration_ms: 68.346426
+  type: 'test'
+  ...
+# Subtest: pre-existing dirty software becomes the exact baseline instead of being attributed to the coding task
+ok 19 - pre-existing dirty software becomes the exact baseline instead of being attributed to the coding task
+  ---
+  duration_ms: 66.273298
+  type: 'test'
+  ...
+# Subtest: IdleProof receipt carries the same deterministic change id as the completed session proof
+ok 20 - IdleProof receipt carries the same deterministic change id as the completed session proof
+  ---
+  duration_ms: 110.615473
+  type: 'test'
+  ...
+# Subtest: Codex bridge CLI parser refuses unsafe sandbox modes
+ok 21 - Codex bridge CLI parser refuses unsafe sandbox modes
+  ---
+  duration_ms: 2.068932
+  type: 'test'
+  ...
+# Subtest: Codex JSON items map to bounded lifecycle metadata without command output
+ok 22 - Codex JSON items map to bounded lifecycle metadata without command output
+  ---
+  duration_ms: 0.33226
+  type: 'test'
+  ...
+# Subtest: hook-independent Codex exec bridge records a real git change and receipt
+ok 23 - hook-independent Codex exec bridge records a real git change and receipt
+  ---
+  duration_ms: 291.089648
+  type: 'test'
+  ...
+# Subtest: parallel hook processes preserve every independent session and provenance event
+ok 24 - parallel hook processes preserve every independent session and provenance event
+  ---
+  duration_ms: 868.885965
+  type: 'test'
+  ...
+# Subtest: extracts exact Go symbol and arbitrary package dependency
+ok 25 - extracts exact Go symbol and arbitrary package dependency
+  ---
+  duration_ms: 12.599897
+  type: 'test'
+  ...
+# Subtest: extracts Rust symbol and crate dependency without pretending std is external
+ok 26 - extracts Rust symbol and crate dependency without pretending std is external
+  ---
+  duration_ms: 5.609025
+  type: 'test'
+  ...
+# Subtest: extracts Java route and class while preserving exact file
+ok 27 - extracts Java route and class while preserving exact file
+  ---
+  duration_ms: 3.533103
+  type: 'test'
+  ...
+# Subtest: unknown extension still returns bounded metadata instead of crashing
+ok 28 - unknown extension still returns bounded metadata instead of crashing
+  ---
+  duration_ms: 2.10798
+  type: 'test'
+  ...
+# Subtest: inspects multiple touched files and keeps file-specific facts separated
+ok 29 - inspects multiple touched files and keeps file-specific facts separated
+  ---
+  duration_ms: 3.672422
+  type: 'test'
+  ...
+# Subtest: task signals reject external and excluded-state source aliases
+ok 30 - task signals reject external and excluded-state source aliases
+  ---
+  duration_ms: 8.243126
+  type: 'test'
+  ...
+# Subtest: invalid UTF-8 cannot produce task symbols
+ok 31 - invalid UTF-8 cannot produce task symbols
+  ---
+  duration_ms: 1.440787
+  type: 'test'
+  ...
+# Subtest: same size and mtime cannot reuse facts from different source bytes
+ok 32 - same size and mtime cannot reuse facts from different source bytes
+  ---
+  duration_ms: 11.951802
+  type: 'test'
+  ...
+# Subtest: caller mutation cannot poison later cached signal extraction
+ok 33 - caller mutation cannot poison later cached signal extraction
+  ---
+  duration_ms: 5.518368
+  type: 'test'
+  ...
+# Subtest: internal aliases stay valid and admitted labels are relative
+ok 34 - internal aliases stay valid and admitted labels are relative
+  ---
+  duration_ms: 3.247353
+  type: 'test'
+  ...
+# Subtest: retargeting a cached internal alias outside the project discards its facts
+ok 35 - retargeting a cached internal alias outside the project discards its facts
+  ---
+  duration_ms: 6.013492
+  type: 'test'
+  ...
+# Subtest: task signals extract a relevant symbol, route and technology without returning source code
+ok 36 - task signals extract a relevant symbol, route and technology without returning source code
+  ---
+  duration_ms: 9.473806
+  type: 'test'
+  ...
+# Subtest: read activity prefers the resource being inspected over the last edited file
+ok 37 - read activity prefers the resource being inspected over the last edited file
+  ---
+  duration_ms: 6.372642
+  type: 'test'
+  ...
+# Subtest: task signal extraction refuses paths outside the project root
+ok 38 - task signal extraction refuses paths outside the project root
+  ---
+  duration_ms: 0.719642
+  type: 'test'
+  ...
+# Subtest: context admission rejects partial, malformed, oversized and upgraded reviews
+ok 39 - context admission rejects partial, malformed, oversized and upgraded reviews
+  ---
+  duration_ms: 4.870864
+  type: 'test'
+  ...
+# Subtest: agent context retains tasks, declared review, warnings and related changes without raw details
+ok 40 - agent context retains tasks, declared review, warnings and related changes without raw details
+  ---
+  duration_ms: 0.918551
+  type: 'test'
+  ...
+# Subtest: Portal projection preserves string endpoints and reviewed task memory with privacy whitelist
+ok 41 - Portal projection preserves string endpoints and reviewed task memory with privacy whitelist
+  ---
+  duration_ms: 1.557032
+  type: 'test'
+  ...
+# Subtest: continuity query adds stable identity while ordinary semantic query is unchanged
+ok 42 - continuity query adds stable identity while ordinary semantic query is unchanged
+  ---
+  duration_ms: 1.906297
+  type: 'test'
+  ...
+# Subtest: absent or unusable Core degrades to no advisory context
+ok 43 - absent or unusable Core degrades to no advisory context
+  ---
+  duration_ms: 2.403043
+  type: 'test'
+  ...
+# Subtest: assertion and review references remain complete beside claims within every budget
+ok 44 - assertion and review references remain complete beside claims within every budget
+  ---
+  duration_ms: 4.797945
+  type: 'test'
+  ...
+# Subtest: full entity identities reject every C1 control even after the old display boundary
+ok 45 - full entity identities reject every C1 control even after the old display boundary
+  ---
+  duration_ms: 1.101877
+  type: 'test'
+  ...
+# Subtest: source admission rejects malformed or mismatched references without upgrading authority
+ok 46 - source admission rejects malformed or mismatched references without upgrading authority
+  ---
+  duration_ms: 0.712241
+  type: 'test'
+  ...
+# Subtest: full control-plane lifecycle blocks, records, binds and signs one agent turn
+ok 47 - full control-plane lifecycle blocks, records, binds and signs one agent turn
+  ---
+  duration_ms: 118.279494
+  type: 'test'
+  ...
+# Subtest: background server restarts after an ungraceful process death without manual stale-file cleanup
+ok 48 - background server restarts after an ungraceful process death without manual stale-file cleanup
+  ---
+  duration_ms: 689.501664
+  type: 'test'
+  ...
+# Subtest: Cursor installer preserves unrelated hooks and uninstall removes only IdleProof
+ok 49 - Cursor installer preserves unrelated hooks and uninstall removes only IdleProof
+  ---
+  duration_ms: 28.579332
+  type: 'test'
+  ...
+# Subtest: Cursor hooks keep one active task across a weak follow-up and materialize local context
+ok 50 - Cursor hooks keep one active task across a weak follow-up and materialize local context
+  ---
+  duration_ms: 314.642767
+  type: 'test'
+  ...
+# Subtest: one DiffWitness integration arms Claude, Codex and Cursor without collapsing their native configs
+ok 51 - one DiffWitness integration arms Claude, Codex and Cursor without collapsing their native configs
+  ---
+  duration_ms: 34.760006
+  type: 'test'
+  ...
+# Subtest: DiffWitness integration is project-local transactional when a later adapter refuses unsafe overwrite
+ok 52 - DiffWitness integration is project-local transactional when a later adapter refuses unsafe overwrite
+  ---
+  duration_ms: 24.337472
+  type: 'test'
+  ...
+# Subtest: DiffWitness integration never arms a project when the compatibility probe fails
+ok 53 - DiffWitness integration never arms a project when the compatibility probe fails
+  ---
+  duration_ms: 19.396874
+  type: 'test'
+  ...
+# Subtest: IDE delivery uses exact project facts and is suppressed when nothing meaningful changed
+ok 54 - IDE delivery uses exact project facts and is suppressed when nothing meaningful changed
+  ---
+  duration_ms: 14.624852
+  type: 'test'
+  ...
+# Subtest: handoff gets a new explanation key and explicit proof boundary
+ok 55 - handoff gets a new explanation key and explicit proof boundary
+  ---
+  duration_ms: 3.588677
+  type: 'test'
+  ...
+# Subtest: idleproof demo is isolated from the launch repository and demonstrates drift plus cross-feature impact
+ok 56 - idleproof demo is isolated from the launch repository and demonstrates drift plus cross-feature impact
+  ---
+  duration_ms: 357.087593
+  type: 'test'
+  ...
+# Subtest: legacy standalone IdleProof project does not spawn or require DiffWitness
+ok 57 - legacy standalone IdleProof project does not spawn or require DiffWitness
+  ---
+  duration_ms: 1.607668
+  type: 'test'
+  ...
+# Subtest: corrupt DiffWitness integration config fails closed instead of silently downgrading Proof
+ok 58 - corrupt DiffWitness integration config fails closed instead of silently downgrading Proof
+  ---
+  duration_ms: 0.870529
+  type: 'test'
+  ...
+# Subtest: keeps the exact project filename instead of replacing it with a generic product label
+ok 59 - keeps the exact project filename instead of replacing it with a generic product label
+  ---
+  duration_ms: 3.317439
+  type: 'test'
+  ...
+# Subtest: falls back without inventing a responsibility for arbitrary nomenclature
+ok 60 - falls back without inventing a responsibility for arbitrary nomenclature
+  ---
+  duration_ms: 1.224011
+  type: 'test'
+  ...
+# Subtest: explains route and data surfaces using their real names
+ok 61 - explains route and data surfaces using their real names
+  ---
+  duration_ms: 0.215383
+  type: 'test'
+  ...
+# Subtest: unknown libraries stay exact instead of requiring a hard-coded technology catalog
+ok 62 - unknown libraries stay exact instead of requiring a hard-coded technology catalog
+  ---
+  duration_ms: 0.302004
+  type: 'test'
+  ...
+# Subtest: questions are explicitly optional and explanation stands alone
+ok 63 - questions are explicitly optional and explanation stands alone
+  ---
+  duration_ms: 0.480162
+  type: 'test'
+  ...
+# Subtest: explains each observed touched file from its own facts
+ok 64 - explains each observed touched file from its own facts
+  ---
+  duration_ms: 0.280122
+  type: 'test'
+  ...
+# Subtest: plain explanation covers auth without depending on a bespoke business template
+ok 65 - plain explanation covers auth without depending on a bespoke business template
+  ---
+  duration_ms: 0.251508
+  type: 'test'
+  ...
+# Subtest: plain explanation covers sql without depending on a bespoke business template
+ok 66 - plain explanation covers sql without depending on a bespoke business template
+  ---
+  duration_ms: 0.169194
+  type: 'test'
+  ...
+# Subtest: plain explanation covers migration without depending on a bespoke business template
+ok 67 - plain explanation covers migration without depending on a bespoke business template
+  ---
+  duration_ms: 0.331488
+  type: 'test'
+  ...
+# Subtest: plain explanation covers async without depending on a bespoke business template
+ok 68 - plain explanation covers async without depending on a bespoke business template
+  ---
+  duration_ms: 0.278669
+  type: 'test'
+  ...
+# Subtest: plain explanation covers react-state without depending on a bespoke business template
+ok 69 - plain explanation covers react-state without depending on a bespoke business template
+  ---
+  duration_ms: 4.421498
+  type: 'test'
+  ...
+# Subtest: plain explanation covers typescript without depending on a bespoke business template
+ok 70 - plain explanation covers typescript without depending on a bespoke business template
+  ---
+  duration_ms: 0.169094
+  type: 'test'
+  ...
+# Subtest: plain explanation covers testing without depending on a bespoke business template
+ok 71 - plain explanation covers testing without depending on a bespoke business template
+  ---
+  duration_ms: 0.100902
+  type: 'test'
+  ...
+# Subtest: plain explanation covers secrets without depending on a bespoke business template
+ok 72 - plain explanation covers secrets without depending on a bespoke business template
+  ---
+  duration_ms: 0.133331
+  type: 'test'
+  ...
+# Subtest: plain explanation covers http without depending on a bespoke business template
+ok 73 - plain explanation covers http without depending on a bespoke business template
+  ---
+  duration_ms: 0.204327
+  type: 'test'
+  ...
+# Subtest: plain explanation covers packages without depending on a bespoke business template
+ok 74 - plain explanation covers packages without depending on a bespoke business template
+  ---
+  duration_ms: 0.1261
+  type: 'test'
+  ...
+# Subtest: plain explanation covers git without depending on a bespoke business template
+ok 75 - plain explanation covers git without depending on a bespoke business template
+  ---
+  duration_ms: 0.115504
+  type: 'test'
+  ...
+# Subtest: plain explanation covers ci without depending on a bespoke business template
+ok 76 - plain explanation covers ci without depending on a bespoke business template
+  ---
+  duration_ms: 0.098739
+  type: 'test'
+  ...
+# Subtest: plain explanation covers concurrency without depending on a bespoke business template
+ok 77 - plain explanation covers concurrency without depending on a bespoke business template
+  ---
+  duration_ms: 0.248844
+  type: 'test'
+  ...
+# Subtest: plain explanation covers accessibility without depending on a bespoke business template
+ok 78 - plain explanation covers accessibility without depending on a bespoke business template
+  ---
+  duration_ms: 0.086841
+  type: 'test'
+  ...
+# Subtest: plain explanation covers cache without depending on a bespoke business template
+ok 79 - plain explanation covers cache without depending on a bespoke business template
+  ---
+  duration_ms: 0.161873
+  type: 'test'
+  ...
+# Subtest: unresolved import references remain visible without third-party ownership claims
+ok 80 - unresolved import references remain visible without third-party ownership claims
+  ---
+  duration_ms: 0.326792
+  type: 'test'
+  ...
+# Subtest: related-file references stay attached to their file and duplicate dependency names are not repeated
+ok 81 - related-file references stay attached to their file and duplicate dependency names are not repeated
+  ---
+  duration_ms: 0.320582
+  type: 'test'
+  ...
+# Subtest: canonical feature imports ignore comment/string decoys and cite the exact bytes
+ok 82 - canonical feature imports ignore comment/string decoys and cite the exact bytes
+  ---
+  duration_ms: 15.743394
+  type: 'test'
+  ...
+# Subtest: configuration values never create feature facts, including unavailable or rejected Core
+ok 83 - configuration values never create feature facts, including unavailable or rejected Core
+  ---
+  duration_ms: 3.039801
+  type: 'test'
+  ...
+# Subtest: Python package references preserve members without inventing member-module edges or resolving ambiguity
+ok 84 - Python package references preserve members without inventing member-module edges or resolving ambiguity
+  ---
+  duration_ms: 3.635166
+  type: 'test'
+  ...
+# Subtest: canonical unparsed/rejected source cannot resurrect legacy import guesses
+ok 85 - canonical unparsed/rejected source cannot resurrect legacy import guesses
+  ---
+  duration_ms: 1.261728
+  type: 'test'
+  ...
+# Subtest: unsupported-file fallback is independent of supported peers in the extraction batch
+ok 86 - unsupported-file fallback is independent of supported peers in the extraction batch
+  ---
+  duration_ms: 3.748928
+  type: 'test'
+  ...
+# Subtest: relative Python imports beyond the lexical package stay unresolved even when a same-name file exists
+ok 87 - relative Python imports beyond the lexical package stay unresolved even when a same-name file exists
+  ---
+  duration_ms: 3.070137
+  type: 'test'
+  ...
+# Subtest: JavaScript local candidates include CTS and MTS ambiguity without guessing Python extensions
+ok 88 - JavaScript local candidates include CTS and MTS ambiguity without guessing Python extensions
+  ---
+  duration_ms: 3.573834
+  type: 'test'
+  ...
+# Subtest: fresh feature models see same-size timestamp-preserved edits and cannot share caller mutation
+ok 89 - fresh feature models see same-size timestamp-preserved edits and cannot share caller mutation
+  ---
+  duration_ms: 6.839094
+  type: 'test'
+  ...
+# Subtest: canonical breadth and depth remain bounded and source exclusions still apply
+ok 90 - canonical breadth and depth remain bounded and source exclusions still apply
+  ---
+  duration_ms: 5.512499
+  type: 'test'
+  ...
+# Subtest: a changed canonical symbol projection changes the model fingerprint on identical bytes
+ok 91 - a changed canonical symbol projection changes the model fingerprint on identical bytes
+  ---
+  duration_ms: 1.049167
+  type: 'test'
+  ...
+# Subtest: feature memory retains source-bound observations without migrating scores
+ok 92 - feature memory retains source-bound observations without migrating scores
+  ---
+  duration_ms: 2.868874
+  type: 'test'
+  ...
+# Subtest: observation retention is bounded, content deduplicated and explicitly incomplete
+ok 93 - observation retention is bounded, content deduplicated and explicitly incomplete
+  ---
+  duration_ms: 3.875148
+  type: 'test'
+  ...
+# Subtest: legacy or unparsed models cannot fabricate source-bound history
+ok 94 - legacy or unparsed models cannot fabricate source-bound history
+  ---
+  duration_ms: 0.573022
+  type: 'test'
+  ...
+# Subtest: corrupt retained observations fail before mutation
+ok 95 - corrupt retained observations fail before mutation
+  ---
+  duration_ms: 1.261357
+  type: 'test'
+  ...
+# Subtest: Core relocation links two exact retained observations without changing state
+ok 96 - Core relocation links two exact retained observations without changing state
+  ---
+  duration_ms: 1.666085
+  type: 'test'
+  ...
+# Subtest: hash mismatch, missing history and corruption cannot inherit feature memory
+ok 97 - hash mismatch, missing history and corruption cannot inherit feature memory
+  ---
+  duration_ms: 1.311953
+  type: 'test'
+  ...
+# Subtest: consumer rejects altered schema, paths, authority, counts, identity and duplicate items
+ok 98 - consumer rejects altered schema, paths, authority, counts, identity and duplicate items
+  ---
+  duration_ms: 4.467428
+  type: 'test'
+  ...
+# Subtest: duplicate JSON, non-UTF8, oversize and failed processes are unavailable
+ok 99 - duplicate JSON, non-UTF8, oversize and failed processes are unavailable
+  ---
+  duration_ms: 1.619986
+  type: 'test'
+  ...
+# Subtest: empty or incomplete imported views state coverage without claiming absence
+ok 100 - empty or incomplete imported views state coverage without claiming absence
+  ---
+  duration_ms: 0.606332
+  type: 'test'
+  ...
+# Subtest: multiple retained snapshots are bounded without hiding omitted hypotheses
+ok 101 - multiple retained snapshots are bounded without hiding omitted hypotheses
+  ---
+  duration_ms: 3.83685
+  type: 'test'
+  ...
+# Subtest: invalid and conflicting CLI options cannot trigger lineage work
+ok 102 - invalid and conflicting CLI options cannot trigger lineage work
+  ---
+  duration_ms: 0.503848
+  type: 'test'
+  ...
+# Subtest: feature identity survives prompt changes while version fingerprint can change
+ok 103 - feature identity survives prompt changes while version fingerprint can change
+  ---
+  duration_ms: 20.901661
+  type: 'test'
+  ...
+# Subtest: material boundary drift marks feature fluency for refresh and a correct check clears it
+ok 104 - material boundary drift marks feature fluency for refresh and a correct check clears it
+  ---
+  duration_ms: 5.528353
+  type: 'test'
+  ...
+# Subtest: Python feature model follows project-local imports and FastAPI/SQLAlchemy boundaries
+ok 105 - Python feature model follows project-local imports and FastAPI/SQLAlchemy boundaries
+  ---
+  duration_ms: 21.378037
+  type: 'test'
+  ...
+# Subtest: Next.js file-system API routes become feature surfaces without runtime claims
+ok 106 - Next.js file-system API routes become feature surfaces without runtime claims
+  ---
+  duration_ms: 2.602854
+  type: 'test'
+  ...
+# Subtest: feature model follows bounded local imports and surfaces feature responsibilities
+ok 107 - feature model follows bounded local imports and surfaces feature responsibilities
+  ---
+  duration_ms: 19.939324
+  type: 'test'
+  ...
+# Subtest: feature model refuses traversal outside the project and remains bounded
+ok 108 - feature model refuses traversal outside the project and remains bounded
+  ---
+  duration_ms: 3.164388
+  type: 'test'
+  ...
+# Subtest: feature spaced-recall interval grows with fluency and drift is due immediately
+ok 109 - feature spaced-recall interval grows with fluency and drift is due immediately
+  ---
+  duration_ms: 0.75106
+  type: 'test'
+  ...
+# Subtest: drift recall asks about the actual new project boundary with non-trivial project distractors
+ok 110 - drift recall asks about the actual new project boundary with non-trivial project distractors
+  ---
+  duration_ms: 7.380859
+  type: 'test'
+  ...
+# Subtest: correct drift recall restores review state and wrong answer does not
+ok 111 - correct drift recall restores review state and wrong answer does not
+  ---
+  duration_ms: 0.821305
+  type: 'test'
+  ...
+# Subtest: review queue prioritizes due drift and leaves recently fluent features for later
+ok 112 - review queue prioritizes due drift and leaves recently fluent features for later
+  ---
+  duration_ms: 0.389356
+  type: 'test'
+  ...
+# Subtest: external directory aliases cannot contribute source text or import edges
+ok 113 - external directory aliases cannot contribute source text or import edges
+  ---
+  duration_ms: 10.722373
+  type: 'test'
+  ...
+# Subtest: internal source aliases and an aliased project root remain readable
+ok 114 - internal source aliases and an aliased project root remain readable
+  ---
+  duration_ms: 6.98244
+  type: 'test'
+  ...
+# Subtest: an alias cannot expose excluded local state
+ok 115 - an alias cannot expose excluded local state
+  ---
+  duration_ms: 4.552435
+  type: 'test'
+  ...
+# Subtest: invalid UTF-8 is not converted into apparently observed source
+ok 116 - invalid UTF-8 is not converted into apparently observed source
+  ---
+  duration_ms: 1.123389
+  type: 'test'
+  ...
+# Subtest: file byte boundary is inclusive and accounts the actual UTF-8 bytes
+ok 117 - file byte boundary is inclusive and accounts the actual UTF-8 bytes
+  ---
+  duration_ms: 5.022523
+  type: 'test'
+  ...
+# Subtest: a file growing after stat cannot bypass the byte limit or undercount it
+ok 118 - a file growing after stat cannot bypass the byte limit or undercount it
+  ---
+  duration_ms: 1.610341
+  type: 'test'
+  ...
+# Subtest: growth during descriptor reading is capped and the descriptor is closed
+ok 119 - growth during descriptor reading is capped and the descriptor is closed
+  ---
+  duration_ms: 1.292133
+  type: 'test'
+  ...
+# Subtest: short reads preserve all source bytes and combined admission stays bounded
+ok 120 - short reads preserve all source bytes and combined admission stays bounded
+  ---
+  duration_ms: 31.110923
+  type: 'test'
+  ...
+# Subtest: an alias retargeted after admission cannot contribute observations
+ok 121 - an alias retargeted after admission cannot contribute observations
+  ---
+  duration_ms: 1.905425
+  type: 'test'
+  ...
+# Subtest: transient exclusion uses bounded Git work and preserves real index and tree
+ok 122 - transient exclusion uses bounded Git work and preserves real index and tree
+  ---
+  duration_ms: 43.40481
+  type: 'test'
+  ...
+# Subtest: failed transient exclusion cannot return an available change identity
+ok 123 - failed transient exclusion cannot return an available change identity
+  ---
+  duration_ms: 48.683128
+  type: 'test'
+  ...
+# Subtest: a real HEAD advance cannot attach an old commit to a new tree
+ok 124 - a real HEAD advance cannot attach an old commit to a new tree
+  ---
+  duration_ms: 38.542769
+  type: 'test'
+  ...
+# Subtest: batched diff and statistics preserve staged plus unstaged bytes and counts
+ok 125 - batched diff and statistics preserve staged plus unstaged bytes and counts
+  ---
+  duration_ms: 36.902086
+  type: 'test'
+  ...
+# Subtest: NUL-delimited status and statistics retain Unicode and renamed paths without invented aliases
+ok 126 - NUL-delimited status and statistics retain Unicode and renamed paths without invented aliases
+  ---
+  duration_ms: 39.764115
+  type: 'test'
+  ...
+# Subtest: tracked runtime-named files and deletions remain meaningful, staged transient additions stay excluded
+ok 127 - tracked runtime-named files and deletions remain meaningful, staged transient additions stay excluded
+  ---
+  duration_ms: 48.812403
+  type: 'test'
+  ...
+# Subtest: hook lifecycle records stable task identity, exposure, footprint, trust findings, and a diff-bound receipt
+ok 128 - hook lifecycle records stable task identity, exposure, footprint, trust findings, and a diff-bound receipt
+  ---
+  duration_ms: 121.315119
+  type: 'test'
+  ...
+# Subtest: upgraded legacy sessions retain their loading header without unbounded identity output
+ok 129 - upgraded legacy sessions retain their loading header without unbounded identity output
+  ---
+  duration_ms: 69.718609
+  type: 'test'
+  ...
+# Subtest: Codex installer is idempotent, project-local, and preserves existing hooks
+ok 130 - Codex installer is idempotent, project-local, and preserves existing hooks
+  ---
+  duration_ms: 12.171192
+  type: 'test'
+  ...
+# Subtest: Codex installer refuses a missing IdleProof entrypoint without changing user hooks
+ok 131 - Codex installer refuses a missing IdleProof entrypoint without changing user hooks
+  ---
+  duration_ms: 7.60088
+  type: 'test'
+  ...
+# Subtest: Claude installer is idempotent and preserves existing settings/hooks
+ok 132 - Claude installer is idempotent and preserves existing settings/hooks
+  ---
+  duration_ms: 4.758075
+  type: 'test'
+  ...
+# Subtest: Claude installer refuses a missing IdleProof entrypoint without changing user settings
+ok 133 - Claude installer refuses a missing IdleProof entrypoint without changing user settings
+  ---
+  duration_ms: 1.32319
+  type: 'test'
+  ...
+# Subtest: multi-megabyte prompt and tool payload remain bounded while exact one-way provenance survives
+ok 134 - multi-megabyte prompt and tool payload remain bounded while exact one-way provenance survives
+  ---
+  duration_ms: 99.534973
+  type: 'test'
+  ...
+# Subtest: CLI exposes mental-model status and completes a due feature review without opening the cockpit
+ok 135 - CLI exposes mental-model status and completes a due feature review without opening the cockpit
+  ---
+  duration_ms: 364.06397
+  type: 'test'
+  ...
+# Subtest: contextual learning card is grounded in the active task, file and local symbol
+ok 136 - contextual learning card is grounded in the active task, file and local symbol
+  ---
+  duration_ms: 2.962835
+  type: 'test'
+  ...
+# Subtest: handoff changes the challenge from implementation teaching to acceptance review
+ok 137 - handoff changes the challenge from implementation teaching to acceptance review
+  ---
+  duration_ms: 0.27327
+  type: 'test'
+  ...
+# Subtest: learning phase follows both agent tools and semantic capabilities
+ok 138 - learning phase follows both agent tools and semantic capabilities
+  ---
+  duration_ms: 0.434203
+  type: 'test'
+  ...
+# Subtest: task summaries stay compact enough for wait-window cards
+ok 139 - task summaries stay compact enough for wait-window cards
+  ---
+  duration_ms: 0.183475
+  type: 'test'
+  ...
+# Subtest: review cadence expands as demonstrated confidence grows
+ok 140 - review cadence expands as demonstrated confidence grows
+  ---
+  duration_ms: 0.626642
+  type: 'test'
+  ...
+# Subtest: card selection prioritizes task-relevant weak concepts and avoids an immediate repeat
+ok 141 - card selection prioritizes task-relevant weak concepts and avoids an immediate repeat
+  ---
+  duration_ms: 0.166661
+  type: 'test'
+  ...
+# Subtest: local control plane accepts loopback reads and same-port local writes
+ok 142 - local control plane accepts loopback reads and same-port local writes
+  ---
+  duration_ms: 0.849308
+  type: 'test'
+  ...
+# Subtest: local control plane rejects DNS-rebinding style Host headers
+ok 143 - local control plane rejects DNS-rebinding style Host headers
+  ---
+  duration_ms: 0.145339
+  type: 'test'
+  ...
+# Subtest: local control plane rejects cross-site and non-local write origins
+ok 144 - local control plane rejects cross-site and non-local write origins
+  ---
+  duration_ms: 0.181272
+  type: 'test'
+  ...
+# Subtest: non-browser local integrations remain usable without an Origin header
+ok 145 - non-browser local integrations remain usable without an Origin header
+  ---
+  duration_ms: 0.113901
+  type: 'test'
+  ...
+# Subtest: an explanation without an understanding check is unverified, not Knowledge Debt
+ok 146 - an explanation without an understanding check is unverified, not Knowledge Debt
+  ---
+  duration_ms: 1.27709
+  type: 'test'
+  ...
+# Subtest: explicitly weak demonstrated understanding can create Knowledge Debt
+ok 147 - explicitly weak demonstrated understanding can create Knowledge Debt
+  ---
+  duration_ms: 0.223266
+  type: 'test'
+  ...
+# Subtest: feature exposure without a check is not scored as feature debt
+ok 148 - feature exposure without a check is not scored as feature debt
+  ---
+  duration_ms: 0.228303
+  type: 'test'
+  ...
+# Subtest: native UTF-8 decoder preserves every multibyte split boundary
+ok 149 - native UTF-8 decoder preserves every multibyte split boundary
+  ---
+  duration_ms: 4.37597
+  type: 'test'
+  ...
+# Subtest: native reader rejects invalid UTF-8 without replacement
+ok 150 - native reader rejects invalid UTF-8 without replacement
+  ---
+  duration_ms: 0.356476
+  type: 'test'
+  ...
+# Subtest: corrupt sidecar state cannot skip required Stop assurance in either native runner
+ok 151 - corrupt sidecar state cannot skip required Stop assurance in either native runner
+  ---
+  duration_ms: 623.962626
+  type: 'test'
+  ...
+# Subtest: IdleProof remains usable in a directory with no Git repository without inventing change identity
+ok 152 - IdleProof remains usable in a directory with no Git repository without inventing change identity
+  ---
+  duration_ms: 62.037345
+  type: 'test'
+  ...
+# Subtest: IdleProof remains usable in an initialized repository with no first commit
+ok 153 - IdleProof remains usable in an initialized repository with no first commit
+  ---
+  duration_ms: 41.068435
+  type: 'test'
+  ...
+# Subtest: main help exposes support and repair without requiring users to know internal files
+ok 154 - main help exposes support and repair without requiring users to know internal files
+  ---
+  duration_ms: 85.700584
+  type: 'test'
+  ...
+# Subtest: repair is a safe no-op before IdleProof has created local state
+ok 155 - repair is a safe no-op before IdleProof has created local state
+  ---
+  duration_ms: 91.439072
+  type: 'test'
+  ...
+# Subtest: repair dry-run explains recovery and real repair preserves corrupt primary in archive
+ok 156 - repair dry-run explains recovery and real repair preserves corrupt primary in archive
+  ---
+  duration_ms: 179.076628
+  type: 'test'
+  ...
+# Subtest: idleproof support aliases the privacy-safe support command
+ok 157 - idleproof support aliases the privacy-safe support command
+  ---
+  duration_ms: 99.740371
+  type: 'test'
+  ...
+# Subtest: CODEOWNERS matching uses the last matching rule
+ok 158 - CODEOWNERS matching uses the last matching rule
+  ---
+  duration_ms: 15.352616
+  type: 'test'
+  ...
+# Subtest: responsibility acceptance is bound to the diff and recorder-signed
+ok 159 - responsibility acceptance is bound to the diff and recorder-signed
+  ---
+  duration_ms: 24.568263
+  type: 'test'
+  ...
+# Subtest: balanced policy blocks catastrophic delete
+ok 160 - balanced policy blocks catastrophic delete
+  ---
+  duration_ms: 5.444948
+  type: 'test'
+  ...
+# Subtest: balanced policy requires review for force push and emits ask for Claude
+ok 161 - balanced policy requires review for force push and emits ask for Claude
+  ---
+  duration_ms: 1.773006
+  type: 'test'
+  ...
+# Subtest: Codex uses its current native ask decision and can still consume a one-shot local approval
+ok 162 - Codex uses its current native ask decision and can still consume a one-shot local approval
+  ---
+  duration_ms: 3.110827
+  type: 'test'
+  ...
+# Subtest: strict profile escalates critical ask to deny
+ok 163 - strict profile escalates critical ask to deny
+  ---
+  duration_ms: 1.814509
+  type: 'test'
+  ...
+# Subtest: project rule can protect a sensitive path
+ok 164 - project rule can protect a sensitive path
+  ---
+  duration_ms: 1.073884
+  type: 'test'
+  ...
+# Subtest: effective policy hash changes with project profile and includes built-in engine material
+ok 165 - effective policy hash changes with project profile and includes built-in engine material
+  ---
+  duration_ms: 0.979553
+  type: 'test'
+  ...
+# Subtest: bounded assurance keeps exact identity
+ok 166 - bounded assurance keeps exact identity
+  ---
+  duration_ms: 1.149809
+  type: 'test'
+  ...
+# Subtest: wrong change id is rejected
+ok 167 - wrong change id is rejected
+  ---
+  duration_ms: 0.503567
+  type: 'test'
+  ...
+# Subtest: Portal endpoint cannot hide credentials in authority or query parameters
+ok 168 - Portal endpoint cannot hide credentials in authority or query parameters
+  ---
+  duration_ms: 3.216356
+  type: 'test'
+  ...
+# Subtest: manual sync never reports success when the current snapshot could not be retained
+ok 169 - manual sync never reports success when the current snapshot could not be retained
+  ---
+  duration_ms: 743.513115
+  type: 'test'
+  ...
+# Subtest: Portal config stays project-local and refuses plaintext remote HTTP
+ok 170 - Portal config stays project-local and refuses plaintext remote HTTP
+  ---
+  duration_ms: 6.542798
+  type: 'test'
+  ...
+# Subtest: current Portal snapshot is exactly privacy-safe and contract-shaped
+ok 171 - current Portal snapshot is exactly privacy-safe and contract-shaped
+  ---
+  duration_ms: 10.143973
+  type: 'test'
+  ...
+# Subtest: queued snapshots flush idempotently without persisting the enrollment token in the queue
+ok 172 - queued snapshots flush idempotently without persisting the enrollment token in the queue
+  ---
+  duration_ms: 12.139735
+  type: 'test'
+  ...
+# Subtest: network failure fails open for the coding agent and preserves the bounded retry queue
+ok 173 - network failure fails open for the coding agent and preserves the bounded retry queue
+  ---
+  duration_ms: 6.807656
+  type: 'test'
+  ...
+# Subtest: queue saturation never silently evicts history and marks Portal delivery degraded
+ok 174 - queue saturation never silently evicts history and marks Portal delivery degraded
+  ---
+  duration_ms: 34.680169
+  type: 'test'
+  ...
+# Subtest: disconnect removes only the credential config and preserves queued evidence metadata
+ok 175 - disconnect removes only the credential config and preserves queued evidence metadata
+  ---
+  duration_ms: 6.166132
+  type: 'test'
+  ...
+# Subtest: ingestion ack validator accepts only exact versioned accepted/duplicate acknowledgements
+ok 176 - ingestion ack validator accepts only exact versioned accepted/duplicate acknowledgements
+  ---
+  duration_ms: 1.639135
+  type: 'test'
+  ...
+# Subtest: HTTP 202 with empty body never dequeues a snapshot
+ok 177 - HTTP 202 with empty body never dequeues a snapshot
+  ---
+  duration_ms: 13.97249
+  type: 'test'
+  ...
+# Subtest: HTTP 200 with HTML or malformed JSON never dequeues a snapshot
+ok 178 - HTTP 200 with HTML or malformed JSON never dequeues a snapshot
+  ---
+  duration_ms: 12.291453
+  type: 'test'
+  ...
+# Subtest: wrong snapshot acknowledgement never dequeues queued evidence
+ok 179 - wrong snapshot acknowledgement never dequeues queued evidence
+  ---
+  duration_ms: 5.073238
+  type: 'test'
+  ...
+# Subtest: duplicate acknowledgement is authoritative and safely dequeues the idempotent retry
+ok 180 - duplicate acknowledgement is authoritative and safely dequeues the idempotent retry
+  ---
+  duration_ms: 6.831783
+  type: 'test'
+  ...
+# Subtest: two clones keep distinct local device ids while sharing one stable repository fingerprint
+ok 181 - two clones keep distinct local device ids while sharing one stable repository fingerprint
+  ---
+  duration_ms: 70.528604
+  type: 'test'
+  ...
+# Subtest: portal snapshot carries longitudinal intelligence without source code, diff, raw agent events, or raw prompt text
+ok 182 - portal snapshot carries longitudinal intelligence without source code, diff, raw agent events, or raw prompt text
+  ---
+  duration_ms: 3.419392
+  type: 'test'
+  ...
+# Subtest: identical snapshot retries keep the same id despite a different generation timestamp
+ok 183 - identical snapshot retries keep the same id despite a different generation timestamp
+  ---
+  duration_ms: 4.247697
+  type: 'test'
+  ...
+# Subtest: material longitudinal state change produces a new snapshot id
+ok 184 - material longitudinal state change produces a new snapshot id
+  ---
+  duration_ms: 1.184641
+  type: 'test'
+  ...
+# Subtest: very large raw prompt stays out of the bounded snapshot while its digest remains stable
+ok 185 - very large raw prompt stays out of the bounded snapshot while its digest remains stable
+  ---
+  duration_ms: 3.353482
+  type: 'test'
+  ...
+# Subtest: portal paths reject absolute and traversal paths
+ok 186 - portal paths reject absolute and traversal paths
+  ---
+  duration_ms: 0.276055
+  type: 'test'
+  ...
+# Subtest: portal safety assertion rejects raw prompt fields, fail-open privacy, tampered ids, and oversized payloads
+ok 187 - portal safety assertion rejects raw prompt fields, fail-open privacy, tampered ids, and oversized payloads
+  ---
+  duration_ms: 1.438964
+  type: 'test'
+  ...
+# Subtest: presentation is explanation-first and preserves an optional check
+ok 188 - presentation is explanation-first and preserves an optional check
+  ---
+  duration_ms: 1.797653
+  type: 'test'
+  ...
+# Subtest: short windows still explain before asking
+ok 189 - short windows still explain before asking
+  ---
+  duration_ms: 0.340722
+  type: 'test'
+  ...
+# Subtest: lesson depth follows the real wait window and handoff boundary
+ok 190 - lesson depth follows the real wait window and handoff boundary
+  ---
+  duration_ms: 0.680874
+  type: 'test'
+  ...
+# Subtest: glance mode stays concise while preserving the Explain-first certainty boundary
+ok 191 - glance mode stays concise while preserving the Explain-first certainty boundary
+  ---
+  duration_ms: 0.951762
+  type: 'test'
+  ...
+# Subtest: deep mode adds meaningful explanation instead of reverting to a canned review sentence
+ok 192 - deep mode adds meaningful explanation instead of reverting to a canned review sentence
+  ---
+  duration_ms: 0.304698
+  type: 'test'
+  ...
+# Subtest: Stripe webhook signals specialize the question without an LLM call
+ok 193 - Stripe webhook signals specialize the question without an LLM call
+  ---
+  duration_ms: 0.220522
+  type: 'test'
+  ...
+# Subtest: multi-session product journey preserves feature fluency, finds shared hotspots, and targets drift recall
+ok 194 - multi-session product journey preserves feature fluency, finds shared hotspots, and targets drift recall
+  ---
+  duration_ms: 272.562655
+  type: 'test'
+  ...
+# Subtest: change impact finds other learned features sharing a touched central file
+ok 195 - change impact finds other learned features sharing a touched central file
+  ---
+  duration_ms: 1.524772
+  type: 'test'
+  ...
+# Subtest: change impact uses the bounded current feature graph without claiming modeled dependencies were directly touched
+ok 196 - change impact uses the bounded current feature graph without claiming modeled dependencies were directly touched
+  ---
+  duration_ms: 0.342876
+  type: 'test'
+  ...
+# Subtest: project topology exposes shared files and boundaries instead of pretending to know runtime calls
+ok 197 - project topology exposes shared files and boundaries instead of pretending to know runtime calls
+  ---
+  duration_ms: 0.466672
+  type: 'test'
+  ...
+# Subtest: feature review queue puts drift and weak feature fluency ahead of routine recall
+ok 198 - feature review queue puts drift and weak feature fluency ahead of routine recall
+  ---
+  duration_ms: 0.39874
+  type: 'test'
+  ...
+# Subtest: provenance log is hash chained and does not persist raw prompt
+ok 199 - provenance log is hash chained and does not persist raw prompt
+  ---
+  duration_ms: 10.670305
+  type: 'test'
+  ...
+# Subtest: tampering is detected
+ok 200 - tampering is detected
+  ---
+  duration_ms: 2.459539
+  type: 'test'
+  ...
+# Subtest: warm verification and read-only BOM reuse parsed provenance without rereading the log
+ok 201 - warm verification and read-only BOM reuse parsed provenance without rereading the log
+  ---
+  duration_ms: 2.628192
+  type: 'test'
+  ...
+# Subtest: append invalidates warm provenance caches immediately
+ok 202 - append invalidates warm provenance caches immediately
+  ---
+  duration_ms: 3.15861
+  type: 'test'
+  ...
+# Subtest: tampering after a warm cache invalidates the cache and still fails closed
+ok 203 - tampering after a warm cache invalidates the cache and still fails closed
+  ---
+  duration_ms: 1.626295
+  type: 'test'
+  ...
+# Subtest: callers cannot mutate cached provenance through returned objects
+ok 204 - callers cannot mutate cached provenance through returned objects
+  ---
+  duration_ms: 1.485113
+  type: 'test'
+  ...
+# Subtest: local Ed25519 identity signs checkpoints
+ok 205 - local Ed25519 identity signs checkpoints
+  ---
+  duration_ms: 4.738976
+  type: 'test'
+  ...
+# Subtest: Agent BOM aggregates tools and MCP servers
+ok 206 - Agent BOM aggregates tools and MCP servers
+  ---
+  duration_ms: 2.634511
+  type: 'test'
+  ...
+# Subtest: repair archives corrupt primary and restores only from a compatible readable backup
+ok 207 - repair archives corrupt primary and restores only from a compatible readable backup
+  ---
+  duration_ms: 11.561755
+  type: 'test'
+  ...
+# Subtest: repair materializes a healthy backup when primary state is missing
+ok 208 - repair materializes a healthy backup when primary state is missing
+  ---
+  duration_ms: 7.678386
+  type: 'test'
+  ...
+# Subtest: repair never downgrades a newer state version
+ok 209 - repair never downgrades a newer state version
+  ---
+  duration_ms: 6.680816
+  type: 'test'
+  ...
+# Subtest: repair refuses destructive fallback when both state and backup are unusable
+ok 210 - repair refuses destructive fallback when both state and backup are unusable
+  ---
+  duration_ms: 7.767109
+  type: 'test'
+  ...
+# Subtest: dry-run reports the exact recovery action without changing files
+ok 211 - dry-run reports the exact recovery action without changing files
+  ---
+  duration_ms: 6.559684
+  type: 'test'
+  ...
+# Subtest: strict policy replay finds historical actions that would require stronger control without raw command storage
+ok 212 - strict policy replay finds historical actions that would require stronger control without raw command storage
+  ---
+  duration_ms: 10.826129
+  type: 'test'
+  ...
+# Subtest: reset archives local learning/evidence state by default
+ok 213 - reset archives local learning/evidence state by default
+  ---
+  duration_ms: 89.683767
+  type: 'test'
+  ...
+# Subtest: reset --force is explicit irreversible deletion
+ok 214 - reset --force is explicit irreversible deletion
+  ---
+  duration_ms: 90.766867
+  type: 'test'
+  ...
+# Subtest: GET evidence is side-effect free while local POST explicitly generates it
+ok 215 - GET evidence is side-effect free while local POST explicitly generates it
+  ---
+  duration_ms: 86.480712
+  type: 'test'
+  ...
+# Subtest: local dashboard serves state and records one-tap proof answers
+ok 216 - local dashboard serves state and records one-tap proof answers
+  ---
+  duration_ms: 81.197217
+  type: 'test'
+  ...
+# Subtest: feature mental model is public without its answer and feature check updates separate fluency
+ok 217 - feature mental model is public without its answer and feature check updates separate fluency
+  ---
+  duration_ms: 58.390151
+  type: 'test'
+  ...
+# Subtest: stored feature recall is answer-hidden, clears drift only after a correct review, and updates feature fluency
+ok 218 - stored feature recall is answer-hidden, clears drift only after a correct review, and updates feature fluency
+  ---
+  duration_ms: 16.008212
+  type: 'test'
+  ...
+# Subtest: snoozing a concept is temporary and does not imply mastery
+ok 219 - snoozing a concept is temporary and does not imply mastery
+  ---
+  duration_ms: 1.096709
+  type: 'test'
+  ...
+# Subtest: availability skips one snoozed task concept and keeps another relevant concept
+ok 220 - availability skips one snoozed task concept and keeps another relevant concept
+  ---
+  duration_ms: 0.865922
+  type: 'test'
+  ...
+# Subtest: availability pauses only when every concept exposed by this task is snoozed
+ok 221 - availability pauses only when every concept exposed by this task is snoozed
+  ---
+  duration_ms: 0.146921
+  type: 'test'
+  ...
+# Subtest: zero minutes clears a snooze
+ok 222 - zero minutes clears a snooze
+  ---
+  duration_ms: 0.222845
+  type: 'test'
+  ...
+# Subtest: transient lock errors retry even after the previous lock entry disappeared
+ok 223 - transient lock errors retry even after the previous lock entry disappeared
+  ---
+  duration_ms: 50.865947
+  type: 'test'
+  ...
+# Subtest: permanent lock denial fails at the unchanged deadline without mutating state
+ok 224 - permanent lock denial fails at the unchanged deadline without mutating state
+  ---
+  duration_ms: 215.441631
+  type: 'test'
+  ...
+# Subtest: non-contention storage errors are not retried or turned into success
+ok 225 - non-contention storage errors are not retried or turned into success
+  ---
+  duration_ms: 1.96154
+  type: 'test'
+  ...
+# Subtest: state keeps a last-known-good backup and recovers instead of silently resetting
+ok 226 - state keeps a last-known-good backup and recovers instead of silently resetting
+  ---
+  duration_ms: 4.119464
+  type: 'test'
+  ...
+# Subtest: state corruption without a healthy backup fails visibly
+ok 227 - state corruption without a healthy backup fails visibly
+  ---
+  duration_ms: 1.448688
+  type: 'test'
+  ...
+# Subtest: older additive state is migrated while a newer state is never downgraded
+ok 228 - older additive state is migrated while a newer state is never downgraded
+  ---
+  duration_ms: 1.19686
+  type: 'test'
+  ...
+# Subtest: details are explicitly requested and strictly admitted without changing v1 defaults
+ok 229 - details are explicitly requested and strictly admitted without changing v1 defaults
+  ---
+  duration_ms: 2.270214
+  type: 'test'
+  ...
+# Subtest: v2 rejects forged source detail, authority, schema and widened time budgets
+ok 230 - v2 rejects forged source detail, authority, schema and widened time budgets
+  ---
+  duration_ms: 0.517228
+  type: 'test'
+  ...
+# Subtest: shared consumer admits mixed canonical languages in one bounded batch
+ok 231 - shared consumer admits mixed canonical languages in one bounded batch
+  ---
+  duration_ms: 2.862614
+  type: 'test'
+  ...
+# Subtest: mixed batch cannot change language, provider, module, path, hash or authority
+ok 232 - mixed batch cannot change language, provider, module, path, hash or authority
+  ---
+  duration_ms: 6.365301
+  type: 'test'
+  ...
+# Subtest: optional unparsed syntax remains empty; unsupported source never invokes Core
+ok 233 - optional unparsed syntax remains empty; unsupported source never invokes Core
+  ---
+  duration_ms: 0.401985
+  type: 'test'
+  ...
+# Subtest: consumer checks source binding, ordered coverage, provider and authority
+ok 234 - consumer checks source binding, ordered coverage, provider and authority
+  ---
+  duration_ms: 3.454474
+  type: 'test'
+  ...
+# Subtest: one bounded source-byte batch uses argv and never a shell
+ok 235 - one bounded source-byte batch uses argv and never a shell
+  ---
+  duration_ms: 1.495238
+  type: 'test'
+  ...
+# Subtest: failure, timeout, malformed JSON, duplicate fields and invalid UTF-8 fail closed
+ok 236 - failure, timeout, malformed JSON, duplicate fields and invalid UTF-8 fail closed
+  ---
+  duration_ms: 0.45209
+  type: 'test'
+  ...
+# Subtest: unparsed provider result stays empty and caller mutation cannot be reused
+ok 237 - unparsed provider result stays empty and caller mutation cannot be reused
+  ---
+  duration_ms: 0.269164
+  type: 'test'
+  ...
+# Subtest: invalid source input cannot invoke the provider
+ok 238 - invalid source input cannot invoke the provider
+  ---
+  duration_ms: 0.367773
+  type: 'test'
+  ...
+# Subtest: advisory extraction can read a legacy command without migrating configuration
+ok 239 - advisory extraction can read a legacy command without migrating configuration
+  ---
+  duration_ms: 1.517222
+  type: 'test'
+  ...
+# Subtest: support diagnostic stays useful without leaking project source, prompts, secrets, or absolute path
+ok 240 - support diagnostic stays useful without leaking project source, prompts, secrets, or absolute path
+  ---
+  duration_ms: 40.195292
+  type: 'test'
+  ...
+# Subtest: support diagnostic remains available when primary state is corrupt but backup is readable
+ok 241 - support diagnostic remains available when primary state is corrupt but backup is readable
+  ---
+  duration_ms: 39.329571
+  type: 'test'
+  ...
+# Subtest: installed-style support CLI can write a bounded shareable report
+ok 242 - installed-style support CLI can write a bounded shareable report
+  ---
+  duration_ms: 114.32425
+  type: 'test'
+  ...
+# Subtest: IDE journey keeps one precise task through loading, weak follow-up, work and handoff
+ok 243 - IDE journey keeps one precise task through loading, weak follow-up, work and handoff
+  ---
+  duration_ms: 121.61951
+  type: 'test'
+  ...
+# Subtest: native identity and digest describe the Core 12000-code-point prefix
+ok 244 - native identity and digest describe the Core 12000-code-point prefix
+  ---
+  duration_ms: 6.706314
+  type: 'test'
+  ...
+# Subtest: compact anchors retain whole Unicode scalars and Core whitespace semantics
+ok 245 - compact anchors retain whole Unicode scalars and Core whitespace semantics
+  ---
+  duration_ms: 1.033094
+  type: 'test'
+  ...
+# Subtest: followups keep historical anchor identity while new pivots use bounded input
+ok 246 - followups keep historical anchor identity while new pivots use bounded input
+  ---
+  duration_ms: 4.15644
+  type: 'test'
+  ...
+# Subtest: first substantive prompt creates a stable deterministic task id
+ok 247 - first substantive prompt creates a stable deterministic task id
+  ---
+  duration_ms: 1.424021
+  type: 'test'
+  ...
+# Subtest: weak confirmations cannot replace the active task
+ok 248 - weak confirmations cannot replace the active task
+  ---
+  duration_ms: 1.616961
+  type: 'test'
+  ...
+# Subtest: substantive follow-up becomes focus without silently creating another task
+ok 249 - substantive follow-up becomes focus without silently creating another task
+  ---
+  duration_ms: 0.57823
+  type: 'test'
+  ...
+# Subtest: explicit task pivot closes the old task and creates a new identity
+ok 250 - explicit task pivot closes the old task and creates a new identity
+  ---
+  duration_ms: 0.242054
+  type: 'test'
+  ...
+# Subtest: task boundary classifier is conservative in French and English
+ok 251 - task boundary classifier is conservative in French and English
+  ---
+  duration_ms: 0.135654
+  type: 'test'
+  ...
+1..251
+# tests 251
+# suites 0
+# pass 251
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 17028.98483
