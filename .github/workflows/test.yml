@@ -154,6 +154,18 @@ jobs:
       - name: Observe macOS YAML provider outcomes without qualifying or retrying the gate
         if: always() && runner.os == 'macOS' && (steps.all_providers.outcome == 'success' || steps.all_providers.outcome == 'failure')
         run: node scripts/structure-provider-diagnostics.mjs
+      - name: Observe complete macOS source admission and provider sequence without qualification
+        id: source_pipeline_diagnostic
+        if: always() && runner.os == 'macOS' && (steps.all_providers.outcome == 'success' || steps.all_providers.outcome == 'failure')
+        run: node scripts/structure-pipeline-diagnostics.mjs | tee "$RUNNER_TEMP/source-pipeline-observations.jsonl"
+      - name: Preserve every complete-pipeline observation
+        if: always() && runner.os == 'macOS' && (steps.source_pipeline_diagnostic.outcome == 'success' || steps.source_pipeline_diagnostic.outcome == 'failure')
+        uses: actions/upload-artifact@v6
+        with:
+          name: macos-source-pipeline-observations
+          path: ${{ runner.temp }}/source-pipeline-observations.jsonl
+          if-no-files-found: error
+          retention-days: 30
       - name: Verify cited canonical feature-map references and fresh source reads
         run: node scripts/feature-canonical-smoke.mjs
       - name: Enforce existing hook budgets with actual Python provider
