@@ -1,3 +1,4 @@
+import { normalizedProjectPath } from './project-path.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
@@ -65,7 +66,7 @@ function acquireLock(cwd) {
   const detail=lastError?.code ? ` (${lastError.code})` : '';
   throw new Error(`IdleProof provenance ledger stayed busy for ${LOCK_TIMEOUT_MS/1000}s${detail}; refusing to drop a concurrent trace event.`);
 }
-function relativeTarget(cwd, candidate) { if (!candidate || typeof candidate !== 'string') return null; const root = path.resolve(cwd); const absolute = path.resolve(root, candidate); if (absolute.startsWith(`${root}${path.sep}`)) return path.relative(root, absolute).replaceAll('\\', '/'); return candidate.replaceAll('\\', '/').slice(0, 500); }
+function relativeTarget(cwd, candidate) { if (!candidate || typeof candidate !== 'string') return null; const root = path.resolve(cwd); const absolute = path.resolve(root, candidate); if (absolute.startsWith(`${root}${path.sep}`)) return normalizedProjectPath(path.relative(root, absolute)); return normalizedProjectPath(candidate).slice(0, 500); }
 function executable(command = '') { const text = String(command || '').trim(); return text.match(/^(?:env\s+[^\s]+\s+|sudo\s+)?([^\s]+)/)?.[1] || null; }
 
 function fileStamp(file) {

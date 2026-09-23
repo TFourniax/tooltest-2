@@ -1,0 +1,131 @@
+✔ native nested paths remain readable on each operating system (12.160524ms)
+✖ POSIX backslash source is unavailable instead of relabelled as a nested file (3.123757ms)
+✖ feature seeds cannot inspect a different file after separator replacement (6.39704ms)
+✖ explanation and impact preserve distinct local paths (0.864816ms)
+✖ provenance and cloud projections do not alias two POSIX filenames (6.07858ms)
+✖ a POSIX lookalike of an internal directory remains meaningful Git content (67.447793ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 1
+ℹ fail 5
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 210.573074
+
+✖ failing tests:
+
+test at test/native-path-identity.test.mjs:35:1
+✖ POSIX backslash source is unavailable instead of relabelled as a nested file (3.123757ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + {
+  +   absolute: '/tmp/idleproof-path-identity-LKUEDv/part\\file.py',
+  +   relative: 'part/file.py',
+  +   sha256: 'c6fb23fbd90927dc21436e1170c3cefda7eec9633158e82803d4e72562fab87e',
+  +   size: 35,
+  +   text: 'def literal_symbol():\n    return 1\n'
+  + }
+  - null
+  
+      at TestContext.<anonymous> (file:///workspace/scratch/e341555d0f23/idle-path-fix/test/native-path-identity.test.mjs:37:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { relative: 'part/file.py', absolute: '/tmp/idleproof-path-identity-LKUEDv/part\\file.py', size: 35, text: 'def literal_symbol():\n    return 1\n', sha256: 'c6fb23fbd90927dc21436e1170c3cefda7eec9633158e82803d4e72562fab87e' },
+    expected: null,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/native-path-identity.test.mjs:46:1
+✖ feature seeds cannot inspect a different file after separator replacement (6.39704ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  1 !== 0
+  
+      at TestContext.<anonymous> (file:///workspace/scratch/e341555d0f23/idle-path-fix/test/native-path-identity.test.mjs:49:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/native-path-identity.test.mjs:54:1
+✖ explanation and impact preserve distinct local paths (0.864816ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  1 !== 0
+  
+      at TestContext.<anonymous> (file:///workspace/scratch/e341555d0f23/idle-path-fix/test/native-path-identity.test.mjs:57:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/native-path-identity.test.mjs:62:1
+✖ provenance and cloud projections do not alias two POSIX filenames (6.07858ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'part/file.py'
+  - 'part\\file.py'
+         ^
+  
+      at TestContext.<anonymous> (file:///workspace/scratch/e341555d0f23/idle-path-fix/test/native-path-identity.test.mjs:65:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'part/file.py',
+    expected: 'part\\file.py',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/native-path-identity.test.mjs:70:1
+✖ a POSIX lookalike of an internal directory remains meaningful Git content (67.447793ms)
+  AssertionError [ERR_ASSERTION]: Expected "actual" to be strictly unequal to:
+  
+  '0cbf3a891bdc3e2494a2499de166df4f43ecaa0f'
+      at TestContext.<anonymous> (file:///workspace/scratch/e341555d0f23/idle-path-fix/test/native-path-identity.test.mjs:80:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '0cbf3a891bdc3e2494a2499de166df4f43ecaa0f',
+    expected: '0cbf3a891bdc3e2494a2499de166df4f43ecaa0f',
+    operator: 'notStrictEqual',
+    diff: 'simple'
+  }

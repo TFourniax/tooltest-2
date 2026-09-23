@@ -1,3 +1,4 @@
+import { normalizedProjectPath } from './project-path.mjs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
@@ -18,7 +19,7 @@ const TECHNOLOGIES = [
 ];
 
 const uniq = (values) => [...new Set((values || []).filter(Boolean))];
-const norm = (value = '') => String(value).replaceAll('\\','/').replace(/^\.\//,'');
+const norm = (value = '') => normalizedProjectPath(value);
 const compact = (value = '', max = 90) => { const text=String(value || '').replace(/\s+/g,' ').trim(); return text.length <= max ? text : `${text.slice(0,max-1).trimEnd()}…`; };
 const nodeId = (type, value) => `${type}:${value}`;
 

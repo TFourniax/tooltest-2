@@ -134,6 +134,10 @@ jobs:
         run: node scripts/continuity-core-smoke.mjs
       - name: Verify source-bound Python extraction through real CLI consumer
         run: node scripts/structure-core-smoke.mjs
+      - name: Verify native path identity through the actual Core boundary
+        env:
+          IDLEPROOF_REQUIRE_CANONICAL: '1'
+        run: node --test test/native-path-identity.test.mjs
       - name: Verify explicit optional-language coverage without grammars
         run: node scripts/structure-languages-smoke.mjs --without-grammars
       - name: Verify all new provider families remain explicitly unparsed without grammars

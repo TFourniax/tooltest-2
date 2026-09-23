@@ -1,3 +1,4 @@
+import { normalizedProjectPath } from './project-path.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
@@ -100,7 +101,7 @@ function allLearnedFiles(state) {
   const files=[];
   for (const feature of Object.values(state?.features || {})) {
     for (const item of feature?.story || []) {
-      if (item?.type === 'file' && item?.label) files.push(String(item.label).replaceAll('\\','/'));
+      if (item?.type === 'file' && item?.label) files.push(normalizedProjectPath(item.label));
     }
   }
   return [...new Set(files)];

@@ -1,3 +1,4 @@
+import { normalizedProjectPath } from './project-path.mjs';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -34,7 +35,7 @@ function sha256(value) {
 }
 
 function normalized(relative = '') {
-  return String(relative).replaceAll('\\', '/').replace(/^\.\//, '');
+  return normalizedProjectPath(relative);
 }
 
 function repoRoot(cwd) {

@@ -1,3 +1,4 @@
+import { normalizedProjectPath } from './project-path.mjs';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
@@ -89,7 +90,7 @@ function git(cwd, args, maxBuffer = 1024 * 1024) {
 }
 
 function isIdleProofInternal(relative) {
-  const normalized = String(relative || '').replaceAll('\\', '/').replace(/^\.\//, '');
+  const normalized = normalizedProjectPath(relative);
   return normalized === '.idleproof' ||
     normalized.startsWith('.idleproof/') ||
     normalized === '.claude/settings.local.json' ||
