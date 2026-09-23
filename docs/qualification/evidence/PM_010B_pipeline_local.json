@@ -1,0 +1,63 @@
+{
+  "classification": "MACHINE",
+  "qualification": false,
+  "fixedObservations": 500,
+  "observations": {
+    "missing_command": {
+      "header": {
+        "schema": "idleproof-source-pipeline-diagnostic-1",
+        "classification": "MACHINE",
+        "qualification": false,
+        "note": "Fixed 100 synthetic sequences / 500 complete pipeline observations. All outcomes retained. Instrumentation overhead is included. No retries, raw source/response, command, path, stderr or exception message. The original gate remains authoritative.",
+        "platform": "linux",
+        "arch": "x64",
+        "node": "v24.19.0",
+        "expectedSamples": 500
+      },
+      "summary": {
+        "schema": "idleproof-source-pipeline-summary-1",
+        "classification": "MACHINE",
+        "qualification": false,
+        "samples": 500,
+        "canonical": 0,
+        "expectedSymbol": 0,
+        "timeouts": 0,
+        "maxElapsedMs": 5.9653689999999955
+      },
+      "rawBytes": 446849,
+      "rawSha256": "aa2e4d0006863ab52ada5a2b289699e8f2a5737a1e23778ed7504b76c9ae3433",
+      "encoding": "base64(gzip(JSONL)); gzip mtime=0",
+      "archive": "PM_010B_pipeline_missing_command.jsonl.gz.b64",
+      "archiveBytes": 22906,
+      "archiveSha256": "0cac45e033ec9d48b261e620111392b16b1b4f5559a260c4de14de0e664a99a1"
+    },
+    "actual_optional_core": {
+      "header": {
+        "schema": "idleproof-source-pipeline-diagnostic-1",
+        "classification": "MACHINE",
+        "qualification": false,
+        "note": "Fixed 100 synthetic sequences / 500 complete pipeline observations. All outcomes retained. Instrumentation overhead is included. No retries, raw source/response, command, path, stderr or exception message. The original gate remains authoritative.",
+        "platform": "linux",
+        "arch": "x64",
+        "node": "v24.19.0",
+        "expectedSamples": 500
+      },
+      "summary": {
+        "schema": "idleproof-source-pipeline-summary-1",
+        "classification": "MACHINE",
+        "qualification": false,
+        "samples": 500,
+        "canonical": 500,
+        "expectedSymbol": 500,
+        "timeouts": 0,
+        "maxElapsedMs": 104.90570800000205
+      },
+      "rawBytes": 426521,
+      "rawSha256": "5c229b3d4b0dcea21cdf1ae27b58477fd36d95086d98851fd21cfe9254fc05f2",
+      "encoding": "base64(gzip(JSONL)); gzip mtime=0",
+      "archive": "PM_010B_pipeline_actual_optional_core.jsonl.gz.b64",
+      "archiveBytes": 24936,
+      "archiveSha256": "585bc6b9ecc69cecc67a504a5c75b0a1d591a840bd927861402924cbeb941193"
+    }
+  }
+}

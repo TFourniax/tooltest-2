@@ -1,0 +1,38 @@
+{
+  "classification": "MACHINE",
+  "qualification": false,
+  "source": "Exact JSONL record lines from macOS job log, runner timestamp prefixes removed, LF retained. Not the artifact ZIP bytes.",
+  "run": 35855627299,
+  "job": 107163290092,
+  "head": "44a9b508c928ac283308e32b32aaf3bdb99a6fbb",
+  "tree": "3e9a1c0158968dbb33634c54a4c007c2074655e5",
+  "header": {
+    "schema": "idleproof-source-pipeline-diagnostic-1",
+    "classification": "MACHINE",
+    "qualification": false,
+    "note": "Fixed 100 synthetic sequences / 500 complete pipeline observations. All outcomes retained. Instrumentation overhead is included. No retries, raw source/response, command, path, stderr or exception message. The original gate remains authoritative.",
+    "platform": "darwin",
+    "arch": "arm64",
+    "node": "v22.23.2",
+    "expectedSamples": 500
+  },
+  "summary": {
+    "schema": "idleproof-source-pipeline-summary-1",
+    "classification": "MACHINE",
+    "qualification": false,
+    "samples": 500,
+    "canonical": 500,
+    "expectedSymbol": 500,
+    "timeouts": 0,
+    "maxElapsedMs": 175.83637500000077
+  },
+  "rawBytes": 438453,
+  "rawSha256": "1645d20e1ec43099b0bf462330f15468cd58effa3b2463300c0947e96037a6bd",
+  "archive": "PM_010B_pipeline_macos_35855627299.jsonl.gz.b64",
+  "archiveBytes": 26659,
+  "archiveSha256": "215dd8976f0e7b3bbc484a22ad6a371d10eae6fdeb58fc1890bb78f54809be82",
+  "actionsArtifact": {
+    "id": 10747616523,
+    "zipSha256": "06a85c88159a422e61438b7c8415d62bebeb1b9ecd9bc3be8fcfdb8d03bc901b"
+  }
+}
