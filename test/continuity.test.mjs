@@ -226,7 +226,7 @@ test('source admission rejects malformed or mismatched references without upgrad
 
 
 test('ordinary risk and task words survive privacy projection unchanged', () => {
-  for(const value of ['risk-assessment-workflow','task-validation-workflow','desk-configuration-wizard']) {
+  for(const value of ['risk-assessment-workflow','task-validation-workflow','desk-configuration-wizard','tâsk-validation-workflow','ta\u0302sk-validation-workflow','αsk-validation-workflow','１sk-validation-workflow']) {
     const c=fixture(); c.tasks[0].id='TASK_'+value; c.tasks[0].label=value;
     c.relations[0].source=c.tasks[0].id;
     const projected=__portalTest.safeContinuityMemory(c);
