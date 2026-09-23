@@ -194,7 +194,7 @@ test('known stack credentials cannot hide in exact identities or display labels'
   const credentials=[['github-fine','github_pat_'+'A'.repeat(82)],['github-installation','ghs_12345_'+jwt],
     ['supabase-secret','sb_secret_'+'A'.repeat(32)],['supabase-pat','sbp_'+'a'.repeat(40)],['supabase-pat-long','supabase_pat_'+'a'.repeat(40)],['stripe-live','sk_live_'+'A'.repeat(24)],
     ['stripe-restricted','rk_test_'+'A'.repeat(24)],['aws-temporary','ASIA'+'A'.repeat(16)],
-    ...['glpat','gloas','gldt','glrt','glrtr','glcbt','glptt','glft','glimt','glagent','glwt','glsoat','glffct'].map(prefix=>[prefix,prefix+'-'+'A'.repeat(20)]), ['gitlab-session','_gitlab_session='+'a'.repeat(32)], ['npm','npm_'+'A'.repeat(36)],['pypi','pypi-'+'A'.repeat(85)],['jwt',jwt]];
+    ...['glpat','gloas','gldt','glrt','glrtr','glcbt','glptt','glft','glimt','glagent','glwt','glsoat','glffct'].map(prefix=>[prefix,prefix+'-'+'A'.repeat(20)]), ['gitlab-session','_gitlab_session='+'a'.repeat(32)], ['gitlab-session-encoded','_gitlab_session=abc%2FVERY_SECRET_SUFFIX%3D%3D'], ['gitlab-session-base64','_gitlab_session=abc/VERY+SECRET=SUFFIX=='], ['npm','npm_'+'A'.repeat(36)],['pypi','pypi-'+'A'.repeat(85)],['jwt',jwt]];
   const escaped=[];
   for(const [family,credential] of credentials) {
     const c=fixture(); c.tasks[0].id='TASK_'+'x'.repeat(120)+'_'+credential;
@@ -203,7 +203,7 @@ test('known stack credentials cannot hide in exact identities or display labels'
     const projected=__portalTest.safeContinuityMemory(c);
     if(projected.tasks.length || projected.relations.length || JSON.stringify(projected).includes(credential)) escaped.push(family+' identity');
     c.tasks[0].id='TASK-CLEAN'; c.relations=[]; c.tasks[0].label='Review_'+credential;
-    if(JSON.stringify(__portalTest.safeContinuityMemory(c)).includes(credential)) escaped.push(family+' label');
+    if(__portalTest.safeContinuityMemory(c).tasks[0].label !== 'Review_[redacted]') escaped.push(family+' label');
   }
   assert.deepEqual(escaped,[]);
   const c=fixture(); c.tasks[0].id='TASK_sb_publishable_'+'A'.repeat(32);

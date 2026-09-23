@@ -11,7 +11,7 @@ const SECRET_PATTERNS = [
   /sk-[A-Za-z0-9_-]{12,}/g,
   /(?:github_pat_|gh[pousr]_)[A-Za-z0-9_.-]{20,}/g,
   /gl(?:pat|oas|dt|rt|rtr|cbt|ptt|ft|imt|agent|wt|soat|ffct)-[A-Za-z0-9_.-]{16,}/g,
-  /_gitlab_session=[A-Za-z0-9_-]+/g,
+  /_gitlab_session=[^\s;]+/g,
   /(?:sb_secret_|sbp_|supabase_pat_)[A-Za-z0-9_-]{20,}/g,
   /[sr]k_(?:live|test)_[A-Za-z0-9]{16,}/g,
   /(?:AKIA|ASIA)[0-9A-Z]{16}/g,

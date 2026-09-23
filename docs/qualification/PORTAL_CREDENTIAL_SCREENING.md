@@ -44,3 +44,9 @@ https://docs.gitlab.com/security/tokens/ supplies the13default prefix families.
 The matrix reproduces28 identity/label escapes, including session cookies,
 before correction. Custom administrator-defined PAT prefixes and opaque legacy
 tokens remain outside prefix recognition and are explicitly not guaranteed.
+
+Review4081192098 reproduced partial cookie redaction with URL-encoded/base64
+punctuation. Consume the full non-whitespace value through the semicolon
+delimiter. The display regression checks the complete expected redacted label,
+not merely absence of the original full credential; the initial weaker test
+missed the suffix leak and is retained as a fixture blind spot.
