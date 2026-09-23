@@ -136,7 +136,7 @@ test('dense admitted context stays synchronizable by budgeting whole cited rows'
 });
 
 test('exact identities omit credentials behind word-like delimiters past old display limit', () => {
-  for(const value of ['api_key=private-secret-value','token=private-secret-value','sk-'+'x'.repeat(20),'ghp_'+'x'.repeat(24),'AKIA'+'A'.repeat(16)]) {
+  for(const value of ['api_key=private-secret-value','token=private-secret-value','sk-'+'x'.repeat(20),'ghp_'+'x'.repeat(24),'AKIA'+'A'.repeat(16),'ipd_'+'A'.repeat(24),'IPD_'+'A'.repeat(20)]) {
     const c=fixture(); c.tasks[0].id='TASK_'+'x'.repeat(120)+'_'+value;
     c.relations[0].source=c.tasks[0].id;
     assert.ok(__continuityTest.validContext(c));
@@ -145,6 +145,13 @@ test('exact identities omit credentials behind word-like delimiters past old dis
     assert.deepEqual(projected.relations,[],value);
     assert.ok(!JSON.stringify(projected).includes(value));
   }
+  const c=fixture(), credential='ipd_'+'A'.repeat(24);
+  c.tasks[0].label='Review '+credential;
+  c.warnings=['Device '+credential];
+  const projected=__portalTest.safeContinuityMemory(c);
+  assert.deepEqual(projected.tasks[0].source,c.tasks[0].source);
+  assert.ok(!JSON.stringify(projected).includes(credential));
+  assert.match(projected.tasks[0].label,/\[redacted\]/);
 });
 
 test('absent or unusable Core degrades to no advisory context', () => {

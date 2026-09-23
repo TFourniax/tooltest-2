@@ -7,6 +7,7 @@ const PROOF_CLAIMS = new Set(['causal','preservation','validation','not-required
 const EPISTEMIC = new Set(['DECLARED','INFERRED','OBSERVED','VERIFIED','UNKNOWN']);
 const REPOSITORY_FINGERPRINT_RE = /^dwrepo_[a-f0-9]{24}$/;
 const SECRET_PATTERNS = [
+  /ipd_[A-Za-z0-9_-]{20,}/gi,
   /\bsk-[A-Za-z0-9_-]{12,}\b/g,
   /\bgh[pousr]_[A-Za-z0-9]{20,}\b/g,
   /\bAKIA[0-9A-Z]{16}\b/g,
