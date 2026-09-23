@@ -72,7 +72,7 @@ test('very large raw prompt stays out of the bounded snapshot while its digest r
 test('portal paths reject absolute and traversal paths',()=>{
   const snapshot=buildPortalSnapshot({state:{project:'x'},session:{prompt:'private task',touchedFiles:['../secret.txt','/etc/passwd','src/ok.ts']}});
   assert.deepEqual(snapshot.files,['src/ok.ts']);
-  assert.equal(snapshot.task.summary,'Work involving src/ok.ts');
+  assert.equal(snapshot.task.summary,'Work involving src/ok.ts Portal path coverage incomplete: 2 unique path(s) omitted (0 exceed 300 characters; 2 are not portable relative paths).');
   assert.ok(!JSON.stringify(snapshot).includes('private task'));
   assert.equal(assertPortalSnapshotSafe(snapshot),true);
 });
