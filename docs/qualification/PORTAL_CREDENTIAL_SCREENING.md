@@ -8,7 +8,7 @@ Opaque IDs must survive unchanged or be omitted with a warning; never create a
 redacted/truncated alias. Prefix recognition is independent of word boundaries
 so underscores in identities or display labels cannot hide a known credential.
 Native device tokens, OpenAI-style keys, classic/fine-grained/stateless GitHub
-tokens, Supabase project/management keys, Stripe secret/restricted keys, AWS
+tokens, documented GitLab token families/session cookies, Supabase project/management keys, Stripe secret/restricted keys, AWS
 long-term/temporary access IDs, npm/PyPI publication tokens and compact JWT-like
 strings are screened. Prefix patterns use conservative minimum lengths, not
 provider authentication validity rules. Public sb_publishable_ keys and normal
@@ -38,3 +38,9 @@ recorded18 missed identity/label cases across9 families before extension.
 The completed matrix also includes both Supabase management token prefixes.
 The source list documents formats; the safety policy deliberately does not
 require a provider token to be active, valid or checksum-correct to redact it.
+
+GitLab review4081120701: the official token-prefix inventory at
+https://docs.gitlab.com/security/tokens/ supplies the13default prefix families.
+The matrix reproduces28 identity/label escapes, including session cookies,
+before correction. Custom administrator-defined PAT prefixes and opaque legacy
+tokens remain outside prefix recognition and are explicitly not guaranteed.
