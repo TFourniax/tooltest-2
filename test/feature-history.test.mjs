@@ -6,7 +6,7 @@ import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 import {featureKey,rememberFeature} from '../src/feature-memory.mjs';
-import {freshState,saveState,loadState} from '../src/state.mjs';
+import {freshState,saveState,loadState,mutateState} from '../src/state.mjs';
 import {readFeatureHistory,readFeatureObservation,featureHistoryCli} from '../src/feature-history.mjs';
 
 const bin=path.resolve('bin/idleproof.mjs');
@@ -120,4 +120,30 @@ test('ordinary state saves do not reread or rewrite the archive',()=>{
     fs.openSync=(file,...args)=>{if(String(file).includes('feature-observations'))archiveOpens++;return original(file,...args);};
     saveState(cwd,loaded);assert.equal(archiveOpens,0);
   } finally {fs.openSync=original;fs.rmSync(cwd,{recursive:true,force:true});}
+});
+
+test('failed mutateState retains captured observations for a later project save',()=>{
+  const cwd=fs.mkdtempSync(path.join(os.tmpdir(),'idleproof-history-mutation-')), original=fs.linkSync;
+  try {
+    const key=model(0).featureKey;
+    mutateState(cwd,state=>{rememberFeature(state,{id:'first'},model(0));});
+    fs.linkSync=()=>{const error=new Error('synthetic full disk');error.code='ENOSPC';throw error;};
+    assert.throws(()=>mutateState(cwd,state=>{rememberFeature(state,{id:'captured'},model(1));}),{code:'ENOSPC'});
+    fs.linkSync=original;
+    // The failed mutator's state object is unavailable; only a new load is used.
+    mutateState(cwd,state=>{state.preferences.mode='learn';});
+    assert.equal(readFeatureHistory(cwd,key).items.length,2);
+    assert.equal(loadState(cwd).features[key].lineageObservations.items.length,1);
+  } finally {fs.linkSync=original;fs.rmSync(cwd,{recursive:true,force:true});}
+});
+
+test('nonmatching archive names count toward the enumeration bound',()=>{
+  const cwd=fs.mkdtempSync(path.join(os.tmpdir(),'idleproof-history-bound-')), original=fs.opendirSync;
+  try {
+    const state=freshState(cwd),key=model(0).featureKey;rememberFeature(state,{id:'fixture'},model(0));saveState(cwd,state);
+    let calls=0,closed=false;
+    fs.opendirSync=()=>({readSync(){calls++;return calls<=100002?{name:`unexpected-${calls}`} : null;},closeSync(){closed=true;}});
+    assert.throws(()=>readFeatureHistory(cwd,key),/bounded reader/);
+    assert.equal(calls,100001);assert.equal(closed,true);
+  } finally {fs.opendirSync=original;fs.rmSync(cwd,{recursive:true,force:true});}
 });

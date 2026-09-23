@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import {performance} from 'node:perf_hooks';
 import {extractTaskSignals} from '../src/context.mjs';
 import {buildHookDelivery} from '../src/delivery.mjs';
 import {freshState} from '../src/state.mjs';
@@ -23,7 +24,9 @@ try{
  for(const [file,source,provider,expected]of fixtures){
   fs.writeFileSync(path.join(cwd,file),source);
   const session={currentResource:file,prompt:'Inspect invented'};
+  const started=performance.now();
   const value=extractTaskSignals(cwd,session);
+  if(!value.structureCoverage.canonical) console.error(JSON.stringify({schema:'idleproof-provider-failure-1',classification:'MACHINE',qualification:false,fixture:file,elapsedMs:performance.now()-started,reason:value.structureCoverage.reason,provider:value.structureCoverage.provider}));
   assert.equal(value.structureCoverage.canonical,true,file);
   assert.equal(value.structureCoverage.provider,provider,file);
   assert.equal(value.structureCoverage.parsed,optional,file);

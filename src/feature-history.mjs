@@ -5,7 +5,7 @@ import path from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {validFeatureObservation,validFeatureObservations} from './feature-observations.mjs';
 
-const pending=new WeakMap(), MAX_BYTES=16*1024+1, MAX_PENDING_BYTES=4*1024*1024;
+const pending=new WeakMap(), pendingProjects=new Map(), MAX_BYTES=16*1024+1, MAX_PENDING_BYTES=4*1024*1024;
 const ARCHIVE_CHECKPOINT='idleproof.feature-observation-archive.v1';
 const featureKey=value=>typeof value==='string'&&/^[a-f0-9]{24}$/.test(value);
 const observationId=value=>typeof value==='string'&&/^ipfo_[a-f0-9]{64}$/.test(value);
@@ -72,7 +72,8 @@ function writeObservation(cwd,value) {
 }
 
 export function persistFeatureObservations(cwd,state) {
-  const items=new Map(pending.get(state)||[]);
+  const project=fs.realpathSync(cwd);
+  const items=new Map([...(pendingProjects.get(project)||[]),...(pending.get(state)||[])]);
   const seeded=[];
   // Seed only actually retained legacy observations. Never infer lost history
   // from current files or reset the historical discarded counter.
@@ -80,21 +81,32 @@ export function persistFeatureObservations(cwd,state) {
     const log=entry?.lineageObservations;if(log===undefined)continue;
     if(entry.lineageArchive===ARCHIVE_CHECKPOINT)continue;
     if(!validFeatureObservations(log,key))throw new Error('Invalid retained feature observation history.');
-    for(const item of log.items)items.set(item.id,item);
     seeded.push(entry);
   }
+  if([...items.values()].reduce((sum,item)=>sum+Buffer.byteLength(JSON.stringify(item)),0)>MAX_PENDING_BYTES)
+    throw new Error('Pending feature history exceeds its write batch; save smaller batches.');
+  // A failed mutateState call discards its transient state object. Retain only
+  // the source-bound observations by project, not that failed state or scores.
+  pendingProjects.set(project,items);
   for(const item of items.values())writeObservation(cwd,item);
-  for(const entry of seeded)entry.lineageArchive=ARCHIVE_CHECKPOINT;
+  // Stream legacy rows separately: an existing archive migration must not
+  // require all features to fit the new-observation staging memory budget.
+  for(const entry of seeded){
+    for(const item of entry.lineageObservations.items)writeObservation(cwd,item);
+    entry.lineageArchive=ARCHIVE_CHECKPOINT;
+  }
   pending.delete(state);
+  pendingProjects.delete(project);
 }
 
 export function readFeatureHistory(cwd,key,{after=null,limit=20}={}) {
   if(!Number.isInteger(limit)||limit<1||limit>100||after!==null&&!observationId(after))throw new Error('Invalid history cursor or limit.');
-  const dir=directory(cwd,key), candidates=[];let total=0;
+  const dir=directory(cwd,key), candidates=[];let total=0,scanned=0;
   if(dir){const handle=fs.opendirSync(dir);try {let entry;
     while((entry=handle.readSync())!==null){
+      if(++scanned>100000)throw new Error('Feature history directory exceeds the bounded reader; no partial page returned.');
       if(!/^ipfo_[a-f0-9]{64}\.json$/.test(entry.name))continue;
-      if(++total>100000)throw new Error('Feature history directory exceeds the bounded reader; no partial page returned.');
+      total++;
       const id=entry.name.slice(0,-5);
       if(after!==null&&id<=after)continue;
       candidates.push(id);candidates.sort();if(candidates.length>limit+1)candidates.pop();

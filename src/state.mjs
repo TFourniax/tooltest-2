@@ -206,9 +206,9 @@ function writeAtomic(file, content) {
 }
 
 export function saveState(cwd, state) {
-  persistFeatureObservations(cwd,state);
   const paths = projectPaths(cwd);
   fs.mkdirSync(paths.dir, { recursive: true });
+  persistFeatureObservations(cwd,state);
   state.version = CURRENT_STATE_VERSION;
   state.updatedAt = new Date().toISOString();
 

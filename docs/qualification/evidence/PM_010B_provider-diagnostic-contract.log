@@ -1,0 +1,14 @@
+✔ consumer checks source binding, ordered coverage, provider and authority (3.393545ms)
+✔ one bounded source-byte batch uses argv and never a shell (1.41046ms)
+✔ failure, timeout, malformed JSON, duplicate fields and invalid UTF-8 fail closed (0.466875ms)
+✔ unparsed provider result stays empty and caller mutation cannot be reused (0.337059ms)
+✔ invalid source input cannot invoke the provider (0.393334ms)
+✔ advisory extraction can read a legacy command without migrating configuration (1.210959ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 100.305048

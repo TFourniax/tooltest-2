@@ -1,0 +1,17 @@
+{
+  "classification": "MACHINE",
+  "qualification": false,
+  "cases": {
+    "previous_pipeline": {
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    "corrected_pipeline": {
+      "exit": 17,
+      "stdout": "",
+      "stderr": ""
+    }
+  },
+  "workflow": "All diagnostic and artifact steps continue-on-error; their original outcome is recorded. all_providers remains an ordinary required step, without continue-on-error."
+}
