@@ -1,3 +1,4 @@
+import { normalizedProjectPath } from './project-path.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -38,7 +39,7 @@ export function parseCodeowners(cwd = process.cwd()) {
   const rules = []; for (const raw of fs.readFileSync(path.join(cwd, location), 'utf8').split(/\r?\n/)) { const line = raw.trim(); if (!line || line.startsWith('#')) continue; const parts = line.split(/\s+/); if (parts.length < 2) continue; const pattern = parts.shift(); const owners = parts.filter((owner) => owner.startsWith('@') || owner.includes('@')); const regex = codeownersPatternToRegex(pattern); if (regex && owners.length) rules.push({ pattern, owners, regex }); }
   return { source: location, rules };
 }
-export function ownersForPath(file, parsed) { let owners = []; for (const rule of parsed.rules || []) if (rule.regex.test(String(file).replaceAll('\\', '/'))) owners = rule.owners; return owners; }
+export function ownersForPath(file, parsed) { let owners = []; for (const rule of parsed.rules || []) if (rule.regex.test(normalizedProjectPath(file))) owners = rule.owners; return owners; }
 function riskForPath(file) { return SENSITIVE.find((item) => item.pattern.test(file)) || { risk: 3, domain: 'application' }; }
 function acceptanceFile(cwd) { return path.join(projectPaths(cwd).dir, 'acceptances.json'); }
 export function loadAcceptances(cwd = process.cwd()) { return readJson(acceptanceFile(cwd), { schema: 'idleproof.acceptances.v1', items: [] }); }

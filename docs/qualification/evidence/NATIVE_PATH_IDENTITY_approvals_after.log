@@ -1,0 +1,25 @@
+✔ native nested paths remain readable on each operating system (10.660105ms)
+✔ POSIX backslash source is unavailable instead of relabelled as a nested file (5.253076ms)
+✔ feature seeds cannot inspect a different file after separator replacement (2.3432ms)
+✔ explanation and impact preserve distinct local paths (0.99937ms)
+✔ provenance and cloud projections do not alias two POSIX filenames (6.457055ms)
+✔ a POSIX lookalike of an internal directory remains meaningful Git content (69.569898ms)
+✔ CODEOWNERS does not assign a nested directory owner to a literal backslash name (1.160053ms)
+✔ a local approval for one POSIX path cannot approve the other path (4.533419ms)
+✔ legacy ambiguous approval fingerprints cannot authorize a current action (1.864507ms)
+✔ CODEOWNERS matching uses the last matching rule (13.396929ms)
+✔ responsibility acceptance is bound to the diff and recorder-signed (24.23959ms)
+✔ balanced policy blocks catastrophic delete (4.140094ms)
+✔ balanced policy requires review for force push and emits ask for Claude (1.45632ms)
+✔ Codex uses its current native ask decision and can still consume a one-shot local approval (2.883516ms)
+✔ strict profile escalates critical ask to deny (1.927732ms)
+✔ project rule can protect a sensitive path (0.96002ms)
+✔ effective policy hash changes with project profile and includes built-in engine material (1.089055ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 200.81079

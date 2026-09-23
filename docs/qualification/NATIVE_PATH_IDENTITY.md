@@ -42,3 +42,26 @@ This correction is independent of the earlier macOS YAML failure in
 must not be presented as its root-cause resolution. PR #18 remains diagnostic
 work. Private runner, full 100k budgets, coordinated release and HUMAN acceptance
 are separate open gates. No Alpha, release, deployment or HUMAN PASS is claimed.
+
+## Adjacent approval and ownership correction
+
+Further probing found the same alias in CODEOWNERS matching and local policy
+actions. With a project rule requiring review of writes, approving the literal
+POSIX filename also approved its nested-path lookalike. The two failures are
+retained in `adjacent_before.log`. A third regression (`approvals_before.log`)
+shows that merely correcting new paths leaves old ambiguous grants usable.
+
+CODEOWNERS and policy actions now preserve the native path too. The action
+fingerprint includes `idleproof.action-identity.v2`, and effective policy material
+advances to engineVersion 3. All old grants require a new explicit approval;
+they are not deleted or silently reassigned. Current grants remain single-use
+and bound to the exact current action. Existing project rules and conservative
+capability detection are unchanged.
+
+The final path suite has nine scenarios (seven POSIX-only, two portable).
+`approvals_after.log` retains all 17 focused path/policy/ownership PASS results;
+`actual_core_final.log` retains all nine path scenarios against the installed
+Core. `full_final.log` retains the final complete suite. Earlier results remain
+historical evidence for the earlier runtime tree. Cross-platform CI and review
+must qualify the final head independently; initial PR run35893896077 was 16/16
+SUCCESS on b4c5ccd and cannot qualify these additional runtime changes.
