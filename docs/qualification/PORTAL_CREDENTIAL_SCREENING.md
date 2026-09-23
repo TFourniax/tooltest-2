@@ -50,3 +50,15 @@ punctuation. Consume the full non-whitespace value through the semicolon
 delimiter. The display regression checks the complete expected redacted label,
 not merely absence of the original full credential; the initial weaker test
 missed the suffix leak and is retained as a fixture blind spot.
+
+Review4081332804 exposed a false positive in generic sk- matching: ordinary
+risk-assessment-workflow/task-validation-workflow words must not be credentials.
+Require a non-word left delimiter (Unicode letters, numbers and combining marks are word characters) (start and underscore are accepted)
+for this generic prefix in both display and identity screening. Regression
+checks preserve exact benign IDs, labels, relations and consumer summary/files,
+while delimiter-prefixed synthetic keys remain rejected/redacted.
+
+Review4081382599 additionally reproduced internationalized word false positives.
+Negative controls now include precomposed and decomposed accents, Greek letters
+and full-width numbers. Unicode-aware screening preserves their exact bytes;
+no normalization, alias or authority change is introduced.

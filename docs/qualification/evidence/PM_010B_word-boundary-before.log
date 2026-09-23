@@ -1,0 +1,32 @@
+✖ ordinary risk and task words survive privacy projection unchanged (4.910386ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 86.538608
+
+✖ failing tests:
+
+test at test/continuity.test.mjs:228:1
+✖ ordinary risk and task words survive privacy projection unchanged (4.910386ms)
+  AssertionError [ERR_ASSERTION]: risk-assessment-workflow
+  + actual - expected
+  
+  + undefined
+  - 'TASK_risk-assessment-workflow'
+  
+      at TestContext.<anonymous> (file:///workspace/scratch/fa8b5862d36a/work/idle/test/continuity.test.mjs:233:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.start (node:internal/test_runner/test:1242:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: 'TASK_risk-assessment-workflow',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
