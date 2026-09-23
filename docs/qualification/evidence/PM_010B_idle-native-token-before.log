@@ -1,0 +1,56 @@
+✔ context admission rejects partial, malformed, oversized and upgraded reviews (6.90028ms)
+✔ agent context retains tasks, declared review, warnings and related changes without raw details (1.40993ms)
+✔ Portal projection preserves string endpoints and reviewed task memory with privacy whitelist (1.78784ms)
+✔ continuity query adds stable identity while ordinary semantic query is unchanged (2.037707ms)
+✔ Portal keeps full assertion citations and distinct long identities without authority changes (0.684023ms)
+✔ Portal omits secret-bearing identities instead of creating redacted aliases (0.310058ms)
+✔ dense admitted context stays synchronizable by budgeting whole cited rows (45.329205ms)
+✖ exact identities omit credentials behind word-like delimiters past old display limit (2.133872ms)
+✔ absent or unusable Core degrades to no advisory context (2.583171ms)
+✔ assertion and review references remain complete beside claims within every budget (4.274145ms)
+✔ full entity identities reject every C1 control even after the old display boundary (1.724495ms)
+✔ source admission rejects malformed or mismatched references without upgrading authority (0.56281ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 11
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 161.043877
+
+✖ failing tests:
+
+test at test/continuity.test.mjs:138:1
+✖ exact identities omit credentials behind word-like delimiters past old display limit (2.133872ms)
+  AssertionError [ERR_ASSERTION]: ipd_AAAAAAAAAAAAAAAAAAAAAAAA
+  + actual - expected
+  
+  + [
+  +   {
+  +     id: 'TASK_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx_ipd_AAAAAAAAAAAAAAAAAAAAAAAA',
+  +     label: 'Refund safety',
+  +     source: {
+  +       eventHash: '3333333333333333333333333333333333333333333333333333333333333333',
+  +       eventId: 'dwev_222222222222222222222222',
+  +       kind: 'project-event'
+  +     },
+  +     status: 'DECLARED'
+  +   }
+  + ]
+  - []
+  
+      at TestContext.<anonymous> (file:///workspace/scratch/fa8b5862d36a/work/idle/test/continuity.test.mjs:144:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: [ { id: 'TASK_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx_ipd_AAAAAAAAAAAAAAAAAAAAAAAA', status: 'DECLARED', label: 'Refund safety', source: [Object] } ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }

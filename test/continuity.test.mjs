@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { __continuityTest, continuityCounts, loadContinuityContext, renderContinuityForAgent } from '../src/continuity.mjs';
-import { __portalTest } from '../src/portal-snapshot.mjs';
+import { __portalTest, buildPortalSnapshot, assertPortalSnapshotSafe } from '../src/portal-snapshot.mjs';
 import * as tasks from '../src/task.mjs';
 
 function fixture() {
@@ -72,6 +72,88 @@ test('continuity query adds stable identity while ordinary semantic query is unc
   tasks.updateSessionTask(session,'oui'); assert.match(tasks.taskContinuityQuery(session),/^dwtask_f347d504913fb4938155fabe\n/);
 });
 
+test('Portal keeps full assertion citations and distinct long identities without authority changes', () => {
+  const c=fixture();
+  const prefix='TASK-'+ 'a'.repeat(500);
+  c.tasks[0].id=prefix+'1';
+  c.tasks.push({...structuredClone(c.tasks[0]),id:prefix+'2'});
+  c.relations[0].source=c.tasks[0].id;
+  const projected=__portalTest.safeContinuityMemory(c);
+  assert.deepEqual(projected.tasks.map(x=>x.id),c.tasks.map(x=>x.id));
+  assert.equal(projected.relations[0].sourceId,c.tasks[0].id);
+  for(const key of ['tasks','decisions']) for(let i=0;i<c[key].length;i++) {
+    assert.deepEqual(projected[key][i].source,c[key][i].source);
+    assert.equal(projected[key][i].status,c[key][i].epistemicStatus);
+  }
+  delete c.tasks[0].source;
+  assert.equal(__portalTest.safeContinuityMemory(c).tasks[0].source,undefined);
+});
+
+test('Portal omits secret-bearing identities instead of creating redacted aliases', () => {
+  const c=fixture();
+  c.tasks[0].id='TASK-token=private-credential-value';
+  c.relations[0].source=c.tasks[0].id;
+  const projected=__portalTest.safeContinuityMemory(c);
+  assert.deepEqual(projected.tasks,[]);
+  assert.deepEqual(projected.relations,[]);
+  assert.ok(projected.warnings.some(x=>x.includes('identit')));
+  assert.doesNotMatch(JSON.stringify(projected),/private-credential-value|\[redacted\]/);
+});
+
+test('dense admitted context stays synchronizable by budgeting whole cited rows', () => {
+  const c=fixture();
+  for(const [key,kind] of [['tasks','task'],['objectives','objective'],['decisions','decision'],['invariants','invariant'],['failedApproaches','failed-approach']]) {
+    c[key]=Array.from({length:8},(_,i)=>({...structuredClone(c.decisions[0]),
+      id:key+i+'x'.repeat(490),kind,label:'密'.repeat(240),
+      lifecycle:kind==='task' ? {} : {...c.decisions[0].lifecycle,reason:'確'.repeat(240)}}));
+  }
+  c.components=Array.from({length:12},(_,i)=>({id:'COMP'+i+'x'.repeat(490),path:'src/'+i+'x'.repeat(280),provider:'javascript',epistemicStatus:'OBSERVED'}));
+  c.relations=Array.from({length:16},()=>({source:c.tasks[0].id,target:c.objectives[0].id,predicate:'rel'+'x'.repeat(490),epistemicStatus:'DECLARED'}));
+  c.knownDebt=Array.from({length:12},(_,i)=>({debt_id:'DEBT'+i+'x'.repeat(490),title:'Debt',status:'open',epistemic_status:'OBSERVED'}));
+  assert.ok(__continuityTest.validContext(c),'dense input is admitted');
+  const original=structuredClone(c);
+  const projected=__portalTest.safeContinuityMemory(c);
+  assert.ok(Buffer.byteLength(JSON.stringify(projected))>__portalTest.MAX_SNAPSHOT_BYTES,'fixture must exceed wire budget');
+  const files=Array.from({length:40},(_,i)=>'src/'+i+'x'.repeat(280));
+  const args={state:{project:'Fixture'},session:{touchedFiles:files},projectModel:{continuity:c}};
+  const snapshot=buildPortalSnapshot(args);
+  assertPortalSnapshotSafe(snapshot);
+  const memory=snapshot.projectMemory.continuity;
+  assert.ok(memory.warnings.some(x=>x.includes('size limit')));
+  assert.ok(memory.warnings.length<=8);
+  let retained=0;
+  for(const key of ['tasks','objectives','decisions','invariants','failedApproaches','components','relations','knownDebt','recentChanges']) {
+    for(const row of memory[key]) {
+      assert.ok(projected[key].some(original=>JSON.stringify(original)===JSON.stringify(row)),key);
+      retained++;
+    }
+  }
+  assert.ok(retained>0);
+  assert.deepEqual(snapshot.files,files,'budgeting does not discard other snapshot data');
+  assert.equal(snapshot.snapshotId,__portalTest.stableSnapshotId(snapshot));
+  assert.equal(buildPortalSnapshot(args).snapshotId,snapshot.snapshotId,'whole-row trimming is deterministic');
+  assert.deepEqual(c,original,'budgeting never edits local context');
+});
+
+test('exact identities omit credentials behind word-like delimiters past old display limit', () => {
+  for(const value of ['api_key=private-secret-value','token=private-secret-value','sk-'+'x'.repeat(20),'ghp_'+'x'.repeat(24),'AKIA'+'A'.repeat(16),'ipd_'+'A'.repeat(24),'IPD_'+'A'.repeat(20)]) {
+    const c=fixture(); c.tasks[0].id='TASK_'+'x'.repeat(120)+'_'+value;
+    c.relations[0].source=c.tasks[0].id;
+    assert.ok(__continuityTest.validContext(c));
+    const projected=__portalTest.safeContinuityMemory(c);
+    assert.deepEqual(projected.tasks,[],value);
+    assert.deepEqual(projected.relations,[],value);
+    assert.ok(!JSON.stringify(projected).includes(value));
+  }
+  const c=fixture(), credential='ipd_'+'A'.repeat(24);
+  c.tasks[0].label='Review '+credential;
+  c.warnings=['Device '+credential];
+  const projected=__portalTest.safeContinuityMemory(c);
+  assert.deepEqual(projected.tasks[0].source,c.tasks[0].source);
+  assert.ok(!JSON.stringify(projected).includes(credential));
+  assert.match(projected.tasks[0].label,/\[redacted\]/);
+});
+
 test('absent or unusable Core degrades to no advisory context', () => {
   assert.equal(loadContinuityContext('/a-nonexistent-project-for-context-test','refund'),null);
   assert.equal(loadContinuityContext('.', ''),null);
@@ -105,6 +187,27 @@ test('full entity identities reject every C1 control even after the old display 
     context.tasks[0].id='TASK-'+ 'a'.repeat(100)+String.fromCharCode(code)+'suffix';
     assert.equal(__continuityTest.validContext(context),false,`C1 ${code.toString(16)}`);
   }
+});
+
+test('known stack credentials cannot hide in exact identities or display labels', () => {
+  const jwt=[{alg:'HS256',typ:'JWT'},{sub:'fixture',role:'service_role'}].map(x=>Buffer.from(JSON.stringify(x)).toString('base64url')).join('.')+'.'+'A'.repeat(43);
+  const credentials=[['github-fine','github_pat_'+'A'.repeat(82)],['github-installation','ghs_12345_'+jwt],
+    ['supabase-secret','sb_secret_'+'A'.repeat(32)],['supabase-pat','sbp_'+'a'.repeat(40)],['supabase-pat-long','supabase_pat_'+'a'.repeat(40)],['stripe-live','sk_live_'+'A'.repeat(24)],
+    ['stripe-restricted','rk_test_'+'A'.repeat(24)],['aws-temporary','ASIA'+'A'.repeat(16)],
+    ...['glpat','gloas','gldt','glrt','glrtr','glcbt','glptt','glft','glimt','glagent','glwt','glsoat','glffct'].map(prefix=>[prefix,prefix+'-'+'A'.repeat(20)]), ['gitlab-session','_gitlab_session='+'a'.repeat(32)], ['gitlab-session-encoded','_gitlab_session=abc%2FVERY_SECRET_SUFFIX%3D%3D'], ['gitlab-session-base64','_gitlab_session=abc/VERY+SECRET=SUFFIX=='], ['npm','npm_'+'A'.repeat(36)],['pypi','pypi-'+'A'.repeat(85)],['jwt',jwt]];
+  const escaped=[];
+  for(const [family,credential] of credentials) {
+    const c=fixture(); c.tasks[0].id='TASK_'+'x'.repeat(120)+'_'+credential;
+    c.relations[0].source=c.tasks[0].id;
+    assert.ok(__continuityTest.validContext(c),family);
+    const projected=__portalTest.safeContinuityMemory(c);
+    if(projected.tasks.length || projected.relations.length || JSON.stringify(projected).includes(credential)) escaped.push(family+' identity');
+    c.tasks[0].id='TASK-CLEAN'; c.relations=[]; c.tasks[0].label='Review_'+credential;
+    if(__portalTest.safeContinuityMemory(c).tasks[0].label !== 'Review_[redacted]') escaped.push(family+' label');
+  }
+  assert.deepEqual(escaped,[]);
+  const c=fixture(); c.tasks[0].id='TASK_sb_publishable_'+'A'.repeat(32);
+  assert.equal(__portalTest.safeContinuityMemory(c).tasks[0].id,c.tasks[0].id);
 });
 
 test('source admission rejects malformed or mismatched references without upgrading authority', () => {

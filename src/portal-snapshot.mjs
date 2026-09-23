@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { validContext } from './continuity-contract.mjs';
+import { validContext, validContextIdentity } from './continuity-contract.mjs';
 
 const FORBIDDEN_KEYS = new Set(['sourceCode','source_code','content','rawContent','raw_content','diff','patch','tool_input','toolInput','prompt','promptRaw','secret','token','credential']);
 const MAX_SNAPSHOT_BYTES = 64 * 1024;
@@ -7,12 +7,23 @@ const PROOF_CLAIMS = new Set(['causal','preservation','validation','not-required
 const EPISTEMIC = new Set(['DECLARED','INFERRED','OBSERVED','VERIFIED','UNKNOWN']);
 const REPOSITORY_FINGERPRINT_RE = /^dwrepo_[a-f0-9]{24}$/;
 const SECRET_PATTERNS = [
-  /\bsk-[A-Za-z0-9_-]{12,}\b/g,
-  /\bgh[pousr]_[A-Za-z0-9]{20,}\b/g,
-  /\bAKIA[0-9A-Z]{16}\b/g,
+  /ipd_[A-Za-z0-9_-]{20,}/gi,
+  /sk-[A-Za-z0-9_-]{12,}/g,
+  /(?:github_pat_|gh[pousr]_)[A-Za-z0-9_.-]{20,}/g,
+  /gl(?:pat|oas|dt|rt|rtr|cbt|ptt|ft|imt|agent|wt|soat|ffct)-[A-Za-z0-9_.-]{16,}/g,
+  /_gitlab_session=[^\s;]+/g,
+  /(?:sb_secret_|sbp_|supabase_pat_)[A-Za-z0-9_-]{20,}/g,
+  /[sr]k_(?:live|test)_[A-Za-z0-9]{16,}/g,
+  /(?:AKIA|ASIA)[0-9A-Z]{16}/g,
+  /npm_[A-Za-z0-9]{36,}/g,
+  /pypi-[A-Za-z0-9_-]{85,}/g,
+  /eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g,
   /\bBearer\s+[A-Za-z0-9._~+\/-]+=*/gi,
   /\b(?:api[_-]?key|secret|token|password)\s*[:=]\s*[^\s,;]+/gi
 ];
+// Underscores and other word characters delimit opaque IDs too. A display-text
+// word boundary must not allow credential bytes through the identity allowlist.
+const IDENTITY_SECRET_PATTERNS=SECRET_PATTERNS.map(pattern=>new RegExp(pattern.source.replaceAll('\\b',''),pattern.flags.replace('g','')));
 
 function digest(value = '') {
   return createHash('sha256').update(String(value || '')).digest('hex');
@@ -48,22 +59,29 @@ function epistemic(value) {
   return EPISTEMIC.has(normalized) ? normalized : 'UNKNOWN';
 }
 
+// Identity is never a display label: truncation/redaction would create aliases.
+function continuityIdentity(value) {
+  return validContextIdentity(value) && !IDENTITY_SECRET_PATTERNS.some(pattern=>pattern.test(value)) ? value : null;
+}
+
 function continuityEntity(item={}) {
-  const id=redact(item.id || item.debt_id || '',96) || null;
+  const id=continuityIdentity(item.id);
   const label=redact(item.label || item.title || '',240) || null;
-  if (!id && !label) return null;
+  if (!id) return null;
   const lifecycle=item.lifecycle?.action==='confirmed' ? {
     action:'confirmed', active:true, status:'DECLARED', reason:redact(item.lifecycle.reason,240),
     sourceEventId:item.lifecycle.sourceEventId, assertionEventId:item.lifecycle.assertionEventId
   } : null;
-  return { id, status:epistemic(item.epistemicStatus || item.epistemic_status), label, ...(lifecycle ? {lifecycle} : {}) };
+  const source=item.source ? {kind:'project-event',eventId:item.source.eventId,eventHash:item.source.eventHash} : null;
+  return { id, status:epistemic(item.epistemicStatus || item.epistemic_status), label, ...(source ? {source} : {}), ...(lifecycle ? {lifecycle} : {}) };
 }
 
 function continuityComponent(item={}) {
   const path=cleanPath(item.path || '');
-  if (!path) return null;
+  const id=continuityIdentity(item.id);
+  if (!path || !id) return null;
   return {
-    id:redact(item.id || '',96) || null,
+    id,
     status:epistemic(item.epistemicStatus || item.epistemic_status),
     path,
     provider:redact(item.provider || '',60) || null
@@ -71,15 +89,15 @@ function continuityComponent(item={}) {
 }
 
 function continuityRelation(item={}) {
-  const predicate=redact(item.predicate || '',80);
-  const sourceId=redact(typeof item.source==='string' ? item.source : item.sourceId || item.source_id || item.source?.id || '',96);
-  const targetId=redact(typeof item.target==='string' ? item.target : item.targetId || item.target_id || item.target?.id || '',96);
-  if (!predicate || (!sourceId && !targetId)) return null;
-  return { predicate, sourceId:sourceId || null, targetId:targetId || null, status:epistemic(item.epistemicStatus || item.epistemic_status) };
+  const predicate=continuityIdentity(item.predicate);
+  const sourceId=continuityIdentity(item.source);
+  const targetId=continuityIdentity(item.target);
+  if (!predicate || !sourceId || !targetId) return null;
+  return { predicate, sourceId, targetId, status:epistemic(item.epistemicStatus || item.epistemic_status) };
 }
 
 function continuityDebt(item={}) {
-  const id=redact(item.debt_id || item.id || '',96);
+  const id=continuityIdentity(item.debt_id);
   if (!id) return null;
   return {
     id,
@@ -116,6 +134,11 @@ function safeContinuityMemory(value) {
   const contextId=String(value.context_id || '');
   if (!/^dwctx_[a-f0-9]{24}$/.test(contextId)) return null;
   const entities=(items,max)=> (Array.isArray(items)?items:[]).map(continuityEntity).filter(Boolean).slice(0,max);
+  const identities=[...['objectives','tasks','decisions','invariants','failedApproaches','components'].flatMap(key=>(value[key] || []).map(item=>item.id)),
+    ...value.knownDebt.map(item=>item.debt_id), ...value.relations.flatMap(item=>[item.source,item.target,item.predicate])];
+  const omitted=identities.some(id=>continuityIdentity(id)===null);
+  const warnings=value.warnings.slice(0,omitted ? 7 : 8).map(value=>redact(value,240));
+  if (omitted) warnings.unshift('Some memory rows were omitted because their identities contain sensitive data.');
   return {
     schema:'idleproof.portal-continuity.v1',
     contextId,
@@ -130,7 +153,7 @@ function safeContinuityMemory(value) {
     relations:(Array.isArray(value.relations)?value.relations:[]).map(continuityRelation).filter(Boolean).slice(0,16),
     knownDebt:(Array.isArray(value.knownDebt)?value.knownDebt:[]).map(continuityDebt).filter(Boolean).slice(0,12),
     recentChanges:(Array.isArray(value.recentRelatedChanges)?value.recentRelatedChanges:[]).map(continuityChange).filter(Boolean).slice(0,8),
-    warnings:value.warnings.slice(0,8).map(value=>redact(value,240))
+    warnings
   };
 }
 
@@ -154,6 +177,19 @@ function stableSnapshotId(snapshot) {
   delete stable.generatedAt;
   delete stable.snapshotId;
   return `ipsnap_${digest(canonical(stable)).slice(0,24)}`;
+}
+
+function fitContinuitySnapshotBudget(snapshot) {
+  const memory=snapshot.projectMemory?.continuity;
+  if (!memory || Buffer.byteLength(JSON.stringify(snapshot),'utf8')<=MAX_SNAPSHOT_BYTES) return;
+  memory.warnings=[...memory.warnings.slice(0,7),'Project memory was reduced to fit the Portal snapshot size limit.'];
+  // Keep higher-ranked rows intact and prioritize current task/assertion memory
+  // over ancillary rows. Budget the complete wire payload, including its ID.
+  for(const key of ['relations','components','knownDebt','recentChanges','failedApproaches','invariants','decisions','objectives','tasks']) {
+    while(memory[key].length && Buffer.byteLength(JSON.stringify(snapshot),'utf8')>MAX_SNAPSHOT_BYTES) memory[key].pop();
+  }
+  // If non-memory content alone is oversized, the existing safety gate rejects
+  // it. Never drop Proof/Protect data or relax the wire-size limit to fit memory.
 }
 
 function promptMetadata(session=null) {
@@ -289,6 +325,8 @@ export function buildPortalSnapshot({ state={}, session=null, featureModel=null,
     files:filePaths,
     privacy:{ sourceCodeIncluded:false, rawDiffIncluded:false, rawAgentEventsIncluded:false, rawPromptIncluded:false, secretsRedacted:true }
   };
+  snapshot.snapshotId=`ipsnap_${'0'.repeat(24)}`; // Reserve the exact final wire width.
+  fitContinuitySnapshotBudget(snapshot);
   snapshot.snapshotId=stableSnapshotId(snapshot);
   return snapshot;
 }

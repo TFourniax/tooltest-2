@@ -1,0 +1,76 @@
+✖ known stack credentials cannot hide in exact identities or display labels (10.998292ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 95.246411
+
+✖ failing tests:
+
+test at test/continuity.test.mjs:192:1
+✖ known stack credentials cannot hide in exact identities or display labels (10.998292ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+  + [
+  +   'glpat identity',
+  +   'glpat label',
+  +   'gloas identity',
+  +   'gloas label',
+  +   'gldt identity',
+  +   'gldt label',
+  +   'glrt identity',
+  +   'glrt label',
+  +   'glrtr identity',
+  +   'glrtr label',
+  +   'glcbt identity',
+  +   'glcbt label',
+  +   'glptt identity',
+  +   'glptt label',
+  +   'glft identity',
+  +   'glft label',
+  +   'glimt identity',
+  +   'glimt label',
+  +   'glagent identity',
+  +   'glagent label',
+  +   'glwt identity',
+  +   'glwt label',
+  +   'glsoat identity',
+  +   'glsoat label',
+  +   'glffct identity',
+  +   'glffct label',
+  +   'gitlab-session identity',
+  +   'gitlab-session label'
+  + ]
+  - []
+  
+      at TestContext.<anonymous> (file:///workspace/scratch/fa8b5862d36a/work/idle/test/continuity.test.mjs:208:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.start (node:internal/test_runner/test:1242:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [
+      'glpat identity',          'glpat label',
+      'gloas identity',          'gloas label',
+      'gldt identity',           'gldt label',
+      'glrt identity',           'glrt label',
+      'glrtr identity',          'glrtr label',
+      'glcbt identity',          'glcbt label',
+      'glptt identity',          'glptt label',
+      'glft identity',           'glft label',
+      'glimt identity',          'glimt label',
+      'glagent identity',        'glagent label',
+      'glwt identity',           'glwt label',
+      'glsoat identity',         'glsoat label',
+      'glffct identity',         'glffct label',
+      'gitlab-session identity', 'gitlab-session label'
+    ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }

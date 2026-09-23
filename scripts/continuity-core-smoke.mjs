@@ -44,6 +44,9 @@ try {
   const portal=__portalTest.safeContinuityMemory(result);
   assert.ok(portal.tasks.some(item=>item.id==='TASK-REFUND'));
   assert.equal(portal.decisions.find(item=>item.id==='DEC-RETRY').lifecycle.status,'DECLARED');
+  for(const key of ['tasks','decisions']) for(const item of portal[key]) {
+    assert.deepEqual(item.source,result[key].find(original=>original.id===item.id).source);
+  }
   run('dw',['decision','retire','DEC-RETRY','--reason','Replaced policy']);
   const after=loadContinuityContext(root,query,{timeoutMs:5000});
   assert.ok(after); assert.ok(!after.decisions.some(item=>item.id==='DEC-RETRY'));

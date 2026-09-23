@@ -1,0 +1,20 @@
+✔ context admission rejects partial, malformed, oversized and upgraded reviews (5.066692ms)
+✔ agent context retains tasks, declared review, warnings and related changes without raw details (1.367716ms)
+✔ Portal projection preserves string endpoints and reviewed task memory with privacy whitelist (1.877385ms)
+✔ continuity query adds stable identity while ordinary semantic query is unchanged (2.149366ms)
+✔ Portal keeps full assertion citations and distinct long identities without authority changes (0.644924ms)
+✔ Portal omits secret-bearing identities instead of creating redacted aliases (0.326994ms)
+✔ dense admitted context stays synchronizable by budgeting whole cited rows (45.390568ms)
+✔ exact identities omit credentials behind word-like delimiters past old display limit (1.04637ms)
+✔ absent or unusable Core degrades to no advisory context (2.436029ms)
+✔ assertion and review references remain complete beside claims within every budget (4.866199ms)
+✔ full entity identities reject every C1 control even after the old display boundary (2.032199ms)
+✔ source admission rejects malformed or mismatched references without upgrading authority (0.945377ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 156.215739
