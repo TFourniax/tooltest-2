@@ -47,7 +47,7 @@ function cleanPath(value = '') {
   // A literal POSIX backslash cannot be a portable source path. Omit it,
   // including foreign Windows/UNC paths, instead of exporting an alias.
   if (projectPath.includes('\\')) return null;
-  if (!projectPath || projectPath.length>300 || /[\u0000-\u001f\u007f]/.test(projectPath) || projectPath.startsWith('/') || /^[A-Za-z]:\//.test(projectPath) || projectPath.split('/').includes('..')) return null;
+  if (!projectPath || projectPath.length>300 || /[\u0000-\u001f\u007f-\u009f]/.test(projectPath) || projectPath.startsWith('/') || /^[A-Za-z]:\//.test(projectPath) || projectPath.split('/').includes('..')) return null;
   return projectPath;
 }
 

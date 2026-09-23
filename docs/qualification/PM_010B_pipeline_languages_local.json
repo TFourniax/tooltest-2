@@ -1,0 +1,18 @@
+{
+  "classification": "MACHINE",
+  "qualification": false,
+  "baseline": "d375177a1a92442eead09f178b37e8957c4824d1",
+  "historical_pr18": "15de00ec148030063461c5bf41ca5483aeb9c988",
+  "sha256": "7290f67b020ca8d411891f7ef0cf902cd879b082e8d22a0240dcda0935d5b838",
+  "bytes": 909537,
+  "summary": {
+    "schema": "idleproof-source-pipeline-summary-1",
+    "classification": "MACHINE",
+    "qualification": false,
+    "samples": 400,
+    "canonical": 400,
+    "expectedSymbol": 400,
+    "timeouts": 0,
+    "maxElapsedMs": 411.137659
+  }
+}

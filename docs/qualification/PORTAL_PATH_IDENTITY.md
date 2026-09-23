@@ -46,3 +46,7 @@ Review4088068228 found that the omission scan dereferenced rejected advisory con
 ## Task description with coverage notice
 
 Review4088130000 found that a long supported current path plus another omitted path could replace the task description entirely. A compact description now accompanies the warning whenever the exact summary would exceed300characters. The exact path remains in its admitted file fields. Regression covers187/250/300-character current paths, fails on f5c89af and passes after correction. All279local tests PASS/no skips; before/after/full logs retained in summary-review. No path truncation or schema change.
+
+## C1 controls and current-main integration
+
+Review4088213313 identified C1 controls outside the original C0/DEL omission range. The path guard now also rejectsU+0080..U+009F. A regression includesDEL/0080/0085/009F and fails on4feb2e9, then passes after correction. All279localtests PASS/no skips. Current main4737555 is integrated; original histories/evidence retained. Final review/CI/main still required.

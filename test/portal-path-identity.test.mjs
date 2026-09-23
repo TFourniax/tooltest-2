@@ -55,7 +55,8 @@ test('omission is visible without continuity and exact supported paths stay exac
 });
 
 test('unsupported control and traversal paths are omitted without dangling components',()=>{
-  const invalid=['src/a\tb.py','src/a\nb.py','src/..','../outside.py','/absolute.py'];
+  const invalid=['src/a\tb.py','src/a\nb.py','src/..','../outside.py','/absolute.py',
+    ...[0x7f,0x80,0x85,0x9f].map(code=>`src/a${String.fromCharCode(code)}b.py`)];
   if(path.sep!=='\\') invalid.push('src/literal\\name.py');
   const snapshot=buildPortalSnapshot(args(['src/ok.py',...invalid]));
   assert.deepEqual(snapshot.files,['src/ok.py']);

@@ -1,0 +1,532 @@
+﻿2026-09-23T10:28:34.8950460Z Current runner version: '2.337.0'
+2026-09-23T10:28:34.8967750Z ##[group]Runner Image Provisioner
+2026-09-23T10:28:34.8968330Z Hosted Compute Agent
+2026-09-23T10:28:34.8968770Z Version: 20260828.587
+2026-09-23T10:28:34.8969210Z Commit: abac92662cab4cc7352de4f9f9d2e2419aad9c29
+2026-09-23T10:28:34.8969680Z Build Date: 2026-08-28T16:44:25Z
+2026-09-23T10:28:34.8970110Z Worker ID: {051d131c-c431-4b2c-a4cc-23aa2111cb43}
+2026-09-23T10:28:34.8970570Z Azure Region: westus
+2026-09-23T10:28:34.8970960Z ##[endgroup]
+2026-09-23T10:28:34.8971860Z ##[group]Operating System
+2026-09-23T10:28:34.8972250Z macOS
+2026-09-23T10:28:34.8972590Z 26.6.2
+2026-09-23T10:28:34.8972940Z 25G83
+2026-09-23T10:28:34.8973280Z ##[endgroup]
+2026-09-23T10:28:34.8973660Z ##[group]Runner Image
+2026-09-23T10:28:34.8974090Z Image: macos-26-arm64
+2026-09-23T10:28:34.8974510Z Version: 20260907.0351.1
+2026-09-23T10:28:34.8975400Z Included Software: https://github.com/actions/runner-images/blob/macos-26-arm64/20260907.0351/images/macos/macos-26-arm64-Readme.md
+2026-09-23T10:28:34.8976450Z Image Release: https://github.com/actions/runner-images/releases/tag/macos-26-arm64%2F20260907.0351
+2026-09-23T10:28:34.8977110Z ##[endgroup]
+2026-09-23T10:28:34.8977860Z ##[group]GITHUB_TOKEN Permissions
+2026-09-23T10:28:34.8979230Z Contents: read
+2026-09-23T10:28:34.8979610Z Metadata: read
+2026-09-23T10:28:34.8980030Z ##[endgroup]
+2026-09-23T10:28:34.8981890Z Secret source: Actions
+2026-09-23T10:28:34.8982450Z Cache mode: write
+2026-09-23T10:28:34.8982910Z Prepare workflow directory
+2026-09-23T10:28:34.9226500Z Prepare all required actions
+2026-09-23T10:28:34.9265750Z Getting action download info
+2026-09-23T10:28:35.3984990Z Download action repository 'actions/checkout@v7' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+2026-09-23T10:28:35.7938610Z Download action repository 'actions/setup-python@v7' (SHA:5fda3b95a4ea91299a34e894583c3862153e4b97)
+2026-09-23T10:28:35.9139270Z Download action repository 'actions/setup-node@v7' (SHA:820762786026740c76f36085b0efc47a31fe5020)
+2026-09-23T10:28:36.1680670Z Complete job name: real Core context consumer (macos-latest)
+2026-09-23T10:28:36.2353640Z ##[group]Run actions/checkout@v7
+2026-09-23T10:28:36.2354530Z with:
+2026-09-23T10:28:36.2354880Z   repository: TFourniax/tooltest-2
+2026-09-23T10:28:36.2357630Z   token: ***
+2026-09-23T10:28:36.2358030Z   ssh-strict: true
+2026-09-23T10:28:36.2358400Z   ssh-user: git
+2026-09-23T10:28:36.2358800Z   persist-credentials: true
+2026-09-23T10:28:36.2359150Z   clean: true
+2026-09-23T10:28:36.2359480Z   sparse-checkout-cone-mode: true
+2026-09-23T10:28:36.2359860Z   fetch-depth: 1
+2026-09-23T10:28:36.2360240Z   fetch-tags: false
+2026-09-23T10:28:36.2360640Z   show-progress: true
+2026-09-23T10:28:36.2361040Z   lfs: false
+2026-09-23T10:28:36.2361480Z   submodules: false
+2026-09-23T10:28:36.2361870Z   set-safe-directory: true
+2026-09-23T10:28:36.2362240Z   allow-unsafe-pr-checkout: false
+2026-09-23T10:28:36.2362920Z ##[endgroup]
+2026-09-23T10:28:36.7521470Z Syncing repository: TFourniax/tooltest-2
+2026-09-23T10:28:36.7524560Z ##[group]Getting Git version info
+2026-09-23T10:28:36.7526160Z Working directory is '/Users/runner/work/tooltest-2/tooltest-2'
+2026-09-23T10:28:36.7528260Z [command]/opt/homebrew/bin/git version
+2026-09-23T10:28:36.8046330Z git version 2.55.0
+2026-09-23T10:28:36.8062850Z ##[endgroup]
+2026-09-23T10:28:36.8077460Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/b754759a-3e71-4d8b-9a79-d2866f7ebe28/.gitconfig'
+2026-09-23T10:28:36.8082280Z Temporarily overriding HOME='/Users/runner/work/_temp/b754759a-3e71-4d8b-9a79-d2866f7ebe28' before making global git config changes
+2026-09-23T10:28:36.8085460Z Adding repository directory to the temporary git global config as a safe directory
+2026-09-23T10:28:36.8088460Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/tooltest-2/tooltest-2
+2026-09-23T10:28:36.8229720Z Deleting the contents of '/Users/runner/work/tooltest-2/tooltest-2'
+2026-09-23T10:28:36.8234570Z ##[group]Determining repository object format
+2026-09-23T10:28:36.8240230Z ##[endgroup]
+2026-09-23T10:28:36.8243590Z ##[group]Initializing the repository
+2026-09-23T10:28:36.8246760Z [command]/opt/homebrew/bin/git init /Users/runner/work/tooltest-2/tooltest-2
+2026-09-23T10:28:36.8538680Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-09-23T10:28:36.8543870Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-09-23T10:28:36.8545810Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-09-23T10:28:36.8547160Z hint: call:
+2026-09-23T10:28:36.8547970Z hint:
+2026-09-23T10:28:36.8548870Z hint: 	git config --global init.defaultBranch <name>
+2026-09-23T10:28:36.8549930Z hint:
+2026-09-23T10:28:36.8551030Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-09-23T10:28:36.8552880Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-09-23T10:28:36.8554230Z hint:
+2026-09-23T10:28:36.8554910Z hint: 	git branch -m <name>
+2026-09-23T10:28:36.8555750Z hint:
+2026-09-23T10:28:36.8556830Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-09-23T10:28:36.8558760Z Initialized empty Git repository in /Users/runner/work/tooltest-2/tooltest-2/.git/
+2026-09-23T10:28:36.8562090Z [command]/opt/homebrew/bin/git remote add origin https://github.com/TFourniax/tooltest-2
+2026-09-23T10:28:36.8704670Z ##[endgroup]
+2026-09-23T10:28:36.8706350Z ##[group]Disabling automatic garbage collection
+2026-09-23T10:28:36.8707810Z [command]/opt/homebrew/bin/git config --local gc.auto 0
+2026-09-23T10:28:36.8828720Z ##[endgroup]
+2026-09-23T10:28:36.8830030Z ##[group]Setting up auth
+2026-09-23T10:28:36.8830940Z Removing SSH command configuration
+2026-09-23T10:28:36.8839630Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-09-23T10:28:36.8948970Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-09-23T10:28:37.0516420Z Removing HTTP extra header
+2026-09-23T10:28:37.0606540Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-09-23T10:28:37.0623480Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-09-23T10:28:37.2656920Z Removing includeIf entries pointing to credentials config files
+2026-09-23T10:28:37.2762350Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-09-23T10:28:37.3094850Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-09-23T10:28:37.4822710Z [command]/opt/homebrew/bin/git config --file /Users/runner/work/_temp/git-credentials-9031cf0d-0ede-47f8-8c15-cfd2a208ef64.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-09-23T10:28:37.4833910Z [command]/opt/homebrew/bin/git config --local includeIf.gitdir:/Users/runner/work/tooltest-2/tooltest-2/.git.path /Users/runner/work/_temp/git-credentials-9031cf0d-0ede-47f8-8c15-cfd2a208ef64.config
+2026-09-23T10:28:37.4846970Z [command]/opt/homebrew/bin/git config --local includeIf.gitdir:/Users/runner/work/tooltest-2/tooltest-2/.git/worktrees/*.path /Users/runner/work/_temp/git-credentials-9031cf0d-0ede-47f8-8c15-cfd2a208ef64.config
+2026-09-23T10:28:37.4954130Z [command]/opt/homebrew/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-9031cf0d-0ede-47f8-8c15-cfd2a208ef64.config
+2026-09-23T10:28:37.5094560Z [command]/opt/homebrew/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-9031cf0d-0ede-47f8-8c15-cfd2a208ef64.config
+2026-09-23T10:28:37.5175410Z ##[endgroup]
+2026-09-23T10:28:37.5179300Z ##[group]Fetching the repository
+2026-09-23T10:28:37.5184800Z [command]/opt/homebrew/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +e160f5316e840fe8333250eee74a45a36c87d6a0:refs/remotes/origin/main
+2026-09-23T10:28:38.1670790Z From https://github.com/TFourniax/tooltest-2
+2026-09-23T10:28:38.1672570Z  * [new ref]         e160f5316e840fe8333250eee74a45a36c87d6a0 -> origin/main
+2026-09-23T10:28:38.1692060Z [command]/opt/homebrew/bin/git branch --list --remote origin/main
+2026-09-23T10:28:38.1783430Z   origin/main
+2026-09-23T10:28:38.1798310Z [command]/opt/homebrew/bin/git rev-parse refs/remotes/origin/main
+2026-09-23T10:28:38.1920050Z e160f5316e840fe8333250eee74a45a36c87d6a0
+2026-09-23T10:28:38.1928000Z ##[endgroup]
+2026-09-23T10:28:38.1929450Z ##[group]Determining the checkout info
+2026-09-23T10:28:38.1930980Z ##[endgroup]
+2026-09-23T10:28:38.1944020Z [command]/opt/homebrew/bin/git sparse-checkout disable
+2026-09-23T10:28:38.2101980Z [command]/opt/homebrew/bin/git config --local --unset-all extensions.worktreeConfig
+2026-09-23T10:28:38.2195390Z ##[group]Checking out the ref
+2026-09-23T10:28:38.2198870Z [command]/opt/homebrew/bin/git checkout --progress --force -B main refs/remotes/origin/main
+2026-09-23T10:28:38.3340770Z Switched to a new branch 'main'
+2026-09-23T10:28:38.3363760Z branch 'main' set up to track 'origin/main'.
+2026-09-23T10:28:38.3418430Z ##[endgroup]
+2026-09-23T10:28:38.3508450Z [command]/opt/homebrew/bin/git log -1 --format=%H
+2026-09-23T10:28:38.3588120Z e160f5316e840fe8333250eee74a45a36c87d6a0
+2026-09-23T10:28:38.4152210Z ##[group]Run actions/checkout@v7
+2026-09-23T10:28:38.4155210Z with:
+2026-09-23T10:28:38.4155940Z   repository: TFourniax/tooltest
+2026-09-23T10:28:38.4156860Z   ref: fbebc797968014600c1b89aed603984e15f78d5c
+2026-09-23T10:28:38.4157710Z   path: core-context-fixture
+2026-09-23T10:28:38.4158570Z   persist-credentials: false
+2026-09-23T10:28:38.4166650Z   token: ***
+2026-09-23T10:28:38.4168650Z   ssh-strict: true
+2026-09-23T10:28:38.4170320Z   ssh-user: git
+2026-09-23T10:28:38.4172030Z   clean: true
+2026-09-23T10:28:38.4177010Z   sparse-checkout-cone-mode: true
+2026-09-23T10:28:38.4178010Z   fetch-depth: 1
+2026-09-23T10:28:38.4178660Z   fetch-tags: false
+2026-09-23T10:28:38.4179280Z   show-progress: true
+2026-09-23T10:28:38.4180020Z   lfs: false
+2026-09-23T10:28:38.4180610Z   submodules: false
+2026-09-23T10:28:38.4181450Z   set-safe-directory: true
+2026-09-23T10:28:38.4183060Z   allow-unsafe-pr-checkout: false
+2026-09-23T10:28:38.4185680Z ##[endgroup]
+2026-09-23T10:28:38.6162030Z Syncing repository: TFourniax/tooltest
+2026-09-23T10:28:38.6165720Z ##[group]Getting Git version info
+2026-09-23T10:28:38.6168580Z Working directory is '/Users/runner/work/tooltest-2/tooltest-2/core-context-fixture'
+2026-09-23T10:28:38.6172930Z [command]/opt/homebrew/bin/git version
+2026-09-23T10:28:38.6204970Z git version 2.55.0
+2026-09-23T10:28:38.6240310Z ##[endgroup]
+2026-09-23T10:28:38.6254180Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/922d7ca6-d792-4638-8113-909ff41cc612/.gitconfig'
+2026-09-23T10:28:38.6286310Z Temporarily overriding HOME='/Users/runner/work/_temp/922d7ca6-d792-4638-8113-909ff41cc612' before making global git config changes
+2026-09-23T10:28:38.6291470Z Adding repository directory to the temporary git global config as a safe directory
+2026-09-23T10:28:38.6296260Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/tooltest-2/tooltest-2/core-context-fixture
+2026-09-23T10:28:38.6518270Z ##[group]Determining repository object format
+2026-09-23T10:28:38.6523760Z ##[endgroup]
+2026-09-23T10:28:38.6526540Z ##[group]Initializing the repository
+2026-09-23T10:28:38.6530950Z [command]/opt/homebrew/bin/git init /Users/runner/work/tooltest-2/tooltest-2/core-context-fixture
+2026-09-23T10:28:38.6827930Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-09-23T10:28:38.6832050Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-09-23T10:28:38.6835680Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-09-23T10:28:38.6838080Z hint: call:
+2026-09-23T10:28:38.6842240Z hint:
+2026-09-23T10:28:38.6843160Z hint: 	git config --global init.defaultBranch <name>
+2026-09-23T10:28:38.6845420Z hint:
+2026-09-23T10:28:38.6846260Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-09-23T10:28:38.6848920Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-09-23T10:28:38.6887460Z hint:
+2026-09-23T10:28:38.6889650Z hint: 	git branch -m <name>
+2026-09-23T10:28:38.6891670Z hint:
+2026-09-23T10:28:38.6893970Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-09-23T10:28:38.6898370Z Initialized empty Git repository in /Users/runner/work/tooltest-2/tooltest-2/core-context-fixture/.git/
+2026-09-23T10:28:38.6905580Z [command]/opt/homebrew/bin/git remote add origin https://github.com/TFourniax/tooltest
+2026-09-23T10:28:38.6997430Z ##[endgroup]
+2026-09-23T10:28:38.7000820Z ##[group]Disabling automatic garbage collection
+2026-09-23T10:28:38.7003990Z [command]/opt/homebrew/bin/git config --local gc.auto 0
+2026-09-23T10:28:38.7076340Z ##[endgroup]
+2026-09-23T10:28:38.7077550Z ##[group]Setting up auth
+2026-09-23T10:28:38.7078570Z Removing SSH command configuration
+2026-09-23T10:28:38.7090730Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-09-23T10:28:38.7284580Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-09-23T10:28:38.8831320Z Removing HTTP extra header
+2026-09-23T10:28:38.8833040Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-09-23T10:28:38.8916080Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-09-23T10:28:39.1059120Z Removing includeIf entries pointing to credentials config files
+2026-09-23T10:28:39.1163400Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-09-23T10:28:39.1339670Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-09-23T10:28:39.3008460Z [command]/opt/homebrew/bin/git config --file /Users/runner/work/_temp/git-credentials-2b2fcf88-15bd-4de2-adc4-e932c0a346b0.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-09-23T10:28:39.3019060Z [command]/opt/homebrew/bin/git config --local includeIf.gitdir:/Users/runner/work/tooltest-2/tooltest-2/core-context-fixture/.git.path /Users/runner/work/_temp/git-credentials-2b2fcf88-15bd-4de2-adc4-e932c0a346b0.config
+2026-09-23T10:28:39.3053680Z [command]/opt/homebrew/bin/git config --local includeIf.gitdir:/Users/runner/work/tooltest-2/tooltest-2/core-context-fixture/.git/worktrees/*.path /Users/runner/work/_temp/git-credentials-2b2fcf88-15bd-4de2-adc4-e932c0a346b0.config
+2026-09-23T10:28:39.3253290Z [command]/opt/homebrew/bin/git config --local includeIf.gitdir:/github/workspace/core-context-fixture/.git.path /github/runner_temp/git-credentials-2b2fcf88-15bd-4de2-adc4-e932c0a346b0.config
+2026-09-23T10:28:39.3319010Z [command]/opt/homebrew/bin/git config --local includeIf.gitdir:/github/workspace/core-context-fixture/.git/worktrees/*.path /github/runner_temp/git-credentials-2b2fcf88-15bd-4de2-adc4-e932c0a346b0.config
+2026-09-23T10:28:39.3523560Z ##[endgroup]
+2026-09-23T10:28:39.3525550Z ##[group]Fetching the repository
+2026-09-23T10:28:39.3527570Z [command]/opt/homebrew/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin fbebc797968014600c1b89aed603984e15f78d5c
+2026-09-23T10:28:40.1644490Z From https://github.com/TFourniax/tooltest
+2026-09-23T10:28:40.1650150Z  * branch            fbebc797968014600c1b89aed603984e15f78d5c -> FETCH_HEAD
+2026-09-23T10:28:40.1671920Z [command]/opt/homebrew/bin/git rev-parse --verify --quiet fbebc797968014600c1b89aed603984e15f78d5c^{object}
+2026-09-23T10:28:40.1762440Z fbebc797968014600c1b89aed603984e15f78d5c
+2026-09-23T10:28:40.1765650Z ##[endgroup]
+2026-09-23T10:28:40.1766500Z ##[group]Determining the checkout info
+2026-09-23T10:28:40.1767440Z ##[endgroup]
+2026-09-23T10:28:40.1769950Z [command]/opt/homebrew/bin/git sparse-checkout disable
+2026-09-23T10:28:40.1869470Z [command]/opt/homebrew/bin/git config --local --unset-all extensions.worktreeConfig
+2026-09-23T10:28:40.2008990Z ##[group]Checking out the ref
+2026-09-23T10:28:40.2009870Z [command]/opt/homebrew/bin/git checkout --progress --force fbebc797968014600c1b89aed603984e15f78d5c
+2026-09-23T10:28:40.3570050Z HEAD is now at fbebc79 fix: preserve Unicode retrieval across memory and file context (#117)
+2026-09-23T10:28:40.3599110Z ##[endgroup]
+2026-09-23T10:28:40.3738080Z [command]/opt/homebrew/bin/git log -1 --format=%H
+2026-09-23T10:28:40.3835650Z fbebc797968014600c1b89aed603984e15f78d5c
+2026-09-23T10:28:40.3848880Z ##[group]Removing auth
+2026-09-23T10:28:40.3849270Z Removing SSH command configuration
+2026-09-23T10:28:40.3857170Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-09-23T10:28:40.3956000Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-09-23T10:28:40.5710470Z Removing HTTP extra header
+2026-09-23T10:28:40.5812460Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-09-23T10:28:40.6122160Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-09-23T10:28:40.7219450Z Removing includeIf entries pointing to credentials config files
+2026-09-23T10:28:40.7225740Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-09-23T10:28:40.7344090Z includeif.gitdir:/Users/runner/work/tooltest-2/tooltest-2/core-context-fixture/.git.path
+2026-09-23T10:28:40.7346910Z includeif.gitdir:/Users/runner/work/tooltest-2/tooltest-2/core-context-fixture/.git/worktrees/*.path
+2026-09-23T10:28:40.7347700Z includeif.gitdir:/github/workspace/core-context-fixture/.git.path
+2026-09-23T10:28:40.7348430Z includeif.gitdir:/github/workspace/core-context-fixture/.git/worktrees/*.path
+2026-09-23T10:28:40.7360510Z [command]/opt/homebrew/bin/git config --local --get-all includeif.gitdir:/Users/runner/work/tooltest-2/tooltest-2/core-context-fixture/.git.path
+2026-09-23T10:28:40.7474360Z /Users/runner/work/_temp/git-credentials-2b2fcf88-15bd-4de2-adc4-e932c0a346b0.config
+2026-09-23T10:28:40.7731470Z [command]/opt/homebrew/bin/git config --local --unset includeif.gitdir:/Users/runner/work/tooltest-2/tooltest-2/core-context-fixture/.git.path \/Users\/runner\/work\/_temp\/git\-credentials\-2b2fcf88\-15bd\-4de2\-adc4\-e932c0a346b0\.config
+2026-09-23T10:28:40.7822870Z [command]/opt/homebrew/bin/git config --local --get-all includeif.gitdir:/Users/runner/work/tooltest-2/tooltest-2/core-context-fixture/.git/worktrees/*.path
+2026-09-23T10:28:40.7823810Z /Users/runner/work/_temp/git-credentials-2b2fcf88-15bd-4de2-adc4-e932c0a346b0.config
+2026-09-23T10:28:40.7843760Z [command]/opt/homebrew/bin/git config --local --unset includeif.gitdir:/Users/runner/work/tooltest-2/tooltest-2/core-context-fixture/.git/worktrees/*.path \/Users\/runner\/work\/_temp\/git\-credentials\-2b2fcf88\-15bd\-4de2\-adc4\-e932c0a346b0\.config
+2026-09-23T10:28:40.7918730Z [command]/opt/homebrew/bin/git config --local --get-all includeif.gitdir:/github/workspace/core-context-fixture/.git.path
+2026-09-23T10:28:40.7996500Z /github/runner_temp/git-credentials-2b2fcf88-15bd-4de2-adc4-e932c0a346b0.config
+2026-09-23T10:28:40.8003150Z [command]/opt/homebrew/bin/git config --local --unset includeif.gitdir:/github/workspace/core-context-fixture/.git.path \/github\/runner_temp\/git\-credentials\-2b2fcf88\-15bd\-4de2\-adc4\-e932c0a346b0\.config
+2026-09-23T10:28:40.8139310Z [command]/opt/homebrew/bin/git config --local --get-all includeif.gitdir:/github/workspace/core-context-fixture/.git/worktrees/*.path
+2026-09-23T10:28:40.8208340Z /github/runner_temp/git-credentials-2b2fcf88-15bd-4de2-adc4-e932c0a346b0.config
+2026-09-23T10:28:40.8220010Z [command]/opt/homebrew/bin/git config --local --unset includeif.gitdir:/github/workspace/core-context-fixture/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-2b2fcf88\-15bd\-4de2\-adc4\-e932c0a346b0\.config
+2026-09-23T10:28:40.8307390Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-09-23T10:28:41.0091970Z Removing credentials config '/Users/runner/work/_temp/git-credentials-2b2fcf88-15bd-4de2-adc4-e932c0a346b0.config'
+2026-09-23T10:28:41.0093430Z ##[endgroup]
+2026-09-23T10:28:41.0277820Z ##[group]Run actions/setup-python@v7
+2026-09-23T10:28:41.0278600Z with:
+2026-09-23T10:28:41.0279070Z   python-version: 3.12
+2026-09-23T10:28:41.0279590Z   check-latest: false
+2026-09-23T10:28:41.0284860Z   token: ***
+2026-09-23T10:28:41.0285300Z   update-environment: true
+2026-09-23T10:28:41.0285800Z   allow-prereleases: false
+2026-09-23T10:28:41.0286270Z   freethreaded: false
+2026-09-23T10:28:41.0286700Z ##[endgroup]
+2026-09-23T10:28:41.2280020Z ##[group]Installed versions
+2026-09-23T10:28:41.2581710Z Successfully set up CPython (3.12.10)
+2026-09-23T10:28:41.2582910Z ##[endgroup]
+2026-09-23T10:28:41.2962100Z ##[group]Run actions/setup-node@v7
+2026-09-23T10:28:41.2962360Z with:
+2026-09-23T10:28:41.2962530Z   node-version: 22
+2026-09-23T10:28:41.2962690Z   check-latest: false
+2026-09-23T10:28:41.2965050Z   token: ***
+2026-09-23T10:28:41.2965330Z   package-manager-cache: true
+2026-09-23T10:28:41.2965560Z env:
+2026-09-23T10:28:41.2965830Z   pythonLocation: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:28:41.2966260Z   PKG_CONFIG_PATH: /Users/runner/hostedtoolcache/Python/3.12.10/arm64/lib/pkgconfig
+2026-09-23T10:28:41.2966800Z   Python_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:28:41.2967180Z   Python2_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:28:41.2967560Z   Python3_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:28:41.2967910Z ##[endgroup]
+2026-09-23T10:28:41.5047680Z Found in cache @ /Users/runner/hostedtoolcache/node/22.23.2/arm64
+2026-09-23T10:28:41.5048420Z ##[group]Environment details
+2026-09-23T10:28:42.5239090Z node: v22.23.2
+2026-09-23T10:28:42.5289480Z npm: 10.9.8
+2026-09-23T10:28:42.5289880Z yarn: 1.22.22
+2026-09-23T10:28:42.5290940Z ##[endgroup]
+2026-09-23T10:28:42.5437060Z ##[group]Run python -m pip install --no-deps ./core-context-fixture
+2026-09-23T10:28:42.5437690Z [36;1mpython -m pip install --no-deps ./core-context-fixture[0m
+2026-09-23T10:28:42.5519150Z shell: /bin/bash -e {0}
+2026-09-23T10:28:42.5519430Z env:
+2026-09-23T10:28:42.5519700Z   pythonLocation: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:28:42.5520150Z   PKG_CONFIG_PATH: /Users/runner/hostedtoolcache/Python/3.12.10/arm64/lib/pkgconfig
+2026-09-23T10:28:42.5520590Z   Python_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:28:42.5520990Z   Python2_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:28:42.5521370Z   Python3_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:28:42.5521660Z ##[endgroup]
+2026-09-23T10:28:44.3451670Z Processing ./core-context-fixture
+2026-09-23T10:28:44.3461950Z   Installing build dependencies: started
+2026-09-23T10:28:45.3497350Z   Installing build dependencies: finished with status 'done'
+2026-09-23T10:28:45.3516450Z   Getting requirements to build wheel: started
+2026-09-23T10:28:45.8536160Z   Getting requirements to build wheel: finished with status 'done'
+2026-09-23T10:28:45.8548270Z   Preparing metadata (pyproject.toml): started
+2026-09-23T10:28:46.1189050Z   Preparing metadata (pyproject.toml): finished with status 'done'
+2026-09-23T10:28:46.1226180Z Building wheels for collected packages: diffwitness
+2026-09-23T10:28:46.1239980Z   Building wheel for diffwitness (pyproject.toml): started
+2026-09-23T10:28:46.5967330Z   Building wheel for diffwitness (pyproject.toml): finished with status 'done'
+2026-09-23T10:28:46.5979140Z   Created wheel for diffwitness: filename=diffwitness-0.4.0a1-py3-none-any.whl size=361759 sha256=df950a2482fb263211b971edcf0c28576fa2095e9d2e962fca8e44670edf9a31
+2026-09-23T10:28:46.5980910Z   Stored in directory: /private/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/pip-ephem-wheel-cache-k71wg8rn/wheels/09/56/0c/91c5a80483e45798bb5f9567209d6c48e54765d2443e8bd6a3
+2026-09-23T10:28:46.6017160Z Successfully built diffwitness
+2026-09-23T10:28:46.6092040Z Installing collected packages: diffwitness
+2026-09-23T10:28:46.8411440Z Successfully installed diffwitness-0.4.0a1
+2026-09-23T10:28:46.9247640Z ##[group]Run node scripts/continuity-core-smoke.mjs
+2026-09-23T10:28:46.9248710Z [36;1mnode scripts/continuity-core-smoke.mjs[0m
+2026-09-23T10:28:46.9293860Z shell: /bin/bash -e {0}
+2026-09-23T10:28:46.9294160Z env:
+2026-09-23T10:28:46.9294480Z   pythonLocation: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:28:46.9295050Z   PKG_CONFIG_PATH: /Users/runner/hostedtoolcache/Python/3.12.10/arm64/lib/pkgconfig
+2026-09-23T10:28:46.9295530Z   Python_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:28:46.9296020Z   Python2_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:28:46.9296490Z   Python3_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:28:46.9296830Z ##[endgroup]
+2026-09-23T10:29:01.4291240Z {"schema":"idleproof-core-context-smoke-3","passed":true,"coreVersion":"diffwitness 0.4.0a1","tasks":1,"review":"DECLARED","assertionCitationsPreserved":true,"reviewCitationsPreserved":true,"wholeRowsWithinBudget":true,"actualHookChars":5652,"actualHookCitedRows":4,"legacyLoadingAndCitationsPreserved":true,"retiredExcluded":true,"nativePrompts":12,"human":"NOT_RUN"}
+2026-09-23T10:29:01.4818530Z ##[group]Run node scripts/structure-core-smoke.mjs
+2026-09-23T10:29:01.4819250Z [36;1mnode scripts/structure-core-smoke.mjs[0m
+2026-09-23T10:29:01.4859090Z shell: /bin/bash -e {0}
+2026-09-23T10:29:01.4859390Z env:
+2026-09-23T10:29:01.4859770Z   pythonLocation: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:01.4860210Z   PKG_CONFIG_PATH: /Users/runner/hostedtoolcache/Python/3.12.10/arm64/lib/pkgconfig
+2026-09-23T10:29:01.4860760Z   Python_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:01.4861290Z   Python2_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:01.4861740Z   Python3_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:01.4862240Z ##[endgroup]
+2026-09-23T10:29:01.9560490Z {"schema":"idleproof-structure-core-smoke-1","passed":true,"elapsed_ms":358.374,"classification":"MACHINE"}
+2026-09-23T10:29:01.9684030Z ##[group]Run node scripts/structure-languages-smoke.mjs --without-grammars
+2026-09-23T10:29:01.9684690Z [36;1mnode scripts/structure-languages-smoke.mjs --without-grammars[0m
+2026-09-23T10:29:01.9734060Z shell: /bin/bash -e {0}
+2026-09-23T10:29:01.9734270Z env:
+2026-09-23T10:29:01.9734670Z   pythonLocation: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:01.9735200Z   PKG_CONFIG_PATH: /Users/runner/hostedtoolcache/Python/3.12.10/arm64/lib/pkgconfig
+2026-09-23T10:29:01.9735660Z   Python_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:01.9736090Z   Python2_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:01.9736480Z   Python3_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:01.9744250Z ##[endgroup]
+2026-09-23T10:29:02.3218360Z {"schema":"idleproof-structure-languages-smoke-1","passed":true,"actual_optional_grammars":false,"classification":"MACHINE"}
+2026-09-23T10:29:02.3323990Z ##[group]Run node scripts/structure-all-providers-smoke.mjs --without-grammars
+2026-09-23T10:29:02.3324790Z [36;1mnode scripts/structure-all-providers-smoke.mjs --without-grammars[0m
+2026-09-23T10:29:02.3359900Z shell: /bin/bash -e {0}
+2026-09-23T10:29:02.3360170Z env:
+2026-09-23T10:29:02.3360580Z   pythonLocation: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:02.3361180Z   PKG_CONFIG_PATH: /Users/runner/hostedtoolcache/Python/3.12.10/arm64/lib/pkgconfig
+2026-09-23T10:29:02.3361680Z   Python_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:02.3374720Z   Python2_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:02.3375120Z   Python3_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:02.3375520Z ##[endgroup]
+2026-09-23T10:29:04.5515690Z {"schema":"idleproof-all-task-providers-smoke-1","passed":true,"actual_optional_grammars":false,"classification":"MACHINE"}
+2026-09-23T10:29:04.5680530Z ##[group]Run node scripts/feature-canonical-smoke.mjs --without-grammars
+2026-09-23T10:29:04.5682180Z [36;1mnode scripts/feature-canonical-smoke.mjs --without-grammars[0m
+2026-09-23T10:29:04.5774990Z shell: /bin/bash -e {0}
+2026-09-23T10:29:04.5775240Z env:
+2026-09-23T10:29:04.5775510Z   pythonLocation: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:04.5775930Z   PKG_CONFIG_PATH: /Users/runner/hostedtoolcache/Python/3.12.10/arm64/lib/pkgconfig
+2026-09-23T10:29:04.5776350Z   Python_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:04.5776790Z   Python2_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:04.5777190Z   Python3_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:04.5777480Z ##[endgroup]
+2026-09-23T10:29:06.3834830Z {"schema":"idleproof-feature-canonical-smoke-1","passed":true,"actual_optional_grammars":false,"classification":"MACHINE"}
+2026-09-23T10:29:06.4001970Z ##[group]Run node scripts/feature-lineage-smoke.mjs
+2026-09-23T10:29:06.4003600Z [36;1mnode scripts/feature-lineage-smoke.mjs[0m
+2026-09-23T10:29:06.4048580Z shell: /bin/bash -e {0}
+2026-09-23T10:29:06.4048790Z env:
+2026-09-23T10:29:06.4049060Z   pythonLocation: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:06.4049510Z   PKG_CONFIG_PATH: /Users/runner/hostedtoolcache/Python/3.12.10/arm64/lib/pkgconfig
+2026-09-23T10:29:06.4050050Z   Python_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:06.4050430Z   Python2_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:06.4050820Z   Python3_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:06.4051100Z ##[endgroup]
+2026-09-23T10:29:11.0698560Z {"schema":"idleproof-feature-lineage-smoke-1","classification":"MACHINE","passed":true,"actualCore":true,"installedPackage":true,"packageSha256":"442f6ac505ecc933c74aaff68cd3c102d54d00c9ee9203e5ea965bea668dee8c","sourceEvent":"dwev_d27a10fbee6a7763151c5cba","sourceHash":"2bd30beb07d193375ff86b6c5d580410ee557190470aa4b265ec5e7f258a2070","languages":["fr","en"],"noScoreTransfer":true,"readOnly":true,"corruptJournalRejected":true}
+2026-09-23T10:29:11.1092230Z ##[group]Run python -m pip install "./core-context-fixture[structure]"
+2026-09-23T10:29:11.1092770Z [36;1mpython -m pip install "./core-context-fixture[structure]"[0m
+2026-09-23T10:29:11.1132730Z shell: /bin/bash -e {0}
+2026-09-23T10:29:11.1132960Z env:
+2026-09-23T10:29:11.1133340Z   pythonLocation: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:11.1133850Z   PKG_CONFIG_PATH: /Users/runner/hostedtoolcache/Python/3.12.10/arm64/lib/pkgconfig
+2026-09-23T10:29:11.1134270Z   Python_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:11.1134720Z   Python2_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:11.1141990Z   Python3_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:11.1142300Z ##[endgroup]
+2026-09-23T10:29:11.5829110Z Processing ./core-context-fixture
+2026-09-23T10:29:11.5870680Z   Installing build dependencies: started
+2026-09-23T10:29:12.2818850Z   Installing build dependencies: finished with status 'done'
+2026-09-23T10:29:12.2923850Z   Getting requirements to build wheel: started
+2026-09-23T10:29:12.8042100Z   Getting requirements to build wheel: finished with status 'done'
+2026-09-23T10:29:12.8055270Z   Preparing metadata (pyproject.toml): started
+2026-09-23T10:29:13.0348420Z   Preparing metadata (pyproject.toml): finished with status 'done'
+2026-09-23T10:29:13.2192480Z Collecting tree-sitter==0.25.2 (from diffwitness==0.4.0a1)
+2026-09-23T10:29:13.2515260Z   Downloading tree_sitter-0.25.2-cp312-cp312-macosx_11_0_arm64.whl.metadata (10.0 kB)
+2026-09-23T10:29:13.3161960Z Collecting tree-sitter-javascript==0.25.0 (from diffwitness==0.4.0a1)
+2026-09-23T10:29:13.3222770Z   Downloading tree_sitter_javascript-0.25.0-cp310-abi3-macosx_11_0_arm64.whl.metadata (2.2 kB)
+2026-09-23T10:29:13.3599480Z Collecting tree-sitter-typescript==0.23.2 (from diffwitness==0.4.0a1)
+2026-09-23T10:29:13.3647570Z   Downloading tree_sitter_typescript-0.23.2-cp39-abi3-macosx_11_0_arm64.whl.metadata (2.3 kB)
+2026-09-23T10:29:13.4022890Z Collecting tree-sitter-go==0.25.0 (from diffwitness==0.4.0a1)
+2026-09-23T10:29:13.4107870Z   Downloading tree_sitter_go-0.25.0-cp310-abi3-macosx_11_0_arm64.whl.metadata (1.7 kB)
+2026-09-23T10:29:13.4504370Z Collecting tree-sitter-rust==0.24.2 (from diffwitness==0.4.0a1)
+2026-09-23T10:29:13.4573760Z   Downloading tree_sitter_rust-0.24.2-cp39-abi3-macosx_11_0_arm64.whl.metadata (2.8 kB)
+2026-09-23T10:29:13.4910270Z Collecting tree-sitter-java==0.23.5 (from diffwitness==0.4.0a1)
+2026-09-23T10:29:13.4953340Z   Downloading tree_sitter_java-0.23.5-cp39-abi3-macosx_11_0_arm64.whl.metadata (1.7 kB)
+2026-09-23T10:29:13.5307130Z Collecting tree-sitter-c-sharp==0.23.5 (from diffwitness==0.4.0a1)
+2026-09-23T10:29:13.5375840Z   Downloading tree_sitter_c_sharp-0.23.5-cp310-abi3-macosx_11_0_arm64.whl.metadata (2.7 kB)
+2026-09-23T10:29:13.5760220Z Collecting tree-sitter-kotlin==1.1.0 (from diffwitness==0.4.0a1)
+2026-09-23T10:29:13.5863410Z   Downloading tree_sitter_kotlin-1.1.0-cp39-abi3-macosx_11_0_arm64.whl.metadata (1.9 kB)
+2026-09-23T10:29:13.6235170Z Collecting tree-sitter-ruby==0.23.1 (from diffwitness==0.4.0a1)
+2026-09-23T10:29:13.6334570Z   Downloading tree_sitter_ruby-0.23.1-cp39-abi3-macosx_11_0_arm64.whl.metadata (1.8 kB)
+2026-09-23T10:29:13.6872930Z Collecting tree-sitter-php==0.24.1 (from diffwitness==0.4.0a1)
+2026-09-23T10:29:13.7110320Z   Downloading tree_sitter_php-0.24.1-cp310-abi3-macosx_11_0_arm64.whl.metadata (1.7 kB)
+2026-09-23T10:29:13.9357390Z Collecting tree-sitter-sql==0.3.11 (from diffwitness==0.4.0a1)
+2026-09-23T10:29:13.9462430Z   Downloading tree_sitter_sql-0.3.11-cp310-abi3-macosx_11_0_arm64.whl.metadata (4.0 kB)
+2026-09-23T10:29:14.0353870Z Collecting tree-sitter-json==0.24.8 (from diffwitness==0.4.0a1)
+2026-09-23T10:29:14.0413190Z   Downloading tree_sitter_json-0.24.8-cp39-abi3-macosx_11_0_arm64.whl.metadata (1.7 kB)
+2026-09-23T10:29:14.1363060Z Collecting tree-sitter-toml==0.7.0 (from diffwitness==0.4.0a1)
+2026-09-23T10:29:14.2035920Z   Downloading tree_sitter_toml-0.7.0-cp39-abi3-macosx_11_0_arm64.whl.metadata (1.7 kB)
+2026-09-23T10:29:14.2390920Z Collecting tree-sitter-yaml==0.7.2 (from diffwitness==0.4.0a1)
+2026-09-23T10:29:14.2460000Z   Downloading tree_sitter_yaml-0.7.2-cp310-abi3-macosx_11_0_arm64.whl.metadata (1.8 kB)
+2026-09-23T10:29:14.2706460Z Downloading tree_sitter-0.25.2-cp312-cp312-macosx_11_0_arm64.whl (137 kB)
+2026-09-23T10:29:14.3044870Z Downloading tree_sitter_c_sharp-0.23.5-cp310-abi3-macosx_11_0_arm64.whl (376 kB)
+2026-09-23T10:29:14.3235840Z Downloading tree_sitter_go-0.25.0-cp310-abi3-macosx_11_0_arm64.whl (48 kB)
+2026-09-23T10:29:14.3326820Z Downloading tree_sitter_java-0.23.5-cp39-abi3-macosx_11_0_arm64.whl (62 kB)
+2026-09-23T10:29:14.3447620Z Downloading tree_sitter_javascript-0.25.0-cp310-abi3-macosx_11_0_arm64.whl (66 kB)
+2026-09-23T10:29:14.3645190Z Downloading tree_sitter_json-0.24.8-cp39-abi3-macosx_11_0_arm64.whl (9.2 kB)
+2026-09-23T10:29:14.4473260Z Downloading tree_sitter_kotlin-1.1.0-cp39-abi3-macosx_11_0_arm64.whl (337 kB)
+2026-09-23T10:29:14.4619210Z Downloading tree_sitter_php-0.24.1-cp310-abi3-macosx_11_0_arm64.whl (229 kB)
+2026-09-23T10:29:14.4925290Z Downloading tree_sitter_ruby-0.23.1-cp39-abi3-macosx_11_0_arm64.whl (195 kB)
+2026-09-23T10:29:14.5084570Z Downloading tree_sitter_rust-0.24.2-cp39-abi3-macosx_11_0_arm64.whl (136 kB)
+2026-09-23T10:29:14.5258220Z Downloading tree_sitter_sql-0.3.11-cp310-abi3-macosx_11_0_arm64.whl (341 kB)
+2026-09-23T10:29:14.5388080Z Downloading tree_sitter_toml-0.7.0-cp39-abi3-macosx_11_0_arm64.whl (15 kB)
+2026-09-23T10:29:14.5534380Z Downloading tree_sitter_typescript-0.23.2-cp39-abi3-macosx_11_0_arm64.whl (302 kB)
+2026-09-23T10:29:14.5658430Z Downloading tree_sitter_yaml-0.7.2-cp310-abi3-macosx_11_0_arm64.whl (44 kB)
+2026-09-23T10:29:14.5855050Z Building wheels for collected packages: diffwitness
+2026-09-23T10:29:14.5863530Z   Building wheel for diffwitness (pyproject.toml): started
+2026-09-23T10:29:15.0030240Z   Building wheel for diffwitness (pyproject.toml): finished with status 'done'
+2026-09-23T10:29:15.0041390Z   Created wheel for diffwitness: filename=diffwitness-0.4.0a1-py3-none-any.whl size=361759 sha256=441ccc56e40b4ceb250a000656e597eb8f5abca91867731895f5aa933b01eba8
+2026-09-23T10:29:15.0044760Z   Stored in directory: /private/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/pip-ephem-wheel-cache-6y6f_ao9/wheels/09/56/0c/91c5a80483e45798bb5f9567209d6c48e54765d2443e8bd6a3
+2026-09-23T10:29:15.0072690Z Successfully built diffwitness
+2026-09-23T10:29:15.0333180Z Installing collected packages: tree-sitter-yaml, tree-sitter-typescript, tree-sitter-toml, tree-sitter-sql, tree-sitter-rust, tree-sitter-ruby, tree-sitter-php, tree-sitter-kotlin, tree-sitter-json, tree-sitter-javascript, tree-sitter-java, tree-sitter-go, tree-sitter-c-sharp, tree-sitter, diffwitness
+2026-09-23T10:29:15.1780260Z   Attempting uninstall: diffwitness
+2026-09-23T10:29:15.1798350Z     Found existing installation: diffwitness 0.4.0a1
+2026-09-23T10:29:15.1881280Z     Uninstalling diffwitness-0.4.0a1:
+2026-09-23T10:29:15.1899980Z       Successfully uninstalled diffwitness-0.4.0a1
+2026-09-23T10:29:15.4582480Z 
+2026-09-23T10:29:15.4613210Z Successfully installed diffwitness-0.4.0a1 tree-sitter-0.25.2 tree-sitter-c-sharp-0.23.5 tree-sitter-go-0.25.0 tree-sitter-java-0.23.5 tree-sitter-javascript-0.25.0 tree-sitter-json-0.24.8 tree-sitter-kotlin-1.1.0 tree-sitter-php-0.24.1 tree-sitter-ruby-0.23.1 tree-sitter-rust-0.24.2 tree-sitter-sql-0.3.11 tree-sitter-toml-0.7.0 tree-sitter-typescript-0.23.2 tree-sitter-yaml-0.7.2
+2026-09-23T10:29:15.5559750Z ##[group]Run node scripts/structure-languages-smoke.mjs
+2026-09-23T10:29:15.5560150Z [36;1mnode scripts/structure-languages-smoke.mjs[0m
+2026-09-23T10:29:15.5603680Z shell: /bin/bash -e {0}
+2026-09-23T10:29:15.5603890Z env:
+2026-09-23T10:29:15.5604170Z   pythonLocation: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:15.5604610Z   PKG_CONFIG_PATH: /Users/runner/hostedtoolcache/Python/3.12.10/arm64/lib/pkgconfig
+2026-09-23T10:29:15.5605030Z   Python_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:15.5605530Z   Python2_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:15.5605910Z   Python3_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:15.5606220Z ##[endgroup]
+2026-09-23T10:29:16.4292880Z {"schema":"idleproof-structure-languages-smoke-1","passed":true,"actual_optional_grammars":true,"classification":"MACHINE"}
+2026-09-23T10:29:16.4718070Z ##[group]Run node scripts/structure-dependencies-smoke.mjs
+2026-09-23T10:29:16.4718610Z [36;1mnode scripts/structure-dependencies-smoke.mjs[0m
+2026-09-23T10:29:16.4939580Z shell: /bin/bash -e {0}
+2026-09-23T10:29:16.4939770Z env:
+2026-09-23T10:29:16.4940080Z   pythonLocation: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:16.4940730Z   PKG_CONFIG_PATH: /Users/runner/hostedtoolcache/Python/3.12.10/arm64/lib/pkgconfig
+2026-09-23T10:29:16.4941270Z   Python_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:16.4941680Z   Python2_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:16.4942180Z   Python3_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:16.4942550Z ##[endgroup]
+2026-09-23T10:29:18.0237360Z ACTUAL MODULE ORIGIN FILTER PASS: raw imports retained, local/platform excluded, candidate external targets preserved; MACHINE
+2026-09-23T10:29:18.0583560Z ##[group]Run node scripts/structure-all-providers-smoke.mjs
+2026-09-23T10:29:18.0584860Z [36;1mnode scripts/structure-all-providers-smoke.mjs[0m
+2026-09-23T10:29:18.0630740Z shell: /bin/bash -e {0}
+2026-09-23T10:29:18.0631140Z env:
+2026-09-23T10:29:18.0631530Z   pythonLocation: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:18.0632060Z   PKG_CONFIG_PATH: /Users/runner/hostedtoolcache/Python/3.12.10/arm64/lib/pkgconfig
+2026-09-23T10:29:18.0632600Z   Python_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:18.0633210Z   Python2_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:18.0633670Z   Python3_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-09-23T10:29:18.0634110Z ##[endgroup]
+2026-09-23T10:29:19.4135590Z node:internal/modules/run_main:123
+2026-09-23T10:29:19.4243870Z     triggerUncaughtException(
+2026-09-23T10:29:19.4345530Z     ^
+2026-09-23T10:29:19.4423510Z 
+2026-09-23T10:29:19.4424310Z AssertionError [ERR_ASSERTION]: settings.yaml
+2026-09-23T10:29:19.4424680Z 
+2026-09-23T10:29:19.4424880Z false !== true
+2026-09-23T10:29:19.4425210Z 
+2026-09-23T10:29:19.4425700Z     at file:///Users/runner/work/tooltest-2/tooltest-2/scripts/structure-all-providers-smoke.mjs:27:10
+2026-09-23T10:29:19.4426440Z     at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+2026-09-23T10:29:19.4427050Z     at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+2026-09-23T10:29:19.4427820Z     at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5) {
+2026-09-23T10:29:19.4428460Z   generatedMessage: false,
+2026-09-23T10:29:19.4428880Z   code: 'ERR_ASSERTION',
+2026-09-23T10:29:19.4429360Z   actual: false,
+2026-09-23T10:29:19.4429740Z   expected: true,
+2026-09-23T10:29:19.4430070Z   operator: 'strictEqual',
+2026-09-23T10:29:19.4430460Z   diff: 'simple'
+2026-09-23T10:29:19.4430960Z }
+2026-09-23T10:29:19.4431200Z 
+2026-09-23T10:29:19.4431460Z Node.js v22.23.2
+2026-09-23T10:29:19.4445440Z ##[error]Process completed with exit code 1.
+2026-09-23T10:29:19.5996940Z Post job cleanup.
+2026-09-23T10:29:21.6483740Z [command]/opt/homebrew/bin/git version
+2026-09-23T10:29:21.7132500Z git version 2.55.0
+2026-09-23T10:29:21.7169280Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/895c2cd4-8a4d-4863-9aa4-b7caf8621686/.gitconfig'
+2026-09-23T10:29:21.7181970Z Temporarily overriding HOME='/Users/runner/work/_temp/895c2cd4-8a4d-4863-9aa4-b7caf8621686' before making global git config changes
+2026-09-23T10:29:21.7183820Z Adding repository directory to the temporary git global config as a safe directory
+2026-09-23T10:29:21.7189620Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/tooltest-2/tooltest-2/core-context-fixture
+2026-09-23T10:29:21.7392530Z Removing SSH command configuration
+2026-09-23T10:29:21.7399380Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-09-23T10:29:21.7501410Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-09-23T10:29:22.0364610Z Removing HTTP extra header
+2026-09-23T10:29:22.0370510Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-09-23T10:29:22.0495920Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-09-23T10:29:22.1934820Z Removing includeIf entries pointing to credentials config files
+2026-09-23T10:29:22.1939010Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-09-23T10:29:22.2071500Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-09-23T10:29:22.4410050Z Post job cleanup.
+2026-09-23T10:29:22.6520750Z [command]/opt/homebrew/bin/git version
+2026-09-23T10:29:22.6624160Z git version 2.55.0
+2026-09-23T10:29:22.6753390Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/6848a151-d9d6-4975-a415-3daee3c0139e/.gitconfig'
+2026-09-23T10:29:22.6756200Z Temporarily overriding HOME='/Users/runner/work/_temp/6848a151-d9d6-4975-a415-3daee3c0139e' before making global git config changes
+2026-09-23T10:29:22.6758380Z Adding repository directory to the temporary git global config as a safe directory
+2026-09-23T10:29:22.6760360Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/tooltest-2/tooltest-2
+2026-09-23T10:29:22.6764090Z Removing SSH command configuration
+2026-09-23T10:29:22.6769710Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-09-23T10:29:22.6808080Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-09-23T10:29:22.8453130Z Removing HTTP extra header
+2026-09-23T10:29:22.8589880Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-09-23T10:29:22.8910380Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-09-23T10:29:23.0288940Z Removing includeIf entries pointing to credentials config files
+2026-09-23T10:29:23.0391300Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-09-23T10:29:23.0497680Z includeif.gitdir:/Users/runner/work/tooltest-2/tooltest-2/.git.path
+2026-09-23T10:29:23.0600730Z includeif.gitdir:/Users/runner/work/tooltest-2/tooltest-2/.git/worktrees/*.path
+2026-09-23T10:29:23.0722570Z includeif.gitdir:/github/workspace/.git.path
+2026-09-23T10:29:23.0824610Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-09-23T10:29:23.1140710Z [command]/opt/homebrew/bin/git config --local --get-all includeif.gitdir:/Users/runner/work/tooltest-2/tooltest-2/.git.path
+2026-09-23T10:29:23.1142100Z /Users/runner/work/_temp/git-credentials-9031cf0d-0ede-47f8-8c15-cfd2a208ef64.config
+2026-09-23T10:29:23.1368640Z [command]/opt/homebrew/bin/git config --local --unset includeif.gitdir:/Users/runner/work/tooltest-2/tooltest-2/.git.path \/Users\/runner\/work\/_temp\/git\-credentials\-9031cf0d\-0ede\-47f8\-8c15\-cfd2a208ef64\.config
+2026-09-23T10:29:23.1370840Z [command]/opt/homebrew/bin/git config --local --get-all includeif.gitdir:/Users/runner/work/tooltest-2/tooltest-2/.git/worktrees/*.path
+2026-09-23T10:29:23.1371850Z /Users/runner/work/_temp/git-credentials-9031cf0d-0ede-47f8-8c15-cfd2a208ef64.config
+2026-09-23T10:29:23.1373790Z [command]/opt/homebrew/bin/git config --local --unset includeif.gitdir:/Users/runner/work/tooltest-2/tooltest-2/.git/worktrees/*.path \/Users\/runner\/work\/_temp\/git\-credentials\-9031cf0d\-0ede\-47f8\-8c15\-cfd2a208ef64\.config
+2026-09-23T10:29:23.1375680Z [command]/opt/homebrew/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-09-23T10:29:23.1377200Z /github/runner_temp/git-credentials-9031cf0d-0ede-47f8-8c15-cfd2a208ef64.config
+2026-09-23T10:29:23.1378850Z [command]/opt/homebrew/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-9031cf0d\-0ede\-47f8\-8c15\-cfd2a208ef64\.config
+2026-09-23T10:29:23.1380460Z [command]/opt/homebrew/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-09-23T10:29:23.1381260Z /github/runner_temp/git-credentials-9031cf0d-0ede-47f8-8c15-cfd2a208ef64.config
+2026-09-23T10:29:23.1383320Z [command]/opt/homebrew/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-9031cf0d\-0ede\-47f8\-8c15\-cfd2a208ef64\.config
+2026-09-23T10:29:23.1385150Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-09-23T10:29:23.2795580Z Removing credentials config '/Users/runner/work/_temp/git-credentials-9031cf0d-0ede-47f8-8c15-cfd2a208ef64.config'
+2026-09-23T10:29:23.3160110Z Cleaning up orphan processes
+
