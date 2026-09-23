@@ -66,6 +66,12 @@ function pathsBeyondLimit(paths, limit) {
   return admitted.slice(limit).filter(value=>!retained.has(value));
 }
 
+function storyLimitedPaths(story) {
+  const admitted=(story || []).filter(item=>item.type==='file' ? cleanPath(item.label) : redact(item.label,160));
+  const retained=new Set(admitted.slice(0,12).filter(item=>item.type==='file').map(item=>cleanPath(item.label)));
+  return admitted.slice(12).filter(item=>item.type==='file' && !retained.has(cleanPath(item.label))).map(item=>item.label);
+}
+
 function continuityLimitedPaths(value) {
   if (!value) return [];
   const components=(value.components || []).map(continuityComponent).filter(Boolean);
@@ -331,8 +337,7 @@ export function buildPortalSnapshot({ state={}, session=null, featureModel=null,
   ], [
     ...allFilePaths.slice(40),
     ...pathsBeyondLimit((explanation?.files || []).map(item=>item.path),20),
-    ...(featureModel?.story || []).filter(item=>item.type==='file' ? cleanPath(item.label) : redact(item.label,160)).slice(12)
-      .filter(item=>item.type==='file').map(item=>item.label),
+    ...storyLimitedPaths(featureModel?.story),
     ...pathsBeyondLimit(featureModel?.tests || [],12),
     ...continuityLimitedPaths(continuity ? projectModel.continuity : null)
   ]);

@@ -56,3 +56,5 @@ Review4088213313 identified C1 controls outside the original C0/DEL omission ran
 A real 41-path session omitted its last file without a coverage notice. The failing-before regression now covers 40/41/80 paths, mixed invalid and capped paths, explanation rows, feature story rows and test paths. Coverage counts each distinct path omitted by an applicable projection row limit alongside invalid paths. Paths that remain admitted retain their exact identity; all existing row and byte budgets remain unchanged. Local 280 tests pass without skips.
 
 This does not resolve the independent provider incidents: run35933394396 failed on Windows (invented/actual) and macOS (Core extraction unavailable); these failures remain recorded and block qualification.
+
+Review4088394206 identified a duplicate story path after the row cap that was incorrectly counted as absent, despite retention before the cap. The failing-before fixture now passes after comparing overflow against retained file identities. All281localtests pass without skips. This changes only omission accounting, not provider extraction or latency.

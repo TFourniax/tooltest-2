@@ -132,3 +132,12 @@ test('projection row caps disclose each unique omitted path and retain exact adm
     assertPortalSnapshotSafe(snapshot);
   }
 });
+
+test('duplicate paths beyond a story cap are not falsely reported missing',()=>{
+  const story=[{type:'file',label:'src/a.js'},...Array.from({length:11},()=>({type:'note',label:'note'})),{type:'file',label:'src/a.js'}];
+  const snapshot=buildPortalSnapshot({featureModel:{story}});
+  assert.deepEqual(snapshot.files,['src/a.js']);
+  assert.equal(snapshot.feature.story[0].label,'src/a.js');
+  assert.doesNotMatch(snapshot.task.summary || '',/path coverage incomplete/);
+  assertPortalSnapshotSafe(snapshot);
+});
