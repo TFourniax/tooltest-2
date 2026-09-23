@@ -13,6 +13,9 @@ const SECRET_PATTERNS = [
   /\bBearer\s+[A-Za-z0-9._~+\/-]+=*/gi,
   /\b(?:api[_-]?key|secret|token|password)\s*[:=]\s*[^\s,;]+/gi
 ];
+// Underscores and other word characters delimit opaque IDs too. A display-text
+// word boundary must not allow credential bytes through the identity allowlist.
+const IDENTITY_SECRET_PATTERNS=SECRET_PATTERNS.map(pattern=>new RegExp(pattern.source.replaceAll('\\b',''),pattern.flags.replace('g','')));
 
 function digest(value = '') {
   return createHash('sha256').update(String(value || '')).digest('hex');
@@ -50,7 +53,7 @@ function epistemic(value) {
 
 // Identity is never a display label: truncation/redaction would create aliases.
 function continuityIdentity(value) {
-  return validContextIdentity(value) && redact(value,512)===value ? value : null;
+  return validContextIdentity(value) && !IDENTITY_SECRET_PATTERNS.some(pattern=>pattern.test(value)) ? value : null;
 }
 
 function continuityEntity(item={}) {
@@ -127,7 +130,7 @@ function safeContinuityMemory(value) {
     ...value.knownDebt.map(item=>item.debt_id), ...value.relations.flatMap(item=>[item.source,item.target,item.predicate])];
   const omitted=identities.some(id=>continuityIdentity(id)===null);
   const warnings=value.warnings.slice(0,omitted ? 7 : 8).map(value=>redact(value,240));
-  if (omitted) warnings.push('Some memory rows were omitted because their identities contain sensitive data.');
+  if (omitted) warnings.unshift('Some memory rows were omitted because their identities contain sensitive data.');
   return {
     schema:'idleproof.portal-continuity.v1',
     contextId,
@@ -166,6 +169,19 @@ function stableSnapshotId(snapshot) {
   delete stable.generatedAt;
   delete stable.snapshotId;
   return `ipsnap_${digest(canonical(stable)).slice(0,24)}`;
+}
+
+function fitContinuitySnapshotBudget(snapshot) {
+  const memory=snapshot.projectMemory?.continuity;
+  if (!memory || Buffer.byteLength(JSON.stringify(snapshot),'utf8')<=MAX_SNAPSHOT_BYTES) return;
+  memory.warnings=[...memory.warnings.slice(0,7),'Project memory was reduced to fit the Portal snapshot size limit.'];
+  // Keep higher-ranked rows intact and prioritize current task/assertion memory
+  // over ancillary rows. Budget the complete wire payload, including its ID.
+  for(const key of ['relations','components','knownDebt','recentChanges','failedApproaches','invariants','decisions','objectives','tasks']) {
+    while(memory[key].length && Buffer.byteLength(JSON.stringify(snapshot),'utf8')>MAX_SNAPSHOT_BYTES) memory[key].pop();
+  }
+  // If non-memory content alone is oversized, the existing safety gate rejects
+  // it. Never drop Proof/Protect data or relax the wire-size limit to fit memory.
 }
 
 function promptMetadata(session=null) {
@@ -301,6 +317,8 @@ export function buildPortalSnapshot({ state={}, session=null, featureModel=null,
     files:filePaths,
     privacy:{ sourceCodeIncluded:false, rawDiffIncluded:false, rawAgentEventsIncluded:false, rawPromptIncluded:false, secretsRedacted:true }
   };
+  snapshot.snapshotId=`ipsnap_${'0'.repeat(24)}`; // Reserve the exact final wire width.
+  fitContinuitySnapshotBudget(snapshot);
   snapshot.snapshotId=stableSnapshotId(snapshot);
   return snapshot;
 }

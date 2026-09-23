@@ -1,0 +1,68 @@
+✔ context admission rejects partial, malformed, oversized and upgraded reviews (5.8335ms)
+✔ agent context retains tasks, declared review, warnings and related changes without raw details (1.015003ms)
+✔ Portal projection preserves string endpoints and reviewed task memory with privacy whitelist (2.088514ms)
+✔ continuity query adds stable identity while ordinary semantic query is unchanged (2.11889ms)
+✔ Portal keeps full assertion citations and distinct long identities without authority changes (0.740999ms)
+✔ Portal omits secret-bearing identities instead of creating redacted aliases (0.354665ms)
+✖ dense admitted context stays synchronizable by budgeting whole cited rows (11.4426ms)
+✖ exact identities omit credentials behind word-like delimiters past old display limit (1.823063ms)
+✔ absent or unusable Core degrades to no advisory context (2.592235ms)
+✔ assertion and review references remain complete beside claims within every budget (6.161746ms)
+✔ full entity identities reject every C1 control even after the old display boundary (1.945188ms)
+✔ source admission rejects malformed or mismatched references without upgrading authority (1.274875ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 10
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 132.793529
+
+✖ failing tests:
+
+test at test/continuity.test.mjs:103:1
+✖ dense admitted context stays synchronizable by budgeting whole cited rows (11.4426ms)
+  Error: Portal snapshot exceeds 65536 byte safety budget.
+      at assertPortalSnapshotSafe (file:///workspace/scratch/fa8b5862d36a/work/idle/src/portal-snapshot.mjs:326:39)
+      at TestContext.<anonymous> (file:///workspace/scratch/fa8b5862d36a/work/idle/test/continuity.test.mjs:118:3)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+
+test at test/continuity.test.mjs:134:1
+✖ exact identities omit credentials behind word-like delimiters past old display limit (1.823063ms)
+  AssertionError [ERR_ASSERTION]: api_key=private-secret-value
+  + actual - expected
+  
+  + [
+  +   {
+  +     id: 'TASK_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx_api_key=private-secret-value',
+  +     label: 'Refund safety',
+  +     source: {
+  +       eventHash: '3333333333333333333333333333333333333333333333333333333333333333',
+  +       eventId: 'dwev_222222222222222222222222',
+  +       kind: 'project-event'
+  +     },
+  +     status: 'DECLARED'
+  +   }
+  + ]
+  - []
+  
+      at TestContext.<anonymous> (file:///workspace/scratch/fa8b5862d36a/work/idle/test/continuity.test.mjs:140:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: [ { id: 'TASK_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx_api_key=private-secret-value', status: 'DECLARED', label: 'Refund safety', source: [Object] } ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
