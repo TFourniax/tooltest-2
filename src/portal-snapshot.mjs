@@ -315,7 +315,8 @@ export function buildPortalSnapshot({ state={}, session=null, featureModel=null,
   const taskSummary=safeTaskSummary(session,explanation);
   // Preserve existing v1 consumers: coverage is visible in their existing text
   // fields. Do not add an unsupported field or truncate a path into an alias.
-  const summary=pathWarning ? (taskSummary && `${taskSummary} ${pathWarning}`.length<=300 ? `${taskSummary} ${pathWarning}` : pathWarning) : taskSummary;
+  const compactTask=filePaths.length ? 'Work involving the files listed in this snapshot.' : 'Work with partial path coverage.';
+  const summary=pathWarning ? `${taskSummary && `${taskSummary} ${pathWarning}`.length<=300 ? taskSummary : compactTask} ${pathWarning}` : taskSummary;
   const repositoryFingerprint=REPOSITORY_FINGERPRINT_RE.test(String(projectModel?.repositoryFingerprint || '')) ? String(projectModel.repositoryFingerprint) : null;
   const snapshot={
     schema:'idleproof.portal-snapshot.v1',

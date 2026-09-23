@@ -42,3 +42,7 @@ remain. Raw before/after/full evidence is retained in legacy-review.
 ## Rejected context coverage guard
 
 Review4088068228 found that the omission scan dereferenced rejected advisory contexts. Seven malformed/absent context forms now retain the prior continuity:null behavior and cannot add unadmitted path warnings. The regression fails on e017086, passes after guarding on admission; all278local tests pass with zero skips. Original path and legacy tests remain. Raw before/after/full logs are retained in malformed-review. Fresh final-head review/CI and real HTTP/DB remain required.
+
+## Task description with coverage notice
+
+Review4088130000 found that a long supported current path plus another omitted path could replace the task description entirely. A compact description now accompanies the warning whenever the exact summary would exceed300characters. The exact path remains in its admitted file fields. Regression covers187/250/300-character current paths, fails on f5c89af and passes after correction. All279local tests PASS/no skips; before/after/full logs retained in summary-review. No path truncation or schema change.

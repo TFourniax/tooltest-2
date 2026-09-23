@@ -95,3 +95,16 @@ test('rejected advisory contexts cannot crash or contribute unadmitted paths',()
     assertPortalSnapshotSafe(snapshot);assert.deepEqual(input,before);
   }
 });
+
+test('coverage notices retain a compact task description when exact paths fill the summary',()=>{
+  for(const length of [187,250,300]) {
+    const current='x'.repeat(length-3)+'.py', input=args(['y'.repeat(301),current]);
+    const snapshot=buildPortalSnapshot(input);
+    assert.deepEqual(snapshot.files,[current]);
+    assert.match(snapshot.task.summary,/^Work involving/);
+    assert.match(snapshot.task.summary,/path coverage incomplete/);
+    assert.ok(snapshot.task.summary.length<=300);
+    assertPortalSnapshotSafe(snapshot);
+    assert.equal(snapshot.snapshotId,buildPortalSnapshot(input).snapshotId);
+  }
+});
