@@ -8,7 +8,7 @@ const EPISTEMIC = new Set(['DECLARED','INFERRED','OBSERVED','VERIFIED','UNKNOWN'
 const REPOSITORY_FINGERPRINT_RE = /^dwrepo_[a-f0-9]{24}$/;
 const SECRET_PATTERNS = [
   /ipd_[A-Za-z0-9_-]{20,}/gi,
-  /sk-[A-Za-z0-9_-]{12,}/g,
+  /(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{12,}/g,
   /(?:github_pat_|gh[pousr]_)[A-Za-z0-9_.-]{20,}/g,
   /gl(?:pat|oas|dt|rt|rtr|cbt|ptt|ft|imt|agent|wt|soat|ffct)-[A-Za-z0-9_.-]{16,}/g,
   /_gitlab_session=[^\s;]+/g,
