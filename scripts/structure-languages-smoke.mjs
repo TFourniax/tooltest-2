@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {extractTaskSignals} from '../src/context.mjs';
+import {extractTaskSignals as extract} from '../src/context.mjs';
+const extractTaskSignals=(cwd,session)=>extract(cwd,session,{onStructureFailure:value=>console.error(JSON.stringify(value))});
 
 const optional=!process.argv.includes('--without-grammars');
 const fixtures=[

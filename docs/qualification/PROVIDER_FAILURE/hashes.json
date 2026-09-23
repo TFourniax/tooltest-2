@@ -1,0 +1,8 @@
+{
+  "provider-failure-before.log": "edf1c37c99a70b2cb2bb7622feff470a87868b0d2b9fa0ded05574430d73821a",
+  "provider-failure-after.log": "92af8676bb683ca903874d2ff708144d61728644ca8c1fc3d4ce09f751b87b59",
+  "provider-failure-full.log": "0762cff02b427eb3bdc32f2d348c8a36a97f570efa08adae968e38c107cb13b6",
+  "provider-failure-languages.log": "bca9277f84f41a577c52158f88bb06f7129353eabd9176822dd198e280dcad3f",
+  "provider-failure-all.log": "2af8925d8e08feb83f73ce4ced34b0aac483907d1aaf584167a1ab27345778f3",
+  "idle20-repeat-macos-failure.log": "198436bf544aee3a27d5edd5b57bb1f24ef9753b6390a11e1a5b618455f7390a"
+}
