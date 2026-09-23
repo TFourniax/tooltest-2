@@ -109,3 +109,26 @@ test('coverage notices retain a compact task description when exact paths fill t
     assert.equal(snapshot.snapshotId,buildPortalSnapshot(input).snapshotId);
   }
 });
+
+test('projection row caps disclose each unique omitted path and retain exact admitted paths',()=>{
+  for(const count of [40,41,80]) {
+    const paths=Array.from({length:count},(_,i)=>`src/${i}.py`);
+    for(const invalid of [[],['z'.repeat(301)]]) {
+      const snapshot=buildPortalSnapshot({session:{touchedFiles:[...paths,...invalid]}});
+      assert.deepEqual(snapshot.files,paths.slice(0,40));
+      const omitted=Math.max(0,count-40)+invalid.length;
+      if(omitted) assert.match(snapshot.task.summary,new RegExp(`${omitted} unique path\\(s\\) omitted`));
+      else assert.doesNotMatch(snapshot.task.summary,/coverage incomplete/);
+      assertPortalSnapshotSafe(snapshot);
+    }
+  }
+  for(const [input,limit,count] of [
+    [{explanation:{files:Array.from({length:21},(_,i)=>({path:`src/${i}.py`}))}},20,21],
+    [{featureModel:{tests:Array.from({length:13},(_,i)=>`test/${i}.py`)}},12,13],
+    [{featureModel:{story:[{type:'note',label:'note'},...Array.from({length:12},(_,i)=>({type:'file',label:`src/${i}.py`}))]}},11,12],
+  ]) {
+    const snapshot=buildPortalSnapshot(input);
+    assert.match(snapshot.task.summary,new RegExp(`${count-limit} unique path\\(s\\) omitted`));
+    assertPortalSnapshotSafe(snapshot);
+  }
+});

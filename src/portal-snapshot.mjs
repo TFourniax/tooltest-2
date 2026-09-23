@@ -51,11 +51,28 @@ function cleanPath(value = '') {
   return projectPath;
 }
 
-function pathCoverageWarning(paths) {
-  const omitted=new Set(paths.map(normalizedProjectPath).filter(value=>value && cleanPath(value)===null));
+function pathCoverageWarning(paths, rowLimited=[]) {
+  const rejected=new Set(paths.map(normalizedProjectPath).filter(value=>value && cleanPath(value)===null));
+  const limited=new Set(rowLimited.map(cleanPath).filter(Boolean));
+  const omitted=new Set([...rejected,...limited]);
   if (!omitted.size) return null;
   const long=[...omitted].filter(value=>value.length>300).length;
-  return `Portal path coverage incomplete: ${omitted.size} unique path(s) omitted (${long} exceed 300 characters; ${omitted.size-long} are not portable relative paths).`;
+  return `Portal path coverage incomplete: ${omitted.size} unique path(s) omitted (${long} exceed 300 characters; ${rejected.size-long} are not portable relative paths${limited.size ? `; ${limited.size} hit projection row limits` : ''}).`;
+}
+
+function pathsBeyondLimit(paths, limit) {
+  const admitted=paths.map(cleanPath).filter(Boolean);
+  const retained=new Set(admitted.slice(0,limit));
+  return admitted.slice(limit).filter(value=>!retained.has(value));
+}
+
+function continuityLimitedPaths(value) {
+  if (!value) return [];
+  const components=(value.components || []).map(continuityComponent).filter(Boolean);
+  const changes=(value.recentRelatedChanges || []).filter(item=>/^dwchg_[a-f0-9]{24}$/.test(item.changeId));
+  return [...components.slice(12).map(item=>item.path),
+    ...changes.slice(0,8).flatMap(item=>pathsBeyondLimit(item.files || [],8)),
+    ...changes.slice(8).flatMap(item=>item.files || [])];
 }
 
 function continuityPaths(value) {
@@ -184,7 +201,7 @@ function safeContinuityMemory(value) {
   const removedIds=new Set([...sourceIds].filter(id=>!retainedIds.has(id)));
   memory.relations=memory.relations.filter(item=>!removedIds.has(item.sourceId)&&!removedIds.has(item.targetId));
   if (removedIds.size || memory.relations.length<value.relations.length) prependWarning(memory,'Some memory rows or relations were omitted by Portal privacy, path or row limits; coverage is incomplete.');
-  prependWarning(memory,pathCoverageWarning(continuityPaths(value)));
+  prependWarning(memory,pathCoverageWarning(continuityPaths(value),continuityLimitedPaths(value)));
   return memory;
 }
 
@@ -297,11 +314,12 @@ export function projectLocalId(project = '', seed = '') {
 export function buildPortalSnapshot({ state={}, session=null, featureModel=null, projectModel=null, explanation=null, assurance=null }={}) {
   assertAssuranceSafe(assurance);
   const prompt=promptMetadata(session);
-  const filePaths=unique([
+  const allFilePaths=unique([
     ...(session?.touchedFiles || []).map(cleanPath),
     ...(explanation?.files || []).map((item)=>cleanPath(item.path)),
     ...(featureModel?.story || []).filter((item)=>item.type==='file').map((item)=>cleanPath(item.label))
-  ]).slice(0,40);
+  ]);
+  const filePaths=allFilePaths.slice(0,40);
   const surfaces=featureModel?.surfaces || {};
   const metrics=state.metrics || {};
   const continuity=safeContinuityMemory(projectModel?.continuity || null);
@@ -310,6 +328,13 @@ export function buildPortalSnapshot({ state={}, session=null, featureModel=null,
     ...(explanation?.files || []).map(item=>item.path),
     ...(featureModel?.story || []).filter(item=>item.type==='file').map(item=>item.label),
     ...(featureModel?.tests || []), ...(continuity ? continuityPaths(projectModel.continuity) : [])
+  ], [
+    ...allFilePaths.slice(40),
+    ...pathsBeyondLimit((explanation?.files || []).map(item=>item.path),20),
+    ...(featureModel?.story || []).filter(item=>item.type==='file' ? cleanPath(item.label) : redact(item.label,160)).slice(12)
+      .filter(item=>item.type==='file').map(item=>item.label),
+    ...pathsBeyondLimit(featureModel?.tests || [],12),
+    ...continuityLimitedPaths(continuity ? projectModel.continuity : null)
   ]);
   if (continuity) prependWarning(continuity,pathWarning);
   const taskSummary=safeTaskSummary(session,explanation);
