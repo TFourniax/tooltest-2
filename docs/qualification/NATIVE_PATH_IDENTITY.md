@@ -94,3 +94,18 @@ actual24-process/8-session concurrency scenario pass. The full final suite is
 retained in `PROVENANCE_LOCK_full.log`. This demonstrates the lock correction,
 not retrospective proof of the old Windows failure's exact cause. Both CI
 failures and the older macOS YAML failure remain visible qualification risks.
+
+
+## Final-head reviewer follow-up — owner marker, 2026-09-23
+
+Review4087731321 on f9c3ac8 correctly identified that owner-marker EPERM/EACCES/EBUSY
+was caught by the acquisition retry loop. Three bounded fault injections fail
+on that exact candidate: they report a 30s contention timeout instead of the
+original storage error. The owner write now occurs after acquisition's catch;
+on failure it removes its own lock and surfaces the original error once.
+
+All six lock tests and all272 local tests PASS, no skips. The existing released-lock
+retry, 30s deadline, append guarantees and error classifications stay intact.
+Lossless before/after/full logs are in NATIVE_PATH_IDENTITY/owner-marker.
+This does not retroactively prove the source of the historical Windows event loss
+or macOS latency/YAML failures. New final-head CI and review remain required.

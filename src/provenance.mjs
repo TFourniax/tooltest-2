@@ -48,14 +48,6 @@ function acquireLock(cwd) {
   while (Date.now() - started < LOCK_TIMEOUT_MS) {
     try {
       fs.mkdirSync(file,{mode:0o700});
-      try{fs.writeFileSync(path.join(file,'owner'),`${process.pid} ${Date.now()}\n`,{encoding:'utf8',mode:0o600});}
-      catch(error){removeLock(file);throw error;}
-      let released=false;
-      return () => {
-        if(released)return;
-        released=true;
-        removeLock(file);
-      };
     } catch (error) {
       lastError = error;
       if (!isLockContention(error)) throw error;
@@ -65,7 +57,18 @@ function acquireLock(cwd) {
         continue;
       }
       sleep(LOCK_WAIT_MS);
+      continue;
     }
+    // Acquisition succeeded. Owner-marker failures are storage failures, not
+    // contention: release our directory and surface the original error once.
+    try{fs.writeFileSync(path.join(file,'owner'),`${process.pid} ${Date.now()}\n`,{encoding:'utf8',mode:0o600});}
+    catch(error){removeLock(file);throw error;}
+    let released=false;
+    return () => {
+      if(released)return;
+      released=true;
+      removeLock(file);
+    };
   }
   const detail=lastError?.code ? ` (${lastError.code})` : '';
   throw new Error(`IdleProof provenance ledger stayed busy for ${LOCK_TIMEOUT_MS/1000}s${detail}; refusing to drop a concurrent trace event.`);

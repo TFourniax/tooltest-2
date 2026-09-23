@@ -49,3 +49,22 @@ test('permanent storage failures are not retried or recorded as a successful app
   assert.throws(()=>appendProvenanceEvent({cwd}),{code:'ENOSPC'});
   assert.equal(attempts,1);assert.equal(fs.existsSync(paths.events),false);
 });
+
+for (const code of ['EPERM','EACCES','EBUSY']) {
+  test(`owner-marker ${code} fails immediately and releases the acquired lock`,t=>{
+    const {cwd,paths}=fixture(t);const original=fs.writeFileSync;let attempts=0,now=100000;
+    // Bound the baseline reproduction without spending 30 seconds per error.
+    t.mock.method(Date,'now',()=>now+=1000);
+    t.mock.method(fs,'writeFileSync',function(file,...args){
+      if(file===path.join(paths.provenanceLock,'owner')){
+        attempts++;throw Object.assign(new Error('synthetic owner storage failure'),{code});
+      }
+      return original.call(this,file,...args);
+    });
+    assert.throws(()=>appendProvenanceEvent({cwd}),{code});
+    assert.equal(attempts,1);
+    assert.equal(fs.existsSync(paths.provenanceLock),false);
+    assert.equal(fs.existsSync(paths.events),false);
+    assert.equal(fs.existsSync(paths.chain),false);
+  });
+}
