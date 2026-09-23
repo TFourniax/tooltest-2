@@ -32,8 +32,12 @@ export function sha256(value) { const bytes = Buffer.isBuffer(value) ? value : B
 function readJson(file, fallback) { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch (error) { if (error.code === 'ENOENT') return fallback; throw error; } }
 function renameAtomic(temp, file) { const started=Date.now(); while(true){ try{fs.renameSync(temp,file);return;}catch(error){ if(!['EPERM','EACCES','EBUSY'].includes(error?.code)||Date.now()-started>=ATOMIC_RENAME_TIMEOUT_MS)throw error; sleep(20); } } }
 function writeJson(file, value, mode = 0o600) { fs.mkdirSync(path.dirname(file), { recursive: true }); const temp = `${file}.${process.pid}.${Date.now()}.${randomUUID()}.tmp`; try { fs.writeFileSync(temp, `${JSON.stringify(value, null, 2)}\n`, { encoding: 'utf8', mode }); renameAtomic(temp, file); } finally { try { fs.rmSync(temp, { force:true }); } catch {} } }
-function lockExists(file){ try{fs.lstatSync(file);return true;}catch(error){if(error?.code==='ENOENT')return false;throw error;} }
-function isLockContention(error,file){ if(error?.code==='EEXIST')return true; if(!['EPERM','EACCES','EBUSY'].includes(error?.code))return false; try{return lockExists(file);}catch{return true;} }
+function isLockContention(error){
+  // As for the state lock, Windows may release the old directory between a
+  // failed mkdir and an existence probe. Retry acquisition, never ownership,
+  // within the unchanged deadline even when that directory has disappeared.
+  return ['EEXIST','EPERM','EACCES','EBUSY'].includes(error?.code);
+}
 function lockMtime(file){ try{return fs.lstatSync(file).mtimeMs;}catch(error){if(error?.code==='ENOENT')return null;return Date.now();} }
 function removeLock(file){ try{fs.rmSync(file,{recursive:true,force:true,maxRetries:12,retryDelay:25});}catch{} }
 function acquireLock(cwd) {
@@ -54,7 +58,7 @@ function acquireLock(cwd) {
       };
     } catch (error) {
       lastError = error;
-      if (!isLockContention(error,file)) throw error;
+      if (!isLockContention(error)) throw error;
       const mtime=lockMtime(file);
       if (mtime !== null && Date.now() - mtime > LOCK_STALE_MS) {
         removeLock(file);

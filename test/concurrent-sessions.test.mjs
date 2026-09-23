@@ -78,6 +78,11 @@ test('parallel hook processes preserve every independent session and provenance 
     assert.equal(Object.keys(state.sessions).filter((id)=>id.startsWith('parallel-')).length, sessions.length);
 
     const chain=verifyProvenanceChain(cwd);
+    if(chain.length!==sessions.length+events.length) console.error(JSON.stringify({
+      schema:'idleproof-concurrency-failure-1',qualification:false,expected:sessions.length+events.length,actual:chain.length,
+      recorderErrors:Object.values(state.sessions).flatMap(session=>(session.events||[])
+        .filter(event=>event.provenanceError).map(event=>({session:session.id,errorCode:String(event.provenanceError).match(/\b(?:EPERM|EACCES|EBUSY|ENOSPC|EIO|ENOENT|EEXIST)\b/)?.[0]||'unclassified'})))
+    }));
     assert.equal(chain.ok,true,`concurrent provenance chain is invalid: ${(chain.errors || []).join('; ')}`);
     assert.equal(
       chain.length,

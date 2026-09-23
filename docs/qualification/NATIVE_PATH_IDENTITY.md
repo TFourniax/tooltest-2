@@ -65,3 +65,32 @@ Core. `full_final.log` retains the final complete suite. Earlier results remain
 historical evidence for the earlier runtime tree. Cross-platform CI and review
 must qualify the final head independently; initial PR run35893896077 was 16/16
 SUCCESS on b4c5ccd and cannot qualify these additional runtime changes.
+
+## Final-head CI failures and provenance follow-up
+
+Run35894811674 on10850a0 completed14/16 jobs successfully; the unchanged Linux
+Python hook gate failed p95=261.4ms against150ms. Its independent diagnostic
+also failed (p95=262.3ms): 242 atomic rename calls consumed2563.97ms, with a
+525.85ms maximum; 40 Core subprocesses consumed1958.84ms, maximum60.98ms.
+These are measured filesystem delays in that diagnostic, not proof of a path
+normalization slowdown, nor grounds for changing a budget or retrying to green.
+The original and diagnostic observations are retained losslessly in the base64
+gzip Linux job log. This latency incident remains unqualified.
+
+The Windows Node24 concurrency job found31 provenance events instead of32,
+despite all sessions being retained. Its raw log is retained too. It did not
+print the stored recorder error, so the exact original syscall failure is not
+known. The unchanged provenance lock still had a defect already repaired in
+the separate state lock: an EPERM/EACCES/EBUSY after the old lock disappears
+was treated as permanent. Fault injection reproduces a dropped append at this
+boundary. It now retries acquisition within the original30s deadline, without
+claiming ownership, retrying an append, or retrying ENOSPC/other storage errors.
+The concurrency test keeps its32-event assertion and adds safe error-code-only
+failure diagnostics. No exception text, command or raw event payload is logged.
+
+`PROVENANCE_LOCK_before.log`: two failing boundary scenarios, one passing
+permanent-storage scenario. `PROVENANCE_LOCK_after.log`: all three plus the
+actual24-process/8-session concurrency scenario pass. The full final suite is
+retained in `PROVENANCE_LOCK_full.log`. This demonstrates the lock correction,
+not retrospective proof of the old Windows failure's exact cause. Both CI
+failures and the older macOS YAML failure remain visible qualification risks.
