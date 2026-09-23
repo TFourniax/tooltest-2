@@ -82,3 +82,16 @@ test('legacy context without tasks retains exact projected paths and omission wa
   assert.match(snapshot.task.summary,/path coverage incomplete/);
   assertPortalSnapshotSafe(snapshot);
 });
+
+test('rejected advisory contexts cannot crash or contribute unadmitted paths',()=>{
+  for(const continuity of [null, 'bad', {components:'bad'}, {recentRelatedChanges:'bad'},
+    {components:[null]}, {...context([]),components:[null]},
+    {...context([]),recentRelatedChanges:[{files:'bad'}]}]) {
+    const input=args(['src/ok.py']);input.projectModel.continuity=continuity;
+    const before=structuredClone(input), snapshot=buildPortalSnapshot(input);
+    assert.equal(snapshot.projectMemory.continuity,null);
+    assert.deepEqual(snapshot.files,['src/ok.py']);
+    assert.doesNotMatch(snapshot.task.summary,/path coverage incomplete/);
+    assertPortalSnapshotSafe(snapshot);assert.deepEqual(input,before);
+  }
+});

@@ -38,3 +38,7 @@ new relation filter. The admitted legacy-context regression fails on be56757
 and now passes with the same empty-array fallback as existing projection code.
 All 277 local tests PASS with zero skips; the four original path regressions
 remain. Raw before/after/full evidence is retained in legacy-review.
+
+## Rejected context coverage guard
+
+Review4088068228 found that the omission scan dereferenced rejected advisory contexts. Seven malformed/absent context forms now retain the prior continuity:null behavior and cannot add unadmitted path warnings. The regression fails on e017086, passes after guarding on admission; all278local tests pass with zero skips. Original path and legacy tests remain. Raw before/after/full logs are retained in malformed-review. Fresh final-head review/CI and real HTTP/DB remain required.

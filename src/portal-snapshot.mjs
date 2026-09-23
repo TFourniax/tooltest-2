@@ -309,7 +309,7 @@ export function buildPortalSnapshot({ state={}, session=null, featureModel=null,
     ...(session?.touchedFiles || []), session?.currentResource, session?.taskSignals?.file,
     ...(explanation?.files || []).map(item=>item.path),
     ...(featureModel?.story || []).filter(item=>item.type==='file').map(item=>item.label),
-    ...(featureModel?.tests || []), ...continuityPaths(projectModel?.continuity)
+    ...(featureModel?.tests || []), ...(continuity ? continuityPaths(projectModel.continuity) : [])
   ]);
   if (continuity) prependWarning(continuity,pathWarning);
   const taskSummary=safeTaskSummary(session,explanation);
