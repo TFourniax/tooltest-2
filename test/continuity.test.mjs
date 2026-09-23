@@ -72,6 +72,34 @@ test('continuity query adds stable identity while ordinary semantic query is unc
   tasks.updateSessionTask(session,'oui'); assert.match(tasks.taskContinuityQuery(session),/^dwtask_f347d504913fb4938155fabe\n/);
 });
 
+test('Portal keeps full assertion citations and distinct long identities without authority changes', () => {
+  const c=fixture();
+  const prefix='TASK-'+ 'a'.repeat(500);
+  c.tasks[0].id=prefix+'1';
+  c.tasks.push({...structuredClone(c.tasks[0]),id:prefix+'2'});
+  c.relations[0].source=c.tasks[0].id;
+  const projected=__portalTest.safeContinuityMemory(c);
+  assert.deepEqual(projected.tasks.map(x=>x.id),c.tasks.map(x=>x.id));
+  assert.equal(projected.relations[0].sourceId,c.tasks[0].id);
+  for(const key of ['tasks','decisions']) for(let i=0;i<c[key].length;i++) {
+    assert.deepEqual(projected[key][i].source,c[key][i].source);
+    assert.equal(projected[key][i].status,c[key][i].epistemicStatus);
+  }
+  delete c.tasks[0].source;
+  assert.equal(__portalTest.safeContinuityMemory(c).tasks[0].source,undefined);
+});
+
+test('Portal omits secret-bearing identities instead of creating redacted aliases', () => {
+  const c=fixture();
+  c.tasks[0].id='TASK-token=private-credential-value';
+  c.relations[0].source=c.tasks[0].id;
+  const projected=__portalTest.safeContinuityMemory(c);
+  assert.deepEqual(projected.tasks,[]);
+  assert.deepEqual(projected.relations,[]);
+  assert.ok(projected.warnings.some(x=>x.includes('identit')));
+  assert.doesNotMatch(JSON.stringify(projected),/private-credential-value|\[redacted\]/);
+});
+
 test('absent or unusable Core degrades to no advisory context', () => {
   assert.equal(loadContinuityContext('/a-nonexistent-project-for-context-test','refund'),null);
   assert.equal(loadContinuityContext('.', ''),null);

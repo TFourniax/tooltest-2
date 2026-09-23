@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { validContext } from './continuity-contract.mjs';
+import { validContext, validContextIdentity } from './continuity-contract.mjs';
 
 const FORBIDDEN_KEYS = new Set(['sourceCode','source_code','content','rawContent','raw_content','diff','patch','tool_input','toolInput','prompt','promptRaw','secret','token','credential']);
 const MAX_SNAPSHOT_BYTES = 64 * 1024;
@@ -48,22 +48,29 @@ function epistemic(value) {
   return EPISTEMIC.has(normalized) ? normalized : 'UNKNOWN';
 }
 
+// Identity is never a display label: truncation/redaction would create aliases.
+function continuityIdentity(value) {
+  return validContextIdentity(value) && redact(value,512)===value ? value : null;
+}
+
 function continuityEntity(item={}) {
-  const id=redact(item.id || item.debt_id || '',96) || null;
+  const id=continuityIdentity(item.id);
   const label=redact(item.label || item.title || '',240) || null;
-  if (!id && !label) return null;
+  if (!id) return null;
   const lifecycle=item.lifecycle?.action==='confirmed' ? {
     action:'confirmed', active:true, status:'DECLARED', reason:redact(item.lifecycle.reason,240),
     sourceEventId:item.lifecycle.sourceEventId, assertionEventId:item.lifecycle.assertionEventId
   } : null;
-  return { id, status:epistemic(item.epistemicStatus || item.epistemic_status), label, ...(lifecycle ? {lifecycle} : {}) };
+  const source=item.source ? {kind:'project-event',eventId:item.source.eventId,eventHash:item.source.eventHash} : null;
+  return { id, status:epistemic(item.epistemicStatus || item.epistemic_status), label, ...(source ? {source} : {}), ...(lifecycle ? {lifecycle} : {}) };
 }
 
 function continuityComponent(item={}) {
   const path=cleanPath(item.path || '');
-  if (!path) return null;
+  const id=continuityIdentity(item.id);
+  if (!path || !id) return null;
   return {
-    id:redact(item.id || '',96) || null,
+    id,
     status:epistemic(item.epistemicStatus || item.epistemic_status),
     path,
     provider:redact(item.provider || '',60) || null
@@ -71,15 +78,15 @@ function continuityComponent(item={}) {
 }
 
 function continuityRelation(item={}) {
-  const predicate=redact(item.predicate || '',80);
-  const sourceId=redact(typeof item.source==='string' ? item.source : item.sourceId || item.source_id || item.source?.id || '',96);
-  const targetId=redact(typeof item.target==='string' ? item.target : item.targetId || item.target_id || item.target?.id || '',96);
-  if (!predicate || (!sourceId && !targetId)) return null;
-  return { predicate, sourceId:sourceId || null, targetId:targetId || null, status:epistemic(item.epistemicStatus || item.epistemic_status) };
+  const predicate=continuityIdentity(item.predicate);
+  const sourceId=continuityIdentity(item.source);
+  const targetId=continuityIdentity(item.target);
+  if (!predicate || !sourceId || !targetId) return null;
+  return { predicate, sourceId, targetId, status:epistemic(item.epistemicStatus || item.epistemic_status) };
 }
 
 function continuityDebt(item={}) {
-  const id=redact(item.debt_id || item.id || '',96);
+  const id=continuityIdentity(item.debt_id);
   if (!id) return null;
   return {
     id,
@@ -116,6 +123,11 @@ function safeContinuityMemory(value) {
   const contextId=String(value.context_id || '');
   if (!/^dwctx_[a-f0-9]{24}$/.test(contextId)) return null;
   const entities=(items,max)=> (Array.isArray(items)?items:[]).map(continuityEntity).filter(Boolean).slice(0,max);
+  const identities=[...['objectives','tasks','decisions','invariants','failedApproaches','components'].flatMap(key=>(value[key] || []).map(item=>item.id)),
+    ...value.knownDebt.map(item=>item.debt_id), ...value.relations.flatMap(item=>[item.source,item.target,item.predicate])];
+  const omitted=identities.some(id=>continuityIdentity(id)===null);
+  const warnings=value.warnings.slice(0,omitted ? 7 : 8).map(value=>redact(value,240));
+  if (omitted) warnings.push('Some memory rows were omitted because their identities contain sensitive data.');
   return {
     schema:'idleproof.portal-continuity.v1',
     contextId,
@@ -130,7 +142,7 @@ function safeContinuityMemory(value) {
     relations:(Array.isArray(value.relations)?value.relations:[]).map(continuityRelation).filter(Boolean).slice(0,16),
     knownDebt:(Array.isArray(value.knownDebt)?value.knownDebt:[]).map(continuityDebt).filter(Boolean).slice(0,12),
     recentChanges:(Array.isArray(value.recentRelatedChanges)?value.recentRelatedChanges:[]).map(continuityChange).filter(Boolean).slice(0,8),
-    warnings:value.warnings.slice(0,8).map(value=>redact(value,240))
+    warnings
   };
 }
 
