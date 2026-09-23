@@ -1,9 +1,10 @@
+import { normalizedProjectPath } from './project-path.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 
 export const SOURCE_FILE_BYTES = 128 * 1024;
-const norm = (value = '') => String(value).replaceAll('\\', '/').replace(/^\.\//, '');
+const norm = (value = '') => normalizedProjectPath(value);
 
 export function isExcludedProjectPath(relative = '') {
   const value = norm(relative);
@@ -19,7 +20,9 @@ export function admitProjectSource(cwd, candidate) {
   if (typeof candidate !== 'string' || !candidate || !isInsideProject(cwd, candidate)) return null;
   const absolute = path.resolve(cwd, candidate);
   const relative = norm(path.relative(path.resolve(cwd), absolute));
-  if (isExcludedProjectPath(relative)) return null;
+  // The shared structure protocol cannot represent literal backslashes.
+  // Keep such local names unavailable instead of aliasing a supported path.
+  if (relative.includes('\\') || isExcludedProjectPath(relative)) return null;
   try {
     const root = fs.realpathSync(cwd), canonical = fs.realpathSync(absolute);
     if (!isInsideProject(root, canonical) || isExcludedProjectPath(path.relative(root, canonical))) return null;

@@ -1,3 +1,4 @@
+import { normalizedProjectPath } from './project-path.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
@@ -31,8 +32,12 @@ export function sha256(value) { const bytes = Buffer.isBuffer(value) ? value : B
 function readJson(file, fallback) { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch (error) { if (error.code === 'ENOENT') return fallback; throw error; } }
 function renameAtomic(temp, file) { const started=Date.now(); while(true){ try{fs.renameSync(temp,file);return;}catch(error){ if(!['EPERM','EACCES','EBUSY'].includes(error?.code)||Date.now()-started>=ATOMIC_RENAME_TIMEOUT_MS)throw error; sleep(20); } } }
 function writeJson(file, value, mode = 0o600) { fs.mkdirSync(path.dirname(file), { recursive: true }); const temp = `${file}.${process.pid}.${Date.now()}.${randomUUID()}.tmp`; try { fs.writeFileSync(temp, `${JSON.stringify(value, null, 2)}\n`, { encoding: 'utf8', mode }); renameAtomic(temp, file); } finally { try { fs.rmSync(temp, { force:true }); } catch {} } }
-function lockExists(file){ try{fs.lstatSync(file);return true;}catch(error){if(error?.code==='ENOENT')return false;throw error;} }
-function isLockContention(error,file){ if(error?.code==='EEXIST')return true; if(!['EPERM','EACCES','EBUSY'].includes(error?.code))return false; try{return lockExists(file);}catch{return true;} }
+function isLockContention(error){
+  // As for the state lock, Windows may release the old directory between a
+  // failed mkdir and an existence probe. Retry acquisition, never ownership,
+  // within the unchanged deadline even when that directory has disappeared.
+  return ['EEXIST','EPERM','EACCES','EBUSY'].includes(error?.code);
+}
 function lockMtime(file){ try{return fs.lstatSync(file).mtimeMs;}catch(error){if(error?.code==='ENOENT')return null;return Date.now();} }
 function removeLock(file){ try{fs.rmSync(file,{recursive:true,force:true,maxRetries:12,retryDelay:25});}catch{} }
 function acquireLock(cwd) {
@@ -43,29 +48,32 @@ function acquireLock(cwd) {
   while (Date.now() - started < LOCK_TIMEOUT_MS) {
     try {
       fs.mkdirSync(file,{mode:0o700});
-      try{fs.writeFileSync(path.join(file,'owner'),`${process.pid} ${Date.now()}\n`,{encoding:'utf8',mode:0o600});}
-      catch(error){removeLock(file);throw error;}
-      let released=false;
-      return () => {
-        if(released)return;
-        released=true;
-        removeLock(file);
-      };
     } catch (error) {
       lastError = error;
-      if (!isLockContention(error,file)) throw error;
+      if (!isLockContention(error)) throw error;
       const mtime=lockMtime(file);
       if (mtime !== null && Date.now() - mtime > LOCK_STALE_MS) {
         removeLock(file);
         continue;
       }
       sleep(LOCK_WAIT_MS);
+      continue;
     }
+    // Acquisition succeeded. Owner-marker failures are storage failures, not
+    // contention: release our directory and surface the original error once.
+    try{fs.writeFileSync(path.join(file,'owner'),`${process.pid} ${Date.now()}\n`,{encoding:'utf8',mode:0o600});}
+    catch(error){removeLock(file);throw error;}
+    let released=false;
+    return () => {
+      if(released)return;
+      released=true;
+      removeLock(file);
+    };
   }
   const detail=lastError?.code ? ` (${lastError.code})` : '';
   throw new Error(`IdleProof provenance ledger stayed busy for ${LOCK_TIMEOUT_MS/1000}s${detail}; refusing to drop a concurrent trace event.`);
 }
-function relativeTarget(cwd, candidate) { if (!candidate || typeof candidate !== 'string') return null; const root = path.resolve(cwd); const absolute = path.resolve(root, candidate); if (absolute.startsWith(`${root}${path.sep}`)) return path.relative(root, absolute).replaceAll('\\', '/'); return candidate.replaceAll('\\', '/').slice(0, 500); }
+function relativeTarget(cwd, candidate) { if (!candidate || typeof candidate !== 'string') return null; const root = path.resolve(cwd); const absolute = path.resolve(root, candidate); if (absolute.startsWith(`${root}${path.sep}`)) return normalizedProjectPath(path.relative(root, absolute)); return normalizedProjectPath(candidate).slice(0, 500); }
 function executable(command = '') { const text = String(command || '').trim(); return text.match(/^(?:env\s+[^\s]+\s+|sudo\s+)?([^\s]+)/)?.[1] || null; }
 
 function fileStamp(file) {

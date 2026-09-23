@@ -1,0 +1,17 @@
+✔ native nested paths remain readable on each operating system (63.456674ms)
+✔ POSIX backslash source is unavailable instead of relabelled as a nested file (57.992769ms)
+✔ feature seeds cannot inspect a different file after separator replacement (2.884731ms)
+✔ explanation and impact preserve distinct local paths (1.076335ms)
+✔ provenance and cloud projections do not alias two POSIX filenames (6.478542ms)
+✔ a POSIX lookalike of an internal directory remains meaningful Git content (72.676591ms)
+✔ CODEOWNERS does not assign a nested directory owner to a literal backslash name (2.147884ms)
+✔ a local approval for one POSIX path cannot approve the other path (6.580105ms)
+✔ legacy ambiguous approval fingerprints cannot authorize a current action (2.492934ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 330.31585

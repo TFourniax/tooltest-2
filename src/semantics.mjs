@@ -1,6 +1,6 @@
 import path from 'node:path';
 
-const NORMALIZE = (value = '') => String(value || '').replaceAll('\\', '/').replace(/^\.\//, '');
+import { normalizedProjectPath as NORMALIZE } from './project-path.mjs';
 
 const ROLE_DESCRIPTIONS = {
   api: 'an entry point where requests or events enter the application',

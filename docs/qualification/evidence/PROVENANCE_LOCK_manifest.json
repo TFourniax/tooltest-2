@@ -1,0 +1,21 @@
+{
+  "schema": "idleproof-native-path-qualification-1",
+  "classification": "MACHINE",
+  "baseline": "e160f5316e840fe8333250eee74a45a36c87d6a0",
+  "core_source_sha": "4501e91275a07492447c1276e940b0fb936e230e",
+  "core_wheel_sha256": "ea7666a6657396be9fa4d070a8c9b7b6a0828348d4f958a584620f1553bd1543",
+  "runtime_files": {
+    "src/portal-client.mjs": "315fa6a7f790274f232a9ae159611bbd60e71d9f5773f695215567f6c9e2d6e8",
+    "src/analyze.mjs": "ab32019a225aac1f50f6370f59c3d5d0cb439a2755ec546c7ff26d6da4c37375",
+    "src/project-source.mjs": "d4b9b6510cdf7413d88e676a52b3096ce046f5dcc927a3b4b318c684d196f66f",
+    "src/portal-snapshot.mjs": "83fab54189bc334bbf64acc3730ca55dfcdf375dccfe88ee035f9d916b35e1aa",
+    "src/change-identity.mjs": "b85e377ec42ad8b799cf35a6d362a98ac3c4c4541066f9c02c352103876c5560",
+    "src/project-path.mjs": "49f8f4c4652ca0f530c388340123c49a7968ff258b655b8c9a9ac46422021f86",
+    "src/provenance.mjs": "b0d9e259a86750fcc5efaecb2eb7e191e2aca76fb871031e12bf19daeaea006e",
+    "src/feature-model.mjs": "91d3fcf0c37a9512fa2352073915759311ee84bf1745eca2391bfde01ac846ba",
+    "src/project-model.mjs": "4b2073150fa9497ab00518df8d3a351648c7460b2a275415ce7a38d936c02471",
+    "src/semantics.mjs": "c752236a51370913a1fb9a472990ef2eba1e09f726d58419af2c295589562d4d",
+    "src/ownership.mjs": "5b8e0523a7a59fa36a704f8ecd2208255ecafcd85f2b21dc5b2ef12e3ce9dadf",
+    "src/policy.mjs": "3fd096fdfe9ab76092f6e37a3dd5d2659c3bf0187bb3b5b93d309311c42d299c"
+  }
+}

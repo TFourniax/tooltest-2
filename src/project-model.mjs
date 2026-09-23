@@ -1,3 +1,4 @@
+import { normalizedProjectPath } from './project-path.mjs';
 import { buildDueFeatureReviews, nextFeatureRecallChallenge } from './feature-review.mjs';
 
 function unique(values) {
@@ -37,11 +38,11 @@ function touchedFiles(session = {}) {
     session.currentResource,
     session.taskSignals?.file,
     ...(session.touchedFiles || []).slice(-20)
-  ].map((file) => String(file || '').replaceAll('\\', '/')));
+  ].map((file) => normalizedProjectPath(file)));
 }
 
 function modeledFiles(currentFeatureModel = null) {
-  return unique(fileSteps(currentFeatureModel || {}).map((step) => String(step.label || '').replaceAll('\\', '/')));
+  return unique(fileSteps(currentFeatureModel || {}).map((step) => normalizedProjectPath(step.label)));
 }
 
 export function buildChangeImpact(state = {}, session = {}, currentFeatureModel = null) {

@@ -1,0 +1,40 @@
+✔ native nested paths remain readable on each operating system (11.92617ms)
+✖ POSIX backslash source is unavailable instead of relabelled as a nested file (5.028544ms)
+✔ feature seeds cannot inspect a different file after separator replacement (1.876184ms)
+✔ explanation and impact preserve distinct local paths (0.967191ms)
+✔ provenance and cloud projections do not alias two POSIX filenames (5.959926ms)
+✔ a POSIX lookalike of an internal directory remains meaningful Git content (74.631874ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 5
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 209.563013
+
+✖ failing tests:
+
+test at test/native-path-identity.test.mjs:35:1
+✖ POSIX backslash source is unavailable instead of relabelled as a nested file (5.028544ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'part/file.py'
+  - 'part\\file.py'
+         ^
+  
+      at TestContext.<anonymous> (file:///workspace/scratch/e341555d0f23/idle-path-fix/test/native-path-identity.test.mjs:39:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'part/file.py',
+    expected: 'part\\file.py',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

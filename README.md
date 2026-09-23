@@ -185,6 +185,16 @@ The point is not to claim perfect semantic compilation for every language. The p
 
 IdleProof deliberately separates what it observed from what it inferred.
 
+Local paths retain their native identity. On Linux/macOS a literal backslash in
+a filename is not treated as a directory separator. Such names remain visible
+in local metadata and meaningful Git changes, but source extraction and portable
+Portal paths omit them because the shared source protocol cannot represent them.
+Windows directory separators continue to map to portable `/` paths. Existing
+historical observations are not rewritten by this correction.
+Local policy approvals created before this correction must be granted again:
+their old path identity could be ambiguous. CODEOWNERS matching and new approvals
+use the preserved native path; an approval for one file cannot name its lookalike.
+
 Examples:
 
 ```text

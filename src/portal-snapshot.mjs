@@ -1,3 +1,4 @@
+import { normalizedProjectPath } from './project-path.mjs';
 import { createHash } from 'node:crypto';
 import { validContext, validContextIdentity } from './continuity-contract.mjs';
 
@@ -42,7 +43,10 @@ function redact(value = '', max = 240) {
 }
 
 function cleanPath(value = '') {
-  const projectPath=String(value || '').replaceAll('\\','/').replace(/^\.\//,'');
+  const projectPath=normalizedProjectPath(value);
+  // A literal POSIX backslash cannot be a portable source path. Omit it,
+  // including foreign Windows/UNC paths, instead of exporting an alias.
+  if (projectPath.includes('\\')) return null;
   if (!projectPath || projectPath.startsWith('/') || /^[A-Za-z]:\//.test(projectPath) || projectPath.includes('../')) return null;
   return projectPath.slice(0,300);
 }

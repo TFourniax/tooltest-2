@@ -1,0 +1,12 @@
+✔ parallel hook processes preserve every independent session and provenance event (886.401374ms)
+✔ provenance acquisition tolerates released-lock access errors without dropping or duplicating the event (38.257554ms)
+✔ permanent provenance lock denial stops at the existing 30s deadline without appending (313.383921ms)
+✔ permanent storage failures are not retried or recorded as a successful append (1.167744ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 993.698069

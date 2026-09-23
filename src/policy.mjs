@@ -1,3 +1,4 @@
+import { normalizedProjectPath } from './project-path.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -28,9 +29,9 @@ function readJson(file, fallback) {
 function writeJson(file, value, mode = 0o600) { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`, { encoding: 'utf8', mode }); }
 function normalizePath(cwd, candidate) {
   if (typeof candidate !== 'string' || !candidate) return '';
-  const normalized = candidate.replaceAll('\\', '/');
-  const root = path.resolve(cwd).replaceAll('\\', '/');
-  const absolute = path.resolve(cwd, candidate).replaceAll('\\', '/');
+  const normalized = normalizedProjectPath(candidate);
+  const root = normalizedProjectPath(path.resolve(cwd));
+  const absolute = normalizedProjectPath(path.resolve(cwd, candidate));
   return absolute.startsWith(`${root}/`) ? absolute.slice(root.length + 1) : normalized;
 }
 function extractApplyPatchPath(command = '') { const match = String(command || '').match(/(?:\*\*\* (?:Update|Add|Delete) File:|\+\+\+ b\/|--- a\/)([^\r\n]+)/); return match?.[1]?.trim() || ''; }
@@ -43,7 +44,7 @@ export function normalizeAction(event = {}, cwd = event.cwd || process.cwd()) {
   action.capabilities = classifyCapabilities(action);
   return action;
 }
-function fingerprintAction(action) { return createHash('sha256').update(JSON.stringify({ source: action.source, tool: action.tool, command: action.command, path: action.path, capabilities: action.capabilities || [] })).digest('hex').slice(0, 16); }
+function fingerprintAction(action) { return createHash('sha256').update(JSON.stringify({ schema: 'idleproof.action-identity.v2', source: action.source, tool: action.tool, command: action.command, path: action.path, capabilities: action.capabilities || [] })).digest('hex').slice(0, 16); }
 function matchesValue(value, pattern, exact = false) { if (!pattern) return true; if (exact) return String(value || '') === String(pattern); try { return new RegExp(pattern, 'i').test(String(value || '')); } catch { return false; } }
 function ruleMatches(rule, action) {
   const match = rule.match || {};
@@ -107,6 +108,6 @@ export function policyDecisionOutput(event, result) {
   if (result.decision === 'ask') return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'ask', permissionDecisionReason: result.reason } };
   return null;
 }
-export function effectivePolicyMaterial(cwd = process.cwd()) { const policy = loadPolicy(cwd); return { schema: POLICY_SCHEMA, engineVersion: 2, profile: policy.profile, projectRules: Array.isArray(policy.rules) ? policy.rules : [], builtinRules: BUILTIN_RULES }; }
+export function effectivePolicyMaterial(cwd = process.cwd()) { const policy = loadPolicy(cwd); return { schema: POLICY_SCHEMA, engineVersion: 3, profile: policy.profile, projectRules: Array.isArray(policy.rules) ? policy.rules : [], builtinRules: BUILTIN_RULES }; }
 export function policyHash(cwd = process.cwd()) { return createHash('sha256').update(JSON.stringify(effectivePolicyMaterial(cwd))).digest('hex'); }
 export function builtinPolicyRules() { return BUILTIN_RULES.map((rule) => JSON.parse(JSON.stringify(rule))); }

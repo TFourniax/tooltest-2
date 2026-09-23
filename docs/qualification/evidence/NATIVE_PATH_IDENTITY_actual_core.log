@@ -1,0 +1,14 @@
+✔ native nested paths remain readable on each operating system (59.202003ms)
+✔ POSIX backslash source is unavailable instead of relabelled as a nested file (52.691721ms)
+✔ feature seeds cannot inspect a different file after separator replacement (2.559326ms)
+✔ explanation and impact preserve distinct local paths (1.307775ms)
+✔ provenance and cloud projections do not alias two POSIX filenames (5.201175ms)
+✔ a POSIX lookalike of an internal directory remains meaningful Git content (74.310297ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 290.749145

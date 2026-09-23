@@ -1,0 +1,59 @@
+✖ provenance acquisition tolerates released-lock access errors without dropping or duplicating the event (2.779598ms)
+✖ permanent provenance lock denial stops at the existing 30s deadline without appending (1.418913ms)
+✔ permanent storage failures are not retried or recorded as a successful append (1.040701ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 1
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 91.716966
+
+✖ failing tests:
+
+test at test/provenance-lock-contention.test.mjs:15:1
+✖ provenance acquisition tolerates released-lock access errors without dropping or duplicating the event (2.779598ms)
+  Error: synthetic released-lock race
+      at Object.<anonymous> (file:///workspace/scratch/e341555d0f23/idle-path-fix/test/provenance-lock-contention.test.mjs:21:27)
+      at Object.apply (node:internal/test_runner/mock/mock:767:20)
+      at acquireLock (file:///workspace/scratch/e341555d0f23/idle-path-fix/src/provenance.mjs:46:10)
+      at appendProvenanceEvent (file:///workspace/scratch/e341555d0f23/idle-path-fix/src/provenance.mjs:124:19)
+      at TestContext.<anonymous> (file:///workspace/scratch/e341555d0f23/idle-path-fix/test/provenance-lock-contention.test.mjs:25:16)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.start (node:internal/test_runner/test:1242:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    code: 'EPERM'
+  }
+
+test at test/provenance-lock-contention.test.mjs:32:1
+✖ permanent provenance lock denial stops at the existing 30s deadline without appending (1.418913ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /stayed busy for 30s/. Input:
+  
+  'Error: synthetic denial'
+  
+      at TestContext.<anonymous> (file:///workspace/scratch/e341555d0f23/idle-path-fix/test/provenance-lock-contention.test.mjs:39:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: Error: synthetic denial
+        at Object.<anonymous> (file:///workspace/scratch/e341555d0f23/idle-path-fix/test/provenance-lock-contention.test.mjs:36:68)
+        at Object.apply (node:internal/test_runner/mock/mock:767:20)
+        at acquireLock (file:///workspace/scratch/e341555d0f23/idle-path-fix/src/provenance.mjs:46:10)
+        at appendProvenanceEvent (file:///workspace/scratch/e341555d0f23/idle-path-fix/src/provenance.mjs:124:19)
+        at file:///workspace/scratch/e341555d0f23/idle-path-fix/test/provenance-lock-contention.test.mjs:39:21
+        at getActual (node:assert:611:5)
+        at strict.throws (node:assert:759:24)
+        at TestContext.<anonymous> (file:///workspace/scratch/e341555d0f23/idle-path-fix/test/provenance-lock-contention.test.mjs:39:10)
+        at Test.runInAsyncScope (node:async_hooks:227:14)
+        at Test.run (node:internal/test_runner/test:1382:25),
+    expected: /stayed busy for 30s/,
+    operator: 'throws',
+    diff: 'simple'
+  }
