@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { buildFeatureModel } from './feature-model.mjs';
 import { taskContextQuery, taskDisplayText } from './task.mjs';
 import { featureAnchor, observeFeature } from './feature-observations.mjs';
+import { stageFeatureObservations } from './feature-history.mjs';
 
 
 function unique(values) {
@@ -130,6 +131,7 @@ export function rememberFeature(state, session, model, { exposure = true } = {})
   const current = state.features[key] || legacy || baseMemory(model, session);
   const nextSnapshot = featureSnapshot(model);
   const lineageObservations = observeFeature(current.lineageObservations, model, nextSnapshot);
+  if (lineageObservations) stageFeatureObservations(state,key,lineageObservations);
   const drift = current.snapshot ? compareFeatureSnapshots(current.snapshot, nextSnapshot) : { changed: false, level: 'none', score: 0, added: {}, removed: {}, summary: 'First observed model for this feature.' };
 
   if (exposure && session?.id && !current.sessionIds?.includes(session.id)) current.exposures = (current.exposures || 0) + 1;

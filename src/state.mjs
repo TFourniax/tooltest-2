@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { projectPaths } from './paths.mjs';
 import { CONCEPTS } from './catalog.mjs';
+import { persistFeatureObservations } from './feature-history.mjs';
 
 export const CURRENT_STATE_VERSION = 2;
 
@@ -205,6 +206,7 @@ function writeAtomic(file, content) {
 }
 
 export function saveState(cwd, state) {
+  persistFeatureObservations(cwd,state);
   const paths = projectPaths(cwd);
   fs.mkdirSync(paths.dir, { recursive: true });
   state.version = CURRENT_STATE_VERSION;

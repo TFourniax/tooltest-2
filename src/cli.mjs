@@ -52,7 +52,8 @@ Policy:
 
 Evidence:
   idleproof feature-lineage --list [--json]
-  idleproof feature-lineage --from KEY --to KEY [--json] [--language en|fr]
+  idleproof feature-history --feature KEY [--after ID] [--limit 1..100] [--json] [--language en|fr]
+  idleproof feature-lineage --from KEY --to KEY [--from-observation ID --to-observation ID] [--json] [--language en|fr]
   idleproof trace [--json] [--limit N]
   idleproof bom [--json]
   idleproof responsibility [--json]
@@ -298,6 +299,10 @@ export async function main(args) {
   if (cmd === 'feature-lineage') {
     const { featureLineageCli } = await import('./feature-lineage.mjs');
     return featureLineageCli(cwd,loadState(cwd),args.slice(1));
+  }
+  if (cmd === 'feature-history') {
+    const { featureHistoryCli } = await import('./feature-history.mjs');
+    return featureHistoryCli(cwd,args.slice(1));
   }
 
   if (cmd === 'install') { installAdapters(cwd, sub); return; }
