@@ -189,6 +189,27 @@ test('full entity identities reject every C1 control even after the old display 
   }
 });
 
+test('known stack credentials cannot hide in exact identities or display labels', () => {
+  const jwt=[{alg:'HS256',typ:'JWT'},{sub:'fixture',role:'service_role'}].map(x=>Buffer.from(JSON.stringify(x)).toString('base64url')).join('.')+'.'+'A'.repeat(43);
+  const credentials=[['github-fine','github_pat_'+'A'.repeat(82)],['github-installation','ghs_12345_'+jwt],
+    ['supabase-secret','sb_secret_'+'A'.repeat(32)],['supabase-pat','sbp_'+'a'.repeat(40)],['supabase-pat-long','supabase_pat_'+'a'.repeat(40)],['stripe-live','sk_live_'+'A'.repeat(24)],
+    ['stripe-restricted','rk_test_'+'A'.repeat(24)],['aws-temporary','ASIA'+'A'.repeat(16)],
+    ['npm','npm_'+'A'.repeat(36)],['pypi','pypi-'+'A'.repeat(85)],['jwt',jwt]];
+  const escaped=[];
+  for(const [family,credential] of credentials) {
+    const c=fixture(); c.tasks[0].id='TASK_'+'x'.repeat(120)+'_'+credential;
+    c.relations[0].source=c.tasks[0].id;
+    assert.ok(__continuityTest.validContext(c),family);
+    const projected=__portalTest.safeContinuityMemory(c);
+    if(projected.tasks.length || projected.relations.length || JSON.stringify(projected).includes(credential)) escaped.push(family+' identity');
+    c.tasks[0].id='TASK-CLEAN'; c.relations=[]; c.tasks[0].label='Review_'+credential;
+    if(JSON.stringify(__portalTest.safeContinuityMemory(c)).includes(credential)) escaped.push(family+' label');
+  }
+  assert.deepEqual(escaped,[]);
+  const c=fixture(); c.tasks[0].id='TASK_sb_publishable_'+'A'.repeat(32);
+  assert.equal(__portalTest.safeContinuityMemory(c).tasks[0].id,c.tasks[0].id);
+});
+
 test('source admission rejects malformed or mismatched references without upgrading authority', () => {
   for(const mutate of [
     c=>c.tasks[0].source=null, c=>c.tasks[0].source={}, c=>c.tasks[0].source.kind='proof',

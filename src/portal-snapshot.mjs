@@ -8,9 +8,14 @@ const EPISTEMIC = new Set(['DECLARED','INFERRED','OBSERVED','VERIFIED','UNKNOWN'
 const REPOSITORY_FINGERPRINT_RE = /^dwrepo_[a-f0-9]{24}$/;
 const SECRET_PATTERNS = [
   /ipd_[A-Za-z0-9_-]{20,}/gi,
-  /\bsk-[A-Za-z0-9_-]{12,}\b/g,
-  /\bgh[pousr]_[A-Za-z0-9]{20,}\b/g,
-  /\bAKIA[0-9A-Z]{16}\b/g,
+  /sk-[A-Za-z0-9_-]{12,}/g,
+  /(?:github_pat_|gh[pousr]_)[A-Za-z0-9_.-]{20,}/g,
+  /(?:sb_secret_|sbp_|supabase_pat_)[A-Za-z0-9_-]{20,}/g,
+  /[sr]k_(?:live|test)_[A-Za-z0-9]{16,}/g,
+  /(?:AKIA|ASIA)[0-9A-Z]{16}/g,
+  /npm_[A-Za-z0-9]{36,}/g,
+  /pypi-[A-Za-z0-9_-]{85,}/g,
+  /eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g,
   /\bBearer\s+[A-Za-z0-9._~+\/-]+=*/gi,
   /\b(?:api[_-]?key|secret|token|password)\s*[:=]\s*[^\s,;]+/gi
 ];
