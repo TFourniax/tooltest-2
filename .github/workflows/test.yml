@@ -152,13 +152,21 @@ jobs:
         id: all_providers
         run: node scripts/structure-all-providers-smoke.mjs
       - name: Observe macOS YAML provider outcomes without qualifying or retrying the gate
+        id: yaml_provider_diagnostic
+        continue-on-error: true
         if: always() && runner.os == 'macOS' && (steps.all_providers.outcome == 'success' || steps.all_providers.outcome == 'failure')
         run: node scripts/structure-provider-diagnostics.mjs
       - name: Observe complete macOS source admission and provider sequence without qualification
         id: source_pipeline_diagnostic
+        continue-on-error: true
         if: always() && runner.os == 'macOS' && (steps.all_providers.outcome == 'success' || steps.all_providers.outcome == 'failure')
-        run: node scripts/structure-pipeline-diagnostics.mjs | tee "$RUNNER_TEMP/source-pipeline-observations.jsonl"
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/structure-pipeline-diagnostics.mjs | tee "$RUNNER_TEMP/source-pipeline-observations.jsonl"
       - name: Preserve every complete-pipeline observation
+        id: source_pipeline_artifact
+        continue-on-error: true
         if: always() && runner.os == 'macOS' && (steps.source_pipeline_diagnostic.outcome == 'success' || steps.source_pipeline_diagnostic.outcome == 'failure')
         uses: actions/upload-artifact@v6
         with:
@@ -166,6 +174,15 @@ jobs:
           path: ${{ runner.temp }}/source-pipeline-observations.jsonl
           if-no-files-found: error
           retention-days: 30
+      - name: Record authoritative gate and diagnostic outcomes
+        if: always() && runner.os == 'macOS' && (steps.all_providers.outcome == 'success' || steps.all_providers.outcome == 'failure')
+        continue-on-error: true
+        env:
+          GATE_OUTCOME: ${{ steps.all_providers.outcome }}
+          YAML_OUTCOME: ${{ steps.yaml_provider_diagnostic.outcome }}
+          PIPELINE_OUTCOME: ${{ steps.source_pipeline_diagnostic.outcome }}
+          ARTIFACT_OUTCOME: ${{ steps.source_pipeline_artifact.outcome }}
+        run: node -e 'console.log(JSON.stringify({schema:"idleproof-diagnostic-outcomes-1",qualification:false,gate:process.env.GATE_OUTCOME,yaml:process.env.YAML_OUTCOME,pipeline:process.env.PIPELINE_OUTCOME,artifact:process.env.ARTIFACT_OUTCOME}))'
       - name: Verify cited canonical feature-map references and fresh source reads
         run: node scripts/feature-canonical-smoke.mjs
       - name: Enforce existing hook budgets with actual Python provider

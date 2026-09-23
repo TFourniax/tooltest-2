@@ -48,3 +48,22 @@ as base64-encoded gzip JSONL in `evidence/PM_010B_pipeline_*.jsonl.gz.b64`, with
 hashes/summary in `PM_010B_pipeline_local.json`. Decode base64, then gzip to inspect
 the original records. CI emits one record per log line and preserves the raw
 JSONL as the `macos-source-pipeline-observations` artifact.
+
+On head 44a9b508c928ac283308e32b32aaf3bdb99a6fbb, CI 35855627299 passed
+all 16 jobs at attempt 1. macOS job 107163290092 recorded all 500 outcomes:
+500 canonical/parsed/expected-provider/expected-symbol matches, no timeout,
+maximum elapsed 175.836375 ms. All record lines are preserved in
+`evidence/PM_010B_pipeline_macos_35855627299.jsonl.gz.b64`; its manifest
+identifies the source job, record-byte hash and original Actions artifact ZIP.
+The original failure is still not reproduced or explained. This is diagnostic
+evidence only; no runtime correction or provider-main qualification follows.
+
+Review findings 4082041348/4082041354 identified diagnostic plumbing defects:
+the default bash pipeline could hide a failed Node process behind successful
+`tee`, and a diagnostic or upload failure could override a successful original
+gate. A shell reproduction preserves exit 0 before and exit 17 after `pipefail`
+in `evidence/PM_010B_pipeline_shell_regression.json`. The pipeline now explicitly
+enables pipefail; all diagnostic/upload steps use continue-on-error, while an
+always-run record retains their original outcome alongside the authoritative
+gate's outcome. The original required gate is unchanged. A partial/failed
+collection is not a complete observation set or a qualification PASS.
