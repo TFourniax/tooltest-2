@@ -71,3 +71,14 @@ test('row limits remove relations to omitted components and disclose incomplete 
   assert.ok(memory.relations.every(x=>ids.has(x.sourceId)&&ids.has(x.targetId)));
   assert.ok(memory.warnings.some(x=>/omitted|coverage|limit/i.test(x)));
 });
+
+test('legacy context without tasks retains exact projected paths and omission warnings',()=>{
+  const input=args(['src/ok.py','x'.repeat(301)]);
+  delete input.projectModel.continuity.tasks;
+  const snapshot=buildPortalSnapshot(input);
+  assert.deepEqual(snapshot.projectMemory.continuity.tasks,[]);
+  assert.deepEqual(snapshot.files,['src/ok.py']);
+  assert.deepEqual(snapshot.projectMemory.continuity.relations,[]);
+  assert.match(snapshot.task.summary,/path coverage incomplete/);
+  assertPortalSnapshotSafe(snapshot);
+});

@@ -176,7 +176,7 @@ function safeContinuityMemory(value) {
   };
   // A locally known row that is omitted cannot remain a projected endpoint.
   // External citations absent from the input context are not invented rows.
-  const sourceIds=new Set(['objectives','tasks','decisions','invariants','failedApproaches','components'].flatMap(key=>value[key].map(item=>item.id)));
+  const sourceIds=new Set(['objectives','tasks','decisions','invariants','failedApproaches','components'].flatMap(key=>(value[key] || []).map(item=>item.id)));
   for (const item of value.knownDebt) sourceIds.add(item.debt_id);
   for (const item of value.recentRelatedChanges) sourceIds.add(item.changeId);
   const retainedIds=new Set(['objectives','tasks','decisions','invariants','failedApproaches','components','knownDebt'].flatMap(key=>memory[key].map(item=>item.id)));

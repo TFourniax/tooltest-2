@@ -30,3 +30,11 @@ local test. Those real boundaries remain part of C4/PM-010/global qualification.
 Independent last-head review, hosted OS matrix and fresh main are still required.
 
 Installed npm SHA-256: `f1476f3bc79d5700c12d65bd0d640035302d87eac3ae5266b9f6a3eadee3ef00`.
+
+## Legacy-context review correction
+
+Review4087944276 found an absent historical tasks array dereferenced by the
+new relation filter. The admitted legacy-context regression fails on be56757
+and now passes with the same empty-array fallback as existing projection code.
+All 277 local tests PASS with zero skips; the four original path regressions
+remain. Raw before/after/full evidence is retained in legacy-review.
