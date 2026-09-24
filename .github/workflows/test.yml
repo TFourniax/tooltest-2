@@ -45,6 +45,7 @@ jobs:
           node --check ./src/portal-assurance.mjs
           node --check ./src/portal-cli.mjs
           node --check ./src/portal-memory-sync.mjs
+          node --check ./src/portal-memory-lock.mjs
           node --check ./src/feature-model.mjs
           node --check ./src/feature-memory.mjs
           node --check ./src/feature-observations.mjs

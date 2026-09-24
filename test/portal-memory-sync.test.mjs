@@ -241,6 +241,7 @@ test('a late ack from a superseded enrollment never advances the new enrollment 
     const newServer = portal();
     const racing = async (url, init) => {
       if (init?.method === 'POST') {
+        await new Promise((resolve) => setImmediate(resolve)); // the request has been started
         // While the old request is in flight, the user re-enrolls and a concurrent sync prepares
         // the byte-identical page for the new enrollment, then stops before sending it.
         writePortalConfig(cwd, { endpoint:ENDPOINT, token:`ipd_${'n'.repeat(32)}` });
@@ -315,6 +316,7 @@ test('a disconnect or re-enrollment during an in-flight page stops further sends
       const racing = async (url, init) => {
         if (init?.method === 'POST') {
           tokens.push(init.headers.authorization);
+          await new Promise((resolve) => setImmediate(resolve)); // the request has been started
           if (tokens.length === 1) {
             if (change === 'disconnect') disconnectPortal(cwd);
             else writePortalConfig(cwd, { endpoint:ENDPOINT, token:`ipd_${'q'.repeat(32)}` });
@@ -328,6 +330,60 @@ test('a disconnect or re-enrollment during an in-flight page stops further sends
       assert.equal(tokens.length, 1, `${change}: no page is sent after the configuration changed`);
     } finally { cleanup(cwd); }
   }
+});
+
+test('a configuration change is serialized with page initiation: it waits, it never interleaves', async () => {
+  const cwd = fixture();
+  try {
+    const events = journal([{ id:'decision:a' }]);
+    const server = portal();
+    let attempted = null;
+    const initiating = (url, init) => {
+      if (init?.method === 'POST' && attempted === null) {
+        // Synchronously inside initiation (the window between the config check and the send),
+        // another writer tries to disconnect. It must not be able to commit in between.
+        try { disconnectPortal(cwd); attempted = 'committed'; } catch (error) { attempted = error.code; }
+      }
+      return server.fetchImpl(url, init);
+    };
+    const result = await syncPortalMemory(cwd, { fetchImpl:initiating, coreRunner:core(events) });
+    assert.equal(attempted, 'IDLEPROOF_PORTAL_MEMORY_BUSY', 'the disconnect could not interleave with initiation');
+    assert.equal(result.ok, true, 'the page started under the unchanged configuration is acknowledged');
+    assert.ok(fs.existsSync(projectPaths(cwd).portalConfig), 'the configuration was not changed mid-initiation');
+    disconnectPortal(cwd);
+    assert.equal(fs.existsSync(projectPaths(cwd).portalConfig), false, 'once initiation is over, the change commits');
+  } finally { cleanup(cwd); }
+});
+
+test('a first sync whose binding is skipped by a concurrent configuration change reports superseded', async () => {
+  const cwd = fixture();
+  try {
+    let calls = 0;
+    const racing = (args) => core(journal([{}]))(args);
+    const fetchImpl = async (url, init) => {
+      if (init?.method === 'GET') {
+        calls += 1;
+        return { status:200, ok:true, text:async () => JSON.stringify({ schema:'idleproof.portal-ingest-capabilities.v1', memoryPages:'idleproof.portal-memory-page.v1', memoryAck:'idleproof.portal-memory-ack.v1' }) };
+      }
+      throw new Error('no page may be sent');
+    };
+    // The configuration changes after the first check but before the binding write.
+    const file = projectPaths(cwd).portalConfig;
+    const original = fs.readFileSync;
+    let swapped = false;
+    fs.readFileSync = function patched(target, ...rest) {
+      // First config read made while holding the cursor lock (the binding write): Portal was just disconnected.
+      if (!swapped && target === file && fs.existsSync(projectPaths(cwd).portalMemoryLock)) { swapped = true; fs.rmSync(file); }
+      return original.call(this, target, ...rest);
+    };
+    let result;
+    try { result = await syncPortalMemory(cwd, { fetchImpl, coreRunner:racing }); }
+    finally { fs.readFileSync = original; }
+    assert.equal(swapped, true);
+    assert.equal(result.status, 'superseded');
+    assert.equal(result.errorCode, 'CONFIG_CHANGED');
+    assert.equal(calls, 0, 'nothing was probed or sent for a configuration that is gone');
+  } finally { cleanup(cwd); }
 });
 
 test('a resync that overlaps a re-enrollment never restores the obsolete binding', async () => {

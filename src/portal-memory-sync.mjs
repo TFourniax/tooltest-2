@@ -15,6 +15,7 @@ import { projectPaths } from './paths.mjs';
 import { loadState } from './state.mjs';
 import { repositoryFingerprint } from './change-identity.mjs';
 import { readPortalConfig } from './portal-client.mjs';
+import { withMemoryLock } from './portal-memory-lock.mjs';
 import {
   PORTAL_FORBIDDEN_KEYS,
   PORTAL_SECRET_PATTERNS,
@@ -33,8 +34,6 @@ const MAX_PAGE_ITEMS = 256;
 const DEFAULT_PAGE_EVENTS = 200;
 const MAX_CORE_BYTES = 8 * 1024 * 1024;
 const MAX_RESPONSE_BYTES = 16 * 1024;
-const LOCK_STALE_MS = 10000;
-const LOCK_TIMEOUT_MS = 3000;
 const HASH = /^[a-f0-9]{64}$/;
 const EVENT_ID = /^dwev_[a-f0-9]{24}$/;
 const STATUSES = new Set(['DECLARED', 'INFERRED', 'OBSERVED', 'VERIFIED']);
@@ -51,7 +50,6 @@ const CONFIRMATIONS = new Map([
 // entity that merely shares the same opaque ID. A kind outside Portal's set is sent as null.
 const ENTITY_KINDS = new Set(['task', 'objective', 'decision', 'invariant', 'failed-approach', 'component', 'debt', 'change']);
 const entityKind = (value) => ENTITY_KINDS.has(value) ? value : null;
-const sleepBuffer = new Int32Array(new SharedArrayBuffer(4));
 
 function memoryError(code, message) {
   const error = new Error(message);
@@ -71,30 +69,6 @@ function atomicJson(file, value) {
 }
 
 // Short critical sections only (read-modify-write of the cursor file); never held across network I/O.
-function withMemoryLock(cwd, fn) {
-  const file = projectPaths(cwd).portalMemoryLock;
-  fs.mkdirSync(path.dirname(file), { recursive:true });
-  const started = Date.now();
-  let fd = null;
-  while (Date.now() - started < LOCK_TIMEOUT_MS) {
-    try {
-      fd = fs.openSync(file, 'wx', 0o600);
-      fs.writeFileSync(fd, `${process.pid} ${Date.now()}\n`);
-      break;
-    } catch (error) {
-      if (!['EEXIST', 'EPERM', 'EACCES'].includes(error?.code)) throw error;
-      try { if (Date.now() - fs.statSync(file).mtimeMs > LOCK_STALE_MS) { fs.unlinkSync(file); continue; } } catch {}
-      Atomics.wait(sleepBuffer, 0, 0, 10);
-    }
-  }
-  if (fd == null) throw memoryError('IDLEPROOF_PORTAL_MEMORY_BUSY', 'Portal memory cursor stayed busy for 3s.');
-  try { return fn(); }
-  finally {
-    try { fs.closeSync(fd); } catch {}
-    try { fs.unlinkSync(file); } catch {}
-  }
-}
-
 function freshState(binding, journal = null, epoch = 1) {
   return { schema:STATE_SCHEMA, ...binding, protocol:MEMORY_PAGE_SCHEMA, journal, epoch, next:0, headHash:null,
     status:'active', statusCode:null, pending:null, lastAckAt:null, previous:null, updatedAt:new Date().toISOString() };
@@ -456,6 +430,8 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
   const superseded = () => ({ configured:true, ok:false, status:'superseded', errorCode:sameConfig(cwd, config) ? 'CURSOR_SUPERSEDED' : 'CONFIG_CHANGED', pagesSent, acknowledged });
   let pagesSent = 0;
   let acknowledged = 0;
+  // The first binding is skipped when the configuration changed while waiting for the lock.
+  if (!state || !sameBinding(state, binding)) return superseded();
   if (['reset-required', 'identity-conflict'].includes(state.status)) {
     return { configured:true, ok:false, status:state.status, errorCode:state.statusCode, next:state.next, pagesSent:0, pending:Boolean(state.pending) };
   }
@@ -524,16 +500,24 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
     }
     if (failpoint === 'before-send') throw memoryError('IDLEPROOF_TEST_FAILPOINT', 'failpoint before-send');
 
-    // Never send with a token or endpoint the user has since replaced or disconnected.
-    if (!sameConfig(cwd, config) || !ownsStream(readPortalMemoryState(cwd), page)) return superseded();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     timer.unref?.();
+    // The configuration check and the request initiation happen under the lock that
+    // `portal configure`/`portal disconnect` take: a committed change is either seen here, or it
+    // waits until this request has been started. No page is started with a replaced token.
+    const initiated = withMemoryLock(cwd, () => {
+      if (!sameConfig(cwd, config) || !ownsStream(readPortalMemoryState(cwd), page)) return null;
+      try {
+        return Promise.resolve(fetchImpl(config.endpoint, { method:'POST', headers:{ 'content-type':'application/json', authorization:`Bearer ${config.token}` },
+          body:JSON.stringify(page), signal:controller.signal }));
+      } catch (error) { return Promise.reject(error); }
+    });
+    if (!initiated) { clearTimeout(timer); return superseded(); }
     let response;
     let body;
     try {
-      response = await fetchImpl(config.endpoint, { method:'POST', headers:{ 'content-type':'application/json', authorization:`Bearer ${config.token}` },
-        body:JSON.stringify(page), signal:controller.signal });
+      response = await initiated;
       body = await boundedJson(response);
     } catch (error) {
       clearTimeout(timer);

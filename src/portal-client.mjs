@@ -10,6 +10,7 @@ import { assertPortalSnapshotSafe, buildPortalSnapshot, projectLocalId } from '.
 import { buildProjectModel } from './project-model.mjs';
 import { loadContinuityContext } from './continuity.mjs';
 import { taskContinuityQuery } from './task.mjs';
+import { withMemoryLock } from './portal-memory-lock.mjs';
 
 const CONFIG_SCHEMA = 'idleproof.portal-config.v1';
 const DELIVERY_HEALTH_SCHEMA = 'idleproof.portal-delivery-health.v1';
@@ -184,7 +185,8 @@ function recordDeliverySuccess(cwd) {
 export function writePortalConfig(cwd = process.cwd(), { endpoint, token, enabled = true } = {}) {
   const paths = projectPaths(cwd);
   const config = { schema:CONFIG_SCHEMA, enabled:Boolean(enabled), endpoint:validateEndpoint(endpoint), token:validateToken(token), updatedAt:new Date().toISOString() };
-  atomicJson(paths.portalConfig, config);
+  // Serialized with memory cursor writes and memory page initiation (see portal-memory-lock.mjs).
+  withMemoryLock(cwd, () => atomicJson(paths.portalConfig, config));
   return portalStatus(cwd);
 }
 
@@ -202,7 +204,7 @@ export function readPortalConfig(cwd = process.cwd()) {
 
 export function disconnectPortal(cwd = process.cwd()) {
   const paths = projectPaths(cwd);
-  try { fs.rmSync(paths.portalConfig, { force:true }); } catch {}
+  withMemoryLock(cwd, () => { try { fs.rmSync(paths.portalConfig, { force:true }); } catch {} });
   return portalStatus(cwd);
 }
 

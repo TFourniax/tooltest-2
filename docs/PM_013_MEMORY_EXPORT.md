@@ -29,9 +29,11 @@ Portal as `idleproof.portal-memory-page.v1`, oldest first, then only new events.
 - Concurrency: every cursor update after local journal or network I/O requires the cursor it
   started from (same enrollment, journal, epoch and position). A result made stale by a
   concurrent resync, re-enrollment or another sync is dropped and reported as `superseded`.
-  The Portal configuration is re-read before every state write and every send: after
-  `portal disconnect` or `portal configure` no further page leaves with the old token, and a
-  resync started under the old configuration is refused (`CONFIG_CHANGED`).
+  The Portal configuration is re-read before every state write and every send, and
+  `portal configure`/`portal disconnect` take the cursor lock that also covers each request's
+  initiation: once a change is committed no page is started with the old token, and a resync
+  started under the old configuration is refused (`CONFIG_CHANGED`). A request already started
+  before the change may still complete; its result is then dropped as `superseded`.
 - `portal memory status` reports the enrollment configured now: `not-configured` after
   disconnect, `not-started` (`ENROLLMENT_CHANGED`) after a new token or endpoint; an older cursor
   is shown only as `retained`.
