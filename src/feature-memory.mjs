@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { buildFeatureModel } from './feature-model.mjs';
 import { taskContextQuery, taskDisplayText } from './task.mjs';
 import { featureAnchor, observeFeature } from './feature-observations.mjs';
+import { ARCHIVE_CHECKPOINT, stageFeatureObservations } from './feature-history.mjs';
 
 
 function unique(values) {
@@ -129,7 +130,12 @@ export function rememberFeature(state, session, model, { exposure = true } = {})
   const legacy = model.fingerprint ? state.features[model.fingerprint] : null;
   const current = state.features[key] || legacy || baseMemory(model, session);
   const nextSnapshot = featureSnapshot(model);
+  // The first upgraded observation can evict a retained legacy row. Preserve
+  // those exact pre-mutation records before updating the bounded hot window.
+  if (current.lineageObservations && current.lineageArchive !== ARCHIVE_CHECKPOINT)
+    stageFeatureObservations(state,key,current.lineageObservations);
   const lineageObservations = observeFeature(current.lineageObservations, model, nextSnapshot);
+  if (lineageObservations) stageFeatureObservations(state,key,lineageObservations);
   const drift = current.snapshot ? compareFeatureSnapshots(current.snapshot, nextSnapshot) : { changed: false, level: 'none', score: 0, added: {}, removed: {}, summary: 'First observed model for this feature.' };
 
   if (exposure && session?.id && !current.sessionIds?.includes(session.id)) current.exposures = (current.exposures || 0) + 1;

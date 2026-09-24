@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { readIntegrationConfig } from './diffwitness-integration-config.mjs';
 import { lineagePath, validFeatureObservations } from './feature-observations.mjs';
 import { compareFeatureSnapshots } from './feature-memory.mjs';
+import { readFeatureObservation } from './feature-history.mjs';
 
 const RESPONSE_BYTES=512*1024, CORE_LIMIT=100, LINK_LIMIT=32;
 const METHOD='unique-exact-regular-blob-first-parent-1';
@@ -44,14 +45,23 @@ export function validFileLineage(value,path) {
   return value.assessments>=events.size&&value.matches<=value.assessments*32;
 }
 
-export function queryFeatureLineage(cwd,state,fromKey,toKey,{command=null,run=spawnSync,timeoutMs=3000}={}) {
+export function queryFeatureLineage(cwd,state,fromKey,toKey,{command=null,run=spawnSync,timeoutMs=3000,fromObservation=null,toObservation=null}={}) {
   if(!featureKey(fromKey)||!featureKey(toKey)||fromKey===toKey) throw new Error('Two distinct feature keys are required.');
   if(!Number.isInteger(timeoutMs)||timeoutMs<1||timeoutMs>3000) throw new Error('Invalid lineage timeout.');
   const base={schema:'idleproof.feature-lineage.v1',fromFeature:fromKey,toFeature:toKey,epistemic_status:'INFERRED',
     scope:'links between retained observations, not current applicability or proven feature identity',
     transfersScores:false,transfersAssertionAuthority:false};
   const unavailable=reason=>({...base,status:'unavailable',reason,links:[]});
-  const before=state.features?.[fromKey]?.lineageObservations,after=state.features?.[toKey]?.lineageObservations;
+  const selected=fromObservation!==null||toObservation!==null;
+  if(selected&&!(typeof fromObservation==='string'&&typeof toObservation==='string'))throw new Error('Both historical observation IDs are required.');
+  let before=state.features?.[fromKey]?.lineageObservations,after=state.features?.[toKey]?.lineageObservations;
+  if(selected){
+    try {
+      const log=item=>({schema:'idleproof.feature-observations.v1',items:[item],discarded:0});
+      before=log(readFeatureObservation(cwd,fromKey,fromObservation));
+      after=log(readFeatureObservation(cwd,toKey,toObservation));
+    } catch {return unavailable('archived-observation-unavailable-or-corrupt');}
+  }
   if(before===undefined||after===undefined) return unavailable('missing-source-bound-observations');
   if(!validFeatureObservations(before,fromKey)||!validFeatureObservations(after,toKey)) return unavailable('invalid-feature-observations');
   if(!before.items.length||!after.items.length) return unavailable('missing-source-bound-observations');
@@ -87,7 +97,8 @@ export function queryFeatureLineage(cwd,state,fromKey,toKey,{command=null,run=sp
     coverage:{coreAssessments:response.assessments,coreMatches:response.matches,coreOmitted:response.omitted,
       fromObservations:before.items.length,toObservations:after.items.length,
       fromDiscarded:before.discarded,toDiscarded:after.discarded,
-      completeRetainedView:response.omitted===0&&before.discarded===0&&after.discarded===0&&matches===links.length
+      selection:selected?'explicit-observations':'retained-state',
+      completeRetainedView:!selected&&response.omitted===0&&before.discarded===0&&after.discarded===0&&matches===links.length
         &&response.items.every(item=>item.coverage.complete)}};
 }
 
@@ -129,14 +140,14 @@ export function featureLineageCli(cwd,state,args) {
   for(let i=0;i<args.length;i++) {
     const arg=args[i];
     if(arg==='--json') { if(options.json) throw new Error('Duplicate --json.');options.json=true;continue; }
-    if(!['--from','--to','--language'].includes(arg)||args[i+1]===undefined) throw new Error('Usage: feature-lineage --from KEY --to KEY [--json] [--language en|fr]');
+    if(!['--from','--to','--language','--from-observation','--to-observation'].includes(arg)||args[i+1]===undefined) throw new Error('Usage: feature-lineage --from KEY --to KEY [--from-observation ID --to-observation ID] [--json] [--language en|fr]');
     const key=arg.slice(2);
     if(options[key]!==undefined&&key!=='language') throw new Error('Duplicate lineage option.');
     if(key==='language'&&options.languageSeen) throw new Error('Duplicate language option.');
     options[key]=args[++i];if(key==='language') options.languageSeen=true;
   }
   if(!['en','fr'].includes(options.language)) throw new Error('Language must be en or fr.');
-  const result=queryFeatureLineage(cwd,state,options.from,options.to);
+  const result=queryFeatureLineage(cwd,state,options.from,options.to,{fromObservation:options['from-observation']??null,toObservation:options['to-observation']??null});
   console.log(options.json?JSON.stringify(result,null,2):renderFeatureLineage(result,options.language));
   if(result.status!=='available') process.exitCode=2;
 }
