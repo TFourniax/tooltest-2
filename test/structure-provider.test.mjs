@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {spawnSync} from 'node:child_process';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
@@ -130,4 +131,16 @@ test('actual missing executable is reported at the failed invocation through tas
     if(previous===undefined) delete process.env.DIFFWITNESS_BIN;else process.env.DIFFWITNESS_BIN=previous;
     fs.rmSync(cwd,{recursive:true,force:true});
   }
+});
+
+test('async diagnostic rejections cannot crash the real host process',()=>{
+  const moduleURL=new URL('../src/structure-provider.mjs',import.meta.url).href;
+  const result=spawnSync(process.execPath,['--input-type=module','-e',`
+    import {loadPythonExtractions} from ${JSON.stringify(moduleURL)};
+    const sources=${JSON.stringify([source])};
+    const value=loadPythonExtractions('.',sources,{command:'x',run:()=>({status:2}),onFailure:async()=>{throw Error('observer rejected');}});
+    if(value.byPath.size!==0) process.exit(12);
+    await new Promise(resolve=>setImmediate(resolve));
+  `],{encoding:'utf8',timeout:5000});
+  assert.equal(result.status,0,result.stderr);assert.equal(result.stderr,'');
 });

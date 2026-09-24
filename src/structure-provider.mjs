@@ -90,7 +90,7 @@ export function loadStructureExtractions(cwd,sources,{command=null,run=spawnSync
         stdoutBytes:Buffer.isBuffer(processResult?.stdout)?processResult.stdout.length:null,
         stderrBytes:Buffer.isBuffer(processResult?.stderr)?processResult.stderr.length:null};
       // Diagnostic consumers cannot promote results, retry, or change failures.
-      try {onFailure(diagnostic);} catch {}
+      try {Promise.resolve(onFailure(diagnostic)).catch(()=>{});} catch {}
     }
     return {byPath:new Map(),reason};
   };
