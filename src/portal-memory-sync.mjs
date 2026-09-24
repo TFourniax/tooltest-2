@@ -47,6 +47,10 @@ const CONFIRMATIONS = new Map([
   ['objective.confirmed', 'objective'], ['decision.confirmed', 'decision'],
   ['invariant.confirmed', 'invariant'], ['approach.confirmed', 'failed-approach']
 ]);
+// Relation endpoints carry the Core entity kind so Portal never attaches a relation to another
+// entity that merely shares the same opaque ID. A kind outside Portal's set is sent as null.
+const ENTITY_KINDS = new Set(['task', 'objective', 'decision', 'invariant', 'failed-approach', 'component', 'debt', 'change']);
+const entityKind = (value) => ENTITY_KINDS.has(value) ? value : null;
 const sleepBuffer = new Int32Array(new SharedArrayBuffer(4));
 
 function memoryError(code, message) {
@@ -256,7 +260,8 @@ export function projectJournalEvents(items) {
         const predicate = portalContinuityIdentity(relation?.predicate);
         const target = portalContinuityIdentity(relation?.target?.id);
         if (!predicate || !target) { dropped.push('sensitive-identity'); continue; }
-        emitted.push({ type:'relation', ...base, predicate, sourceId:subjectId, targetId:target, status:status(relation.epistemic_status || event.epistemic_status) });
+        emitted.push({ type:'relation', ...base, predicate, sourceId:subjectId, sourceKind:entityKind(event.subject?.kind), targetId:target,
+          targetKind:entityKind(relation?.target?.kind), status:status(relation.epistemic_status || event.epistemic_status) });
       }
     };
     if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/.test(base.declaredAt)) reason = 'invalid-source-time';

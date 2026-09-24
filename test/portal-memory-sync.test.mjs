@@ -395,6 +395,9 @@ test('projection keeps the allowlist: labels redacted, secret identities omitted
   assert.equal(items[0].entity.label.includes('supersecret'), false);
   assert.deepEqual(items.map((item) => item.type), ['assertion', 'relation', 'confirmation', 'assertion']);
   assert.equal(items[3].entity.id, 'objective:東京-🚀');
+  // Relation endpoints keep their Core entity kinds, so Portal can tell same-ID entities apart.
+  assert.equal(items[1].sourceKind, 'decision');
+  assert.equal(items[1].targetKind, 'objective');
   assert.deepEqual(omitted, { total:2, byReason:{ 'sensitive-identity':1, 'unsupported-change':1 } });
   assert.deepEqual(partial, { total:0, byReason:{} });
   // Every event is represented or counted exactly once.

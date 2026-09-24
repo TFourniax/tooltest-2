@@ -15,6 +15,8 @@ Portal as `idleproof.portal-memory-page.v1`, oldest first, then only new events.
   counted once in `omitted` (per event); items dropped from represented events (sensitive
   endpoints, page bounds) are counted in `partial`. Portal refuses a page that does not add up
   (`INCOMPLETE_COVERAGE`), so an acknowledged cursor can never skip history.
+- Relations carry `sourceKind`/`targetKind` (the Core entity kinds; `null` outside Portal's kind
+  set), so Portal never attaches a relation to another entity that only shares its opaque ID.
 - Bounds: at most 256 items and 64 KiB per page (the snapshot wire limit is unchanged).
 - Durability: the exact page is saved in `.idleproof/portal-memory.json` before sending; the
   cursor advances only after an ack that binds the same page, stream and range. A retransmission
