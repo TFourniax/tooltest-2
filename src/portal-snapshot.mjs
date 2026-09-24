@@ -426,4 +426,7 @@ export function assertPortalSnapshotSafe(snapshot) {
   return true;
 }
 
+// Shared with the paged memory export so both paths apply identical identity/redaction rules.
+export { redact as redactPortalText, continuityIdentity as portalContinuityIdentity, canonical as portalCanonical, digest as portalDigest, FORBIDDEN_KEYS as PORTAL_FORBIDDEN_KEYS, SECRET_PATTERNS as PORTAL_SECRET_PATTERNS };
+
 export const __portalTest={stableSnapshotId,MAX_SNAPSHOT_BYTES,assertAssuranceSafe,safeContinuityMemory,REPOSITORY_FINGERPRINT_RE};
