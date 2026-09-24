@@ -24,5 +24,11 @@ Portal as `idleproof.portal-memory-page.v1`, oldest first, then only new events.
   429, 5xx), `reset-required` (`LOCAL_PREFIX_DIVERGED`, `JOURNAL_IDENTITY_CHANGED`,
   `PREFIX_DIVERGED`), `identity-conflict`. `idleproof portal memory resync` starts a new stream
   epoch from event 0; Portal still deduplicates facts by exact event identity.
+- Concurrency: every cursor update after local journal or network I/O requires the cursor it
+  started from (same enrollment, journal, epoch and position). A result made stale by a
+  concurrent resync, re-enrollment or another sync is dropped and reported as `superseded`.
+- `portal memory status` reports the enrollment configured now: `not-configured` after
+  disconnect, `not-started` (`ENROLLMENT_CHANGED`) after a new token or endpoint; an older cursor
+  is shown only as `retained`.
 
 Snapshot delivery (`idleproof.portal-snapshot.v1`) is unchanged.

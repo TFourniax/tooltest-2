@@ -8,7 +8,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { freshState, saveState } from '../src/state.mjs';
-import { writePortalConfig } from '../src/portal-client.mjs';
+import { disconnectPortal, writePortalConfig } from '../src/portal-client.mjs';
 import { projectPaths } from '../src/paths.mjs';
 import {
   assertPortalMemoryPageSafe,
@@ -257,6 +257,51 @@ test('a late ack from a superseded enrollment never advances the new enrollment 
     const delivered = await syncPortalMemory(cwd, { fetchImpl:newServer.fetchImpl, coreRunner:core(events) });
     assert.equal(delivered.next, 2);
     assert.equal(newServer.facts.size, 2, 'the new project receives the history');
+  } finally { cleanup(cwd); }
+});
+
+test('a resync completed during a source read is never undone by the stale read result', async () => {
+  const cwd = fixture();
+  try {
+    const events = journal([{ id:'decision:a' }, { id:'decision:b' }]);
+    const server = portal();
+    assert.equal((await syncPortalMemory(cwd, { fetchImpl:server.fetchImpl, coreRunner:core(events) })).next, 2);
+    const rewritten = [events[0], ...journal([{ id:'decision:b2' }], 'rewrite').map((e) => ({ ...e, prev_hash:events[0].event_hash }))];
+    const source = core(rewritten);
+    let raced = false;
+    const racing = (args) => {
+      // While the stale cursor is being checked, another process completes `portal memory resync`.
+      if (!raced && args.includes('--expect-head')) { raced = true; assert.equal(resyncPortalMemory(cwd, { coreRunner:core(rewritten) }).epoch, 2); }
+      return source(args);
+    };
+    const stale = await syncPortalMemory(cwd, { fetchImpl:server.fetchImpl, coreRunner:racing });
+    assert.equal(stale.status, 'superseded');
+    const status = portalMemoryStatus(cwd);
+    assert.equal(status.status, 'active', 'the new epoch is not put back into reset-required');
+    assert.equal(status.epoch, 2);
+    assert.equal(status.next, 0);
+    const resumed = await syncPortalMemory(cwd, { fetchImpl:server.fetchImpl, coreRunner:core(rewritten) });
+    assert.equal(resumed.ok, true);
+    assert.equal(resumed.next, 2);
+  } finally { cleanup(cwd); }
+});
+
+test('status describes the currently configured enrollment, never a retained cursor', async () => {
+  const cwd = fixture();
+  try {
+    const events = journal([{ id:'decision:a' }, { id:'decision:b' }]);
+    await syncPortalMemory(cwd, { fetchImpl:portal().fetchImpl, coreRunner:core(events) });
+    assert.equal(portalMemoryStatus(cwd).next, 2);
+    writePortalConfig(cwd, { endpoint:ENDPOINT, token:`ipd_${'r'.repeat(32)}` });
+    const reenrolled = portalMemoryStatus(cwd);
+    assert.equal(reenrolled.status, 'not-started');
+    assert.equal(reenrolled.statusCode, 'ENROLLMENT_CHANGED');
+    assert.equal(reenrolled.next, 0, 'the new project has received nothing yet');
+    assert.equal(reenrolled.retained.next, 2);
+    disconnectPortal(cwd);
+    const disconnected = portalMemoryStatus(cwd);
+    assert.equal(disconnected.status, 'not-configured');
+    assert.equal(disconnected.next, 0);
   } finally { cleanup(cwd); }
 });
 

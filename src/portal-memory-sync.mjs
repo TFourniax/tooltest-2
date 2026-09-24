@@ -419,10 +419,25 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
   // Every update after the binding step is conditional on the state still belonging to this
   // request's enrollment (and, after network I/O, to this page's stream). A concurrent
   // re-enrollment or resync makes a late ack or error inert instead of advancing the new cursor.
-  const bound = (mutate) => updateState(cwd, (current) => current && sameBinding(current, binding) ? mutate(current) : null);
+  // Updates after local journal I/O also require the exact cursor the read started from, so a
+  // concurrent `portal memory resync` (new epoch) or another sync's progress is never undone.
+  const guarded = (owns, mutate) => {
+    let applied = false;
+    const next = updateState(cwd, (current) => {
+      if (!owns(current)) return null;
+      applied = true;
+      return mutate(current);
+    });
+    return applied ? next : null;
+  };
+  const bound = (mutate) => guarded((current) => Boolean(current) && sameBinding(current, binding), mutate);
   const ownsStream = (current, page) => Boolean(current) && sameBinding(current, binding)
     && current.journal === page.stream.journal && current.epoch === page.stream.epoch;
-  const streamBound = (page, mutate) => updateState(cwd, (current) => ownsStream(current, page) ? mutate(current) : null);
+  const streamBound = (page, mutate) => guarded((current) => ownsStream(current, page), mutate);
+  const cursorView = (current) => ({ journal:current.journal, epoch:current.epoch, next:current.next, headHash:current.headHash ?? null });
+  const ownsCursor = (current, view) => Boolean(current) && sameBinding(current, binding) && current.journal === view.journal
+    && current.epoch === view.epoch && current.next === view.next && (current.headHash ?? null) === view.headHash;
+  const cursorBound = (view, mutate) => guarded((current) => ownsCursor(current, view), mutate);
   const superseded = () => ({ configured:true, ok:false, status:'superseded', errorCode:'CURSOR_SUPERSEDED', pagesSent, acknowledged });
   let pagesSent = 0;
   let acknowledged = 0;
@@ -433,12 +448,15 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
   const capability = await probeCapabilities(config.endpoint, fetchImpl, timeoutMs);
   if (!capability.ok) {
     state = bound((current) => ({ ...current, status:capability.transient ? current.status : 'server-incompatible', statusCode:capability.reason }));
+    if (!state) return superseded();
     return { configured:true, ok:false, degraded:!capability.transient, status:capability.transient ? 'deferred' : 'server-incompatible', errorCode:capability.reason, next:state.next, pagesSent:0, pending:Boolean(state.pending) };
   }
   if (state.status === 'server-incompatible') state = bound((current) => ({ ...current, status:'active', statusCode:null }));
+  if (!state) return superseded();
 
   for (let round = 0; round < maxPages; round += 1) {
     if (!state || !sameBinding(state, binding)) return superseded();
+    const view = cursorView(state);
     let page = state.pending;
     if (page) {
       // A restored page gets the same safety checks as a new one and must continue this cursor.
@@ -448,7 +466,8 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
         && page.range?.from === state.next && (page.range?.prefixHash ?? null) === state.headHash
         && page.project?.localId === binding.localProjectId && page.project?.repositoryFingerprint === binding.repositoryFingerprint;
       if (!valid) {
-        state = bound((current) => ({ ...current, status:'reset-required', statusCode:'PENDING_PAGE_INVALID' }));
+        state = cursorBound(view, (current) => current.pending?.pageId === page.pageId ? { ...current, status:'reset-required', statusCode:'PENDING_PAGE_INVALID' } : null);
+        if (!state) return superseded();
         return { configured:true, ok:false, status:'reset-required', errorCode:'PENDING_PAGE_INVALID', next:state.next, pagesSent, acknowledged, pending:true };
       }
     }
@@ -458,27 +477,35 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
         const origin = readJournalPage(cwd, { after:0, limit:1, timeoutMs, runner:coreRunner });
         const code = origin.status === 'ok' && state.journal && origin.genesis && `dwjrn_${origin.genesis}` !== state.journal
           ? 'JOURNAL_IDENTITY_CHANGED' : 'LOCAL_PREFIX_DIVERGED';
-        state = bound((current) => ({ ...current, status:'reset-required', statusCode:code }));
+        state = cursorBound(view, (current) => ({ ...current, status:'reset-required', statusCode:code }));
+        if (!state) return superseded();
         return { configured:true, ok:false, status:'reset-required', errorCode:code, next:state.next, pagesSent, acknowledged };
       }
       if (source.status !== 'ok') {
-        state = bound((current) => ({ ...current, statusCode:source.status === 'unsupported' ? 'SOURCE_HISTORY_UNAVAILABLE' : 'SOURCE_UNAVAILABLE' }));
+        state = cursorBound(view, (current) => ({ ...current, statusCode:source.status === 'unsupported' ? 'SOURCE_HISTORY_UNAVAILABLE' : 'SOURCE_UNAVAILABLE' }));
+        if (!state) return superseded();
         return { configured:true, ok:false, degraded:source.status === 'unsupported', status:'source-unavailable', errorCode:state.statusCode, detail:source.detail, next:state.next, pagesSent, acknowledged };
       }
       const journal = source.genesis ? `dwjrn_${source.genesis}` : null;
       if (!journal || !source.events.length) {
-        if (state.statusCode) state = bound((current) => ({ ...current, statusCode:null }));
+        if (state.statusCode) {
+          state = cursorBound(view, (current) => ({ ...current, statusCode:null }));
+          if (!state) return superseded();
+        }
         return { configured:true, ok:true, status:'up-to-date', next:state.next, pagesSent, acknowledged };
       }
       if (state.journal && state.journal !== journal) {
-        state = bound((current) => ({ ...current, status:'reset-required', statusCode:'JOURNAL_IDENTITY_CHANGED' }));
+        state = cursorBound(view, (current) => ({ ...current, status:'reset-required', statusCode:'JOURNAL_IDENTITY_CHANGED' }));
+        if (!state) return superseded();
         return { configured:true, ok:false, status:'reset-required', errorCode:'JOURNAL_IDENTITY_CHANGED', next:state.next, pagesSent, acknowledged };
       }
       page = buildMemoryPage({ binding, journal, epoch:state.epoch, after:state.next, prefixHash:state.headHash, events:source.events });
       assertPortalMemoryPageSafe(page);
-      const expected = state.next;
-      state = bound((current) => current.next === expected && !current.pending ? { ...current, journal, pending:page } : null);
-      if (state.pending?.pageId !== page.pageId) continue; // another process advanced; re-read.
+      // The page was built for this exact cursor (journal, epoch, position, prefix); if anything moved
+      // meanwhile, re-read instead of storing a page for a stream that no longer exists.
+      const stored = cursorBound(view, (current) => current.pending ? null : { ...current, journal, pending:page });
+      state = stored || readPortalMemoryState(cwd);
+      if (state?.pending?.pageId !== page.pageId) continue;
     }
     if (failpoint === 'before-send') throw memoryError('IDLEPROOF_TEST_FAILPOINT', 'failpoint before-send');
 
@@ -494,7 +521,8 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
     } catch (error) {
       clearTimeout(timer);
       const errorCode = error?.name === 'AbortError' ? 'TIMEOUT' : error?.code === 'IDLEPROOF_PORTAL_RESPONSE_TOO_LARGE' ? error.code : 'NETWORK_ERROR';
-      state = bound((current) => ({ ...current, statusCode:errorCode }));
+      state = streamBound(page, (current) => ({ ...current, statusCode:errorCode }));
+      if (!state) return superseded();
       return { configured:true, ok:false, status:'deferred', errorCode, next:state.next, pagesSent:pagesSent + 1, acknowledged, pending:true };
     }
     clearTimeout(timer);
@@ -505,17 +533,21 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
       let ack;
       try { ack = validateMemoryAck(body, page); }
       catch (error) {
-        state = bound((current) => ({ ...current, statusCode:error.code }));
+        state = streamBound(page, (current) => ({ ...current, statusCode:error.code }));
+        if (!state) return superseded();
         return { configured:true, ok:false, status:'deferred', errorCode:error.code, next:state.next, pagesSent, acknowledged, pending:true };
       }
       if (failpoint === 'after-ack-before-cursor') throw memoryError('IDLEPROOF_TEST_FAILPOINT', 'failpoint after-ack-before-cursor');
       let target = { next:page.range.to, headHash:page.range.headHash };
       if (ack.next > page.range.to && verifiedCursor(cwd, ack, timeoutMs, coreRunner)) target = { next:ack.next, headHash:ack.headHash };
-      state = streamBound(page, (current) => current.pending?.pageId === page.pageId
+      const acked = streamBound(page, (current) => current.pending?.pageId === page.pageId
         ? { ...current, next:target.next, headHash:target.headHash, pending:null, status:'active', statusCode:null, lastAckAt:new Date().toISOString() }
         : null);
+      if (acked) acknowledged += 1;
+      // Not applied: either another process already acknowledged this page on the same stream
+      // (continue from its cursor) or the stream was replaced (superseded).
+      state = acked || readPortalMemoryState(cwd);
       if (!ownsStream(state, page)) return superseded();
-      acknowledged += 1;
       continue;
     }
 
@@ -525,20 +557,24 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
       const serverCursor = cursor && Number.isSafeInteger(cursor.next) ? { next:cursor.next, headHash:cursor.next === 0 ? null : cursor.headHash } : null;
       if (serverCursor && cursor?.stream?.journal === page.stream.journal && cursor?.stream?.epoch === page.stream.epoch && verifiedCursor(cwd, serverCursor, timeoutMs, coreRunner)) {
         state = streamBound(page, (current) => current.pending?.pageId === page.pageId
-          ? { ...current, next:serverCursor.next, headHash:serverCursor.headHash, pending:null, statusCode:'CURSOR_REALIGNED' } : null);
+          ? { ...current, next:serverCursor.next, headHash:serverCursor.headHash, pending:null, statusCode:'CURSOR_REALIGNED' } : null)
+          || readPortalMemoryState(cwd);
         continue;
       }
-      state = bound((current) => ({ ...current, status:'reset-required', statusCode:'SERVER_CURSOR_UNVERIFIABLE' }));
+      state = streamBound(page, (current) => ({ ...current, status:'reset-required', statusCode:'SERVER_CURSOR_UNVERIFIABLE' }));
+      if (!state) return superseded();
       return { configured:true, ok:false, status:'reset-required', errorCode:'SERVER_CURSOR_UNVERIFIABLE', next:state.next, pagesSent, acknowledged, pending:true };
     }
     if (code === 'PREFIX_DIVERGED' || code === 'IDENTITY_CONFLICT') {
       const status = code === 'IDENTITY_CONFLICT' ? 'identity-conflict' : 'reset-required';
-      state = bound((current) => ({ ...current, status, statusCode:code }));
+      state = streamBound(page, (current) => ({ ...current, status, statusCode:code }));
+      if (!state) return superseded();
       return { configured:true, ok:false, status, errorCode:code, next:state.next, pagesSent, acknowledged, pending:true };
     }
     const transient = response.status === 429 || response.status >= 500;
     const incompatible = !transient && ['SCHEMA_INVALID', 'INVALID_JSON', 'PAGE_ID_MISMATCH', 'METHOD_NOT_ALLOWED', 'INVALID_PAGE_SCHEMA'].includes(code);
-    state = bound((current) => ({ ...current, status:incompatible ? 'server-incompatible' : current.status, statusCode:code }));
+    state = streamBound(page, (current) => ({ ...current, status:incompatible ? 'server-incompatible' : current.status, statusCode:code }));
+    if (!state) return superseded();
     return { configured:true, ok:false, degraded:incompatible, status:transient ? 'deferred' : incompatible ? 'server-incompatible' : 'rejected', errorCode:code, httpStatus:response.status, next:state.next, pagesSent, acknowledged, pending:true };
   }
   return { configured:true, ok:true, status:'more-pending', next:state.next, pagesSent, acknowledged };
@@ -560,12 +596,22 @@ export function resyncPortalMemory(cwd = process.cwd(), { coreRunner = null } = 
   return { configured:true, ok:true, status:'active', journal:state.journal, epoch:state.epoch, next:0 };
 }
 
+// Status describes the export to the Portal enrollment configured now. A cursor saved for another
+// endpoint/token/repository (or after disconnect) is only reported as `retained`, never as progress.
 export function portalMemoryStatus(cwd = process.cwd()) {
+  const schema = 'idleproof.portal-memory-status.v1';
   let state = null;
   try { state = readPortalMemoryState(cwd); }
-  catch (error) { return { schema:'idleproof.portal-memory-status.v1', status:'corrupt', errorCode:error.code }; }
-  if (!state) return { schema:'idleproof.portal-memory-status.v1', status:'not-started', next:0, pending:false };
-  return { schema:'idleproof.portal-memory-status.v1', status:state.status, statusCode:state.statusCode, journal:state.journal,
+  catch (error) { return { schema, status:'corrupt', errorCode:error.code }; }
+  let config;
+  try { config = readPortalConfig(cwd); } catch (error) { return { schema, status:'config-invalid', errorCode:error.code, next:0, pending:false }; }
+  const retained = state ? { journal:state.journal, epoch:state.epoch, next:state.next, status:state.status } : null;
+  if (!config?.enabled) return { schema, status:'not-configured', next:0, pending:false, retained };
+  if (!state) return { schema, status:'not-started', next:0, pending:false };
+  if (!sameBinding(state, currentBinding(cwd, config))) {
+    return { schema, status:'not-started', statusCode:'ENROLLMENT_CHANGED', next:0, pending:false, retained };
+  }
+  return { schema, status:state.status, statusCode:state.statusCode, journal:state.journal,
     epoch:state.epoch, next:state.next, headHash:state.headHash, pending:Boolean(state.pending), pendingPageId:state.pending?.pageId || null,
     lastAckAt:state.lastAckAt, previous:state.previous };
 }
