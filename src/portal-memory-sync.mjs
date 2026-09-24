@@ -126,12 +126,15 @@ function currentBinding(cwd, config) {
   const state = loadState(cwd);
   let fingerprint = null;
   try { fingerprint = repositoryFingerprint(cwd); } catch {}
-  return { endpoint:config.endpoint, localProjectId:projectLocalId(state.project, state.createdAt), repositoryFingerprint:fingerprint };
+  // Non-secret enrollment identity: a re-enrollment (new token, possibly another Portal project)
+  // is a different server stream and must never reuse an old cursor.
+  const enrollment = `dwenr_${portalDigest(`idleproof-memory-enrollment:${config.token}`).slice(0, 24)}`;
+  return { endpoint:config.endpoint, enrollment, localProjectId:projectLocalId(state.project, state.createdAt), repositoryFingerprint:fingerprint };
 }
 
 function sameBinding(state, binding) {
-  return state.endpoint === binding.endpoint && state.localProjectId === binding.localProjectId
-    && state.repositoryFingerprint === binding.repositoryFingerprint;
+  return state.endpoint === binding.endpoint && state.enrollment === binding.enrollment
+    && state.localProjectId === binding.localProjectId && state.repositoryFingerprint === binding.repositoryFingerprint;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -227,51 +230,57 @@ function omit(omitted, reason, count = 1) {
   omitted.byReason[reason] = (omitted.byReason[reason] || 0) + count;
 }
 
+// Coverage contract: every source event is either represented by at least one item or counted
+// once in `omitted` (by event); items dropped from represented events are counted in `partial`.
 export function projectJournalEvents(items) {
   const out = [];
   const omitted = { total:0, byReason:{} };
+  const partial = { total:0, byReason:{} };
   for (const { sequence, event } of items) {
     const type = String(event.event_type || '');
     const base = { sequence, eventId:event.event_id, eventHash:event.event_hash, declaredAt:String(event.timestamp || '') };
-    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/.test(base.declaredAt)) { omit(omitted, 'invalid-source-time'); continue; }
+    const emitted = [];
+    const dropped = [];
+    let reason = null;
     const subjectId = portalContinuityIdentity(event.subject?.id);
-    if (DECLARATIONS.has(type) && event.subject?.kind === DECLARATIONS.get(type)) {
-      if (!subjectId) { omit(omitted, 'sensitive-identity'); continue; }
-      out.push({ type:'assertion', ...base, entity:{ kind:event.subject.kind, id:subjectId, status:status(event.epistemic_status),
-        label:redactPortalText(event.subject?.label || '', 240) || null } });
-      for (const relation of Array.isArray(event.relations) ? event.relations : []) {
+    const relations = (list) => {
+      for (const relation of Array.isArray(list) ? list : []) {
         const predicate = portalContinuityIdentity(relation?.predicate);
         const target = portalContinuityIdentity(relation?.target?.id);
-        if (!predicate || !target) { omit(omitted, 'sensitive-identity'); continue; }
-        out.push({ type:'relation', ...base, predicate, sourceId:subjectId, targetId:target, status:status(relation.epistemic_status || event.epistemic_status) });
+        if (!predicate || !target) { dropped.push('sensitive-identity'); continue; }
+        emitted.push({ type:'relation', ...base, predicate, sourceId:subjectId, targetId:target, status:status(relation.epistemic_status || event.epistemic_status) });
       }
-      continue;
-    }
-    if (CONFIRMATIONS.has(type) && event.subject?.kind === CONFIRMATIONS.get(type) && event.epistemic_status === 'DECLARED') {
+    };
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/.test(base.declaredAt)) reason = 'invalid-source-time';
+    else if (DECLARATIONS.has(type) && event.subject?.kind === DECLARATIONS.get(type)) {
+      if (!subjectId) reason = 'sensitive-identity';
+      else {
+        emitted.push({ type:'assertion', ...base, entity:{ kind:event.subject.kind, id:subjectId, status:status(event.epistemic_status),
+          label:redactPortalText(event.subject?.label || '', 240) || null } });
+        relations(event.relations);
+      }
+    } else if (CONFIRMATIONS.has(type) && event.subject?.kind === CONFIRMATIONS.get(type) && event.epistemic_status === 'DECLARED') {
       const assertionEventId = event.payload?.source_event_id;
-      const reason = redactPortalText(event.payload?.reason || '', 240);
-      if (!subjectId) { omit(omitted, 'sensitive-identity'); continue; }
-      if (!EVENT_ID.test(String(assertionEventId)) || assertionEventId === event.event_id || !reason) { omit(omitted, 'invalid-confirmation'); continue; }
-      out.push({ type:'confirmation', ...base, entity:{ kind:event.subject.kind, id:subjectId }, assertionEventId, reason });
-      continue;
+      const text = redactPortalText(event.payload?.reason || '', 240);
+      if (!subjectId) reason = 'sensitive-identity';
+      else if (!EVENT_ID.test(String(assertionEventId)) || assertionEventId === event.event_id || !text) reason = 'invalid-confirmation';
+      else emitted.push({ type:'confirmation', ...base, entity:{ kind:event.subject.kind, id:subjectId }, assertionEventId, reason:text });
+    } else if (type === 'relation.declared') {
+      if (!subjectId) reason = 'sensitive-identity';
+      else { relations(event.relations); if (!emitted.length && !dropped.length) reason = 'unsupported-relation'; }
+    } else {
+      // Other lifecycle transitions, Proof/Debt/Git/code events and payload text are not part of the
+      // representable categories; they are counted, never silently dropped.
+      reason = `unsupported-${type.split('.')[0].replace(/[^a-z0-9-]/g, '').slice(0, 30) || 'unknown'}`;
     }
-    if (type === 'relation.declared') {
-      const relations = Array.isArray(event.relations) ? event.relations : [];
-      if (!subjectId || !relations.length) { omit(omitted, subjectId ? 'unsupported-relation' : 'sensitive-identity'); continue; }
-      for (const relation of relations) {
-        const predicate = portalContinuityIdentity(relation?.predicate);
-        const target = portalContinuityIdentity(relation?.target?.id);
-        if (!predicate || !target) { omit(omitted, 'sensitive-identity'); continue; }
-        out.push({ type:'relation', ...base, predicate, sourceId:subjectId, targetId:target, status:status(relation.epistemic_status || event.epistemic_status) });
-      }
-      continue;
+    if (emitted.length) {
+      out.push(...emitted);
+      for (const item of dropped) omit(partial, item);
+    } else {
+      omit(omitted, reason || dropped[0] || 'unsupported-unknown');
     }
-    // Other lifecycle transitions, Proof/Debt/Git/code events and payload text are not part of
-    // the representable categories; they are counted, never silently dropped.
-    const family = type.split('.')[0].replace(/[^a-z0-9-]/g, '').slice(0, 30) || 'unknown';
-    omit(omitted, `unsupported-${family}`);
   }
-  return { items:out, omitted };
+  return { items:out, omitted, partial };
 }
 
 function scanPage(value, key = 'root') {
@@ -295,6 +304,8 @@ export function assertPortalMemoryPageSafe(page) {
   if (page?.schema !== MEMORY_PAGE_SCHEMA || sealMemoryPage(page).pageId !== page.pageId) throw memoryError('IDLEPROOF_PORTAL_MEMORY_UNSAFE', 'Memory page identity does not match its content.');
   if (!Array.isArray(page.items) || page.items.length > MAX_PAGE_ITEMS) throw memoryError('IDLEPROOF_PORTAL_MEMORY_UNSAFE', 'Memory page exceeds its item bound.');
   if (Buffer.byteLength(JSON.stringify(page), 'utf8') > MAX_PAGE_BYTES) throw memoryError('IDLEPROOF_PORTAL_MEMORY_UNSAFE', 'Memory page exceeds the 64 KiB wire bound.');
+  const represented = new Set(page.items.map((item) => item.sequence)).size;
+  if (represented + page.omitted.total !== page.range.to - page.range.from) throw memoryError('IDLEPROOF_PORTAL_MEMORY_UNSAFE', 'Memory page does not account for every source event in its range.');
   return true;
 }
 
@@ -306,7 +317,7 @@ function composePage({ binding, journal, epoch, after, prefixHash, events }) {
     project:{ localId:binding.localProjectId, repositoryFingerprint:binding.repositoryFingerprint },
     stream:{ kind:'core-project-events', journal, epoch },
     range:{ from:after, to:last.sequence, prefixHash:after === 0 ? null : prefixHash, headHash:last.event.event_hash },
-    items:projected.items, omitted:projected.omitted,
+    items:projected.items, omitted:projected.omitted, partial:projected.partial,
     privacy:{ sourceCodeIncluded:false, rawDiffIncluded:false, rawAgentEventsIncluded:false, rawPromptIncluded:false, rawCommandsIncluded:false, secretsRedacted:true }
   });
 }
@@ -327,7 +338,8 @@ export function buildMemoryPage({ binding, journal, epoch, after, prefixHash, ev
   const page = composePage({ binding, journal, epoch, after, prefixHash, events:events.slice(0, 1) });
   while (page.items.length && !fits(sealMemoryPage(page))) {
     page.items.pop();
-    omit(page.omitted, 'page-limit');
+    if (page.items.length) omit(page.partial, 'page-limit');
+    else { page.partial = { total:0, byReason:{} }; omit(page.omitted, 'page-limit'); } // wholly omitted now
   }
   const sealed = sealMemoryPage(page);
   if (!fits(sealed)) throw memoryError('IDLEPROOF_PORTAL_MEMORY_UNSAFE', 'A single journal event cannot fit a memory page.');
@@ -366,7 +378,7 @@ async function probeCapabilities(endpoint, fetchImpl, timeoutMs) {
   try {
     const response = await fetchImpl(endpoint, { method:'GET', headers:{ accept:'application/json' }, signal:controller.signal });
     const body = await boundedJson(response);
-    if (!response.ok) return { ok:false, reason:`HTTP_${response.status}` };
+    if (!response.ok) return { ok:false, reason:`HTTP_${response.status}`, transient:response.status === 429 || response.status >= 500 };
     return body?.memoryPages === MEMORY_PAGE_SCHEMA && body?.memoryAck === MEMORY_ACK_SCHEMA
       ? { ok:true } : { ok:false, reason:'SERVER_WITHOUT_MEMORY_PAGES' };
   } catch (error) {
@@ -402,7 +414,7 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
     if (current && sameBinding(current, binding)) return null;
     // A different endpoint/enrollment/repository is a different server stream. The old cursor is
     // kept for inspection but never reused.
-    return { ...freshState(binding), previous:current ? { endpoint:current.endpoint, journal:current.journal, epoch:current.epoch, next:current.next, status:current.status } : null };
+    return { ...freshState(binding), previous:current ? { endpoint:current.endpoint, enrollment:current.enrollment ?? null, journal:current.journal, epoch:current.epoch, next:current.next, status:current.status } : null };
   });
   if (['reset-required', 'identity-conflict'].includes(state.status)) {
     return { configured:true, ok:false, status:state.status, errorCode:state.statusCode, next:state.next, pagesSent:0, pending:Boolean(state.pending) };
@@ -419,6 +431,18 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
   let acknowledged = 0;
   for (let round = 0; round < maxPages; round += 1) {
     let page = state.pending;
+    if (page) {
+      // A restored page gets the same safety checks as a new one and must continue this cursor.
+      let valid = true;
+      try { assertPortalMemoryPageSafe(page); } catch { valid = false; }
+      valid = valid && page.stream?.journal === state.journal && page.stream?.epoch === state.epoch
+        && page.range?.from === state.next && (page.range?.prefixHash ?? null) === state.headHash
+        && page.project?.localId === binding.localProjectId && page.project?.repositoryFingerprint === binding.repositoryFingerprint;
+      if (!valid) {
+        state = updateState(cwd, (current) => ({ ...current, status:'reset-required', statusCode:'PENDING_PAGE_INVALID' }));
+        return { configured:true, ok:false, status:'reset-required', errorCode:'PENDING_PAGE_INVALID', next:state.next, pagesSent, acknowledged, pending:true };
+      }
+    }
     if (!page) {
       const source = readJournalPage(cwd, { after:state.next, expectHead:state.headHash, limit:pageEvents, timeoutMs, runner:coreRunner });
       if (source.status === 'prefix-mismatch') {

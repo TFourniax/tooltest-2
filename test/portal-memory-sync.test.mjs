@@ -217,6 +217,51 @@ test('a verified server cursor is adopted after local cursor loss; an unverifiab
   } finally { cleanup(cwd); }
 });
 
+test('a new enrollment never reuses a caught-up cursor from another enrollment', async () => {
+  const cwd = fixture();
+  try {
+    const events = journal([{ id:'decision:a' }, { id:'decision:b' }]);
+    const first = portal();
+    assert.equal((await syncPortalMemory(cwd, { fetchImpl:first.fetchImpl, coreRunner:core(events) })).next, 2);
+    writePortalConfig(cwd, { endpoint:ENDPOINT, token:`ipd_${'y'.repeat(32)}` });
+    const second = portal();
+    const result = await syncPortalMemory(cwd, { fetchImpl:second.fetchImpl, coreRunner:core(events) });
+    assert.equal(result.next, 2);
+    assert.equal(second.facts.size, 2, 'the new enrollment receives the full retained history');
+    assert.ok(portalMemoryStatus(cwd).previous.enrollment.startsWith('dwenr_'));
+    assert.ok(!fs.readFileSync(projectPaths(cwd).portalMemoryState, 'utf8').includes('y'.repeat(32)), 'the cursor file holds no token');
+  } finally { cleanup(cwd); }
+});
+
+test('a transient capability failure is deferred, not incompatible', async () => {
+  const cwd = fixture();
+  try {
+    for (const status of [429, 503]) {
+      const result = await syncPortalMemory(cwd, { coreRunner:core(journal([{}])), fetchImpl:async () => ({ status, ok:false, text:async () => '{}' }) });
+      assert.equal(result.status, 'deferred', `HTTP ${status}`);
+      assert.notEqual(portalMemoryStatus(cwd).status, 'server-incompatible');
+    }
+  } finally { cleanup(cwd); }
+});
+
+test('a tampered or mismatched pending page is never sent', async () => {
+  const cwd = fixture();
+  try {
+    const events = journal([{ id:'decision:a' }, { id:'decision:b' }]);
+    const server = portal();
+    await assert.rejects(syncPortalMemory(cwd, { fetchImpl:server.fetchImpl, coreRunner:core(events), failpoint:'before-send' }), /failpoint/);
+    const file = projectPaths(cwd).portalMemoryState;
+    const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+    saved.pending.items[0].entity.label = 'token=supersecretvalue1234';
+    fs.writeFileSync(file, JSON.stringify(saved));
+    const result = await syncPortalMemory(cwd, { fetchImpl:server.fetchImpl, coreRunner:core(events) });
+    assert.equal(result.errorCode, 'PENDING_PAGE_INVALID');
+    assert.equal(server.received.length, 0);
+    resyncPortalMemory(cwd, { coreRunner:core(events) });
+    assert.equal((await syncPortalMemory(cwd, { fetchImpl:server.fetchImpl, coreRunner:core(events) })).next, 2, 'resync recovers explicitly');
+  } finally { cleanup(cwd); }
+});
+
 test('projection keeps the allowlist: labels redacted, secret identities omitted and counted, other events counted', () => {
   const events = journal([
     { id:'decision:a', label:'Use token=supersecretvalue123 carefully', relations:[{ predicate:'motivated_by', target:{ id:'objective:x', kind:'objective' } }] },
@@ -225,11 +270,14 @@ test('projection keeps the allowlist: labels redacted, secret identities omitted
     { type:'decision.confirmed', id:'decision:a', payload:{ source_event_id:'dwev_'.padEnd(29, '0'), reason:'Still applies' } },
     { type:'objective.declared', kind:'objective', id:'objective:東京-🚀', label:'Unicode' }
   ]);
-  const { items, omitted } = projectJournalEvents(events.map((event, i) => ({ sequence:i + 1, event })));
+  const { items, omitted, partial } = projectJournalEvents(events.map((event, i) => ({ sequence:i + 1, event })));
   assert.equal(items[0].entity.label.includes('supersecret'), false);
   assert.deepEqual(items.map((item) => item.type), ['assertion', 'relation', 'confirmation', 'assertion']);
   assert.equal(items[3].entity.id, 'objective:東京-🚀');
   assert.deepEqual(omitted, { total:2, byReason:{ 'sensitive-identity':1, 'unsupported-change':1 } });
+  assert.deepEqual(partial, { total:0, byReason:{} });
+  // Every event is represented or counted exactly once.
+  assert.equal(new Set(items.map((item) => item.sequence)).size + omitted.total, events.length);
   assert.ok(!JSON.stringify(items).includes('why'));
 });
 
@@ -241,8 +289,25 @@ test('pages respect the 256-item and 64 KiB bounds without changing the wire lim
   assert.equal(page.range.to, 1, 'only the event that fits is consumed');
   assert.ok(page.items.length <= 256);
   assert.ok(Buffer.byteLength(JSON.stringify(page)) <= 64 * 1024);
-  assert.ok(page.omitted.byReason['page-limit'] > 0, 'items that did not fit are counted, not silently dropped');
+  assert.ok(page.partial.byReason['page-limit'] > 0, 'items that did not fit are counted, not silently dropped');
+  assert.equal(page.omitted.total, 0, 'the consumed event is still represented');
   assertPortalMemoryPageSafe(page);
+});
+
+test('relations with a sensitive endpoint are partial drops; a wholly unrepresentable event is one omission', () => {
+  const events = journal([
+    { id:'decision:a', relations:[{ predicate:'affects', target:{ id:'component:ok', kind:'component' } }, { predicate:'affects', target:{ id:'ghp_abcdefghijklmnopqrstuvwxyz0123', kind:'component' } }] },
+    { type:'relation.declared', id:'decision:a', relations:[{ predicate:'affects', target:{ id:'ghp_abcdefghijklmnopqrstuvwxyz0123', kind:'component' } }] }
+  ]);
+  const { items, omitted, partial } = projectJournalEvents(events.map((event, i) => ({ sequence:i + 1, event })));
+  assert.deepEqual(items.map((item) => item.type), ['assertion', 'relation']);
+  assert.deepEqual(partial, { total:1, byReason:{ 'sensitive-identity':1 } });
+  assert.deepEqual(omitted, { total:1, byReason:{ 'sensitive-identity':1 } });
+  const page = buildMemoryPage({ binding:{ localProjectId:'0'.repeat(24), repositoryFingerprint:`dwrepo_${'1'.repeat(24)}` }, journal:`dwjrn_${'a'.repeat(64)}`, epoch:1,
+    after:0, prefixHash:null, events:events.map((event, i) => ({ sequence:i + 1, event })) });
+  assertPortalMemoryPageSafe(page);
+  const uncovered = sealMemoryPage({ ...page, omitted:{ total:0, byReason:{} } });
+  assert.throws(() => assertPortalMemoryPageSafe(uncovered), /every source event/);
 });
 
 test('legacy Core without paging is used only when it proves the complete journal', () => {

@@ -59,7 +59,7 @@ try {
   assert.ok(confirmation, 'DECLARED confirmation is exported');
   assert.equal(assertionIds.get(confirmation.assertionEventId)?.id, 'DEC-RETRY', 'confirmation cites the exact assertion event');
   assert.ok(items.some((item) => item.type === 'relation' && item.predicate === 'motivated_by' && item.sourceId === 'DEC-RETRY' && item.targetId === 'OBJ-IDEMPOTENT'));
-  assert.equal(omitted.total + new Set(items.map((item) => item.eventId)).size >= total - 1, true, 'every event is exported or counted');
+  assert.equal(new Set(items.map((item) => item.sequence)).size + omitted.total, total, 'every event is represented or counted exactly once');
 
   // Cross-path identity: a snapshot citation and the page occurrence share event identity, kind and status.
   const context = loadContinuityContext(root, 'TASK-REFUND refund retry', { timeoutMs:5000 });

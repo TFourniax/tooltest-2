@@ -11,6 +11,10 @@ Portal as `idleproof.portal-memory-page.v1`, oldest first, then only new events.
 - Projection: task/objective/decision/invariant/failed-approach assertions, DECLARED
   confirmations and recorded relations, with the snapshot identity and redaction rules. Payload
   text, other lifecycle transitions and Proof/Debt/Git/code events are counted in `omitted`.
+- Coverage: every source event in a page range is either represented by at least one item or
+  counted once in `omitted` (per event); items dropped from represented events (sensitive
+  endpoints, page bounds) are counted in `partial`. Portal refuses a page that does not add up
+  (`INCOMPLETE_COVERAGE`), so an acknowledged cursor can never skip history.
 - Bounds: at most 256 items and 64 KiB per page (the snapshot wire limit is unchanged).
 - Durability: the exact page is saved in `.idleproof/portal-memory.json` before sending; the
   cursor advances only after an ack that binds the same page, stream and range. A retransmission
