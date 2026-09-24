@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {spawnSync} from 'node:child_process';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
@@ -90,4 +91,56 @@ test('advisory extraction can read a legacy command without migrating configurat
     assert.equal(fs.existsSync(paths.diffwitnessConfig),false);
     assert.equal(fs.readFileSync(paths.defitnessConfigLegacy,'utf8'),before);
   } finally { fs.rmSync(cwd,{recursive:true,force:true}); }
+});
+
+test('failure diagnostics retain only bounded process metadata and cannot change admission',()=>{
+  for(const result of [
+    {status:null,error:Object.assign(new Error('PRIVATE source command'),{code:'ETIMEDOUT'}),signal:'SIGTERM',stdout:Buffer.from('PRIVATE'),stderr:Buffer.from('PRIVATE error')},
+    {status:2,stdout:Buffer.from('PRIVATE'),stderr:Buffer.from('PRIVATE error')},
+    {status:0,stdout:Buffer.from('PRIVATE malformed JSON'),stderr:Buffer.from('PRIVATE error')},
+  ]) {
+    const records=[];
+    const value=loadPythonExtractions('.', [source], {command:'PRIVATE command',run:()=>result,onFailure:value=>records.push(value)});
+    assert.equal(value.byPath.size,0);assert.equal(records.length,1);
+    const d=records[0];
+    assert.deepEqual(Object.keys(d).sort(),['schema','classification','qualification','reason','stage','elapsedMs','code','status','signal','stdoutBytes','stderrBytes'].sort());
+    assert.equal(d.qualification,false);assert.equal(d.stdoutBytes,result.stdout.length);assert.equal(d.stderrBytes,result.stderr.length);
+    assert.equal(d.code,result.error?.code || null);assert.equal(d.status,result.status);
+    assert.ok(Number.isFinite(d.elapsedMs)&&d.elapsedMs>=0);
+    assert.ok(!JSON.stringify(d).includes('PRIVATE'));
+    assert.equal(loadPythonExtractions('.', [source], {command:'x',run:()=>result,onFailure:()=>{throw Error('consumer');}}).byPath.size,0);
+  }
+  const records=[];
+  assert.equal(loadPythonExtractions('.', [source],{command:'x',run:()=>({status:0,stdout:Buffer.from(JSON.stringify(response()))}),onFailure:x=>records.push(x)}).byPath.size,1);
+  assert.deepEqual(records,[]);
+});
+
+test('actual missing executable is reported at the failed invocation through task context',async()=>{
+  const {extractTaskSignals}=await import('../src/context.mjs');
+  const cwd=fs.mkdtempSync(path.join(os.tmpdir(),'idleproof-failed-spawn-'));
+  const previous=process.env.DIFFWITNESS_BIN;
+  try {
+    fs.writeFileSync(path.join(cwd,'a.py'),source.text);
+    process.env.DIFFWITNESS_BIN=path.join(cwd,'missing-executable');
+    const records=[];
+    const value=extractTaskSignals(cwd,{currentResource:'a.py'},{onStructureFailure:x=>records.push(x)});
+    assert.equal(value.structureCoverage.canonical,false);
+    assert.equal(records.length,1);assert.equal(records[0].code,'ENOENT');assert.equal(records[0].stage,'process');
+    assert.ok(!JSON.stringify(records).includes(cwd));
+  }finally{
+    if(previous===undefined) delete process.env.DIFFWITNESS_BIN;else process.env.DIFFWITNESS_BIN=previous;
+    fs.rmSync(cwd,{recursive:true,force:true});
+  }
+});
+
+test('async diagnostic rejections cannot crash the real host process',()=>{
+  const moduleURL=new URL('../src/structure-provider.mjs',import.meta.url).href;
+  const result=spawnSync(process.execPath,['--input-type=module','-e',`
+    import {loadPythonExtractions} from ${JSON.stringify(moduleURL)};
+    const sources=${JSON.stringify([source])};
+    const value=loadPythonExtractions('.',sources,{command:'x',run:()=>({status:2}),onFailure:async()=>{throw Error('observer rejected');}});
+    if(value.byPath.size!==0) process.exit(12);
+    await new Promise(resolve=>setImmediate(resolve));
+  `],{encoding:'utf8',timeout:5000});
+  assert.equal(result.status,0,result.stderr);assert.equal(result.stderr,'');
 });

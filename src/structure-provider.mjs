@@ -74,8 +74,26 @@ export function validStructureExtractions(response,sources,{details=false}={}) {
     &&response.coverage.unsupported===0&&response.coverage.unparsed===sources.length-parsed;
 }
 
-export function loadStructureExtractions(cwd,sources,{command=null,run=spawnSync,details=false,timeoutMs=TIMEOUT_MS}={}) {
-  const unavailable=reason=>({byPath:new Map(),reason});
+export function loadStructureExtractions(cwd,sources,{command=null,run=spawnSync,details=false,timeoutMs=TIMEOUT_MS,onFailure=null}={}) {
+  const started=typeof onFailure==='function' ? performance.now() : null;
+  let processResult=null;
+  const unavailable=(reason,stage='admission',failure=null)=>{
+    if(started!==null) {
+      const code=failure?.code || processResult?.error?.code;
+      const allowedCodes=new Set(['ETIMEDOUT','ENOENT','EACCES','EPERM','EAGAIN','ENOBUFS','EBUSY']);
+      const signal=processResult?.signal;
+      const diagnostic={schema:'idleproof-extraction-failure-1',classification:'MACHINE',qualification:false,
+        reason,stage,elapsedMs:performance.now()-started,
+        code:typeof code==='string' ? allowedCodes.has(code)?code:'other' : null,
+        status:Number.isInteger(processResult?.status)?processResult.status:null,
+        signal:['SIGTERM','SIGKILL','SIGABRT','SIGSEGV','SIGINT'].includes(signal)?signal:null,
+        stdoutBytes:Buffer.isBuffer(processResult?.stdout)?processResult.stdout.length:null,
+        stderrBytes:Buffer.isBuffer(processResult?.stderr)?processResult.stderr.length:null};
+      // Diagnostic consumers cannot promote results, retry, or change failures.
+      try {Promise.resolve(onFailure(diagnostic)).catch(()=>{});} catch {}
+    }
+    return {byPath:new Map(),reason};
+  };
   if(typeof details!=='boolean'||!Number.isInteger(timeoutMs)||timeoutMs<=0||timeoutMs>TIMEOUT_MS)
     return unavailable('invalid-extraction-options');
   if(!Array.isArray(sources)||sources.length>MAX_FILES) return unavailable('invalid-source-batch');
@@ -97,19 +115,19 @@ export function loadStructureExtractions(cwd,sources,{command=null,run=spawnSync
     } catch { return unavailable('invalid-integration-configuration'); }
   }
   try {
-    const result=run(command,['state','extract','--json'],{cwd,input:JSON.stringify({schema_version:details?'structure-request-2':'structure-request-1',files}),
+    const result=processResult=run(command,['state','extract','--json'],{cwd,input:JSON.stringify({schema_version:details?'structure-request-2':'structure-request-1',files}),
       windowsHide:true,timeout:timeoutMs,maxBuffer:RESPONSE_BYTES});
-    if(result.error||result.status!==0) return unavailable('core-extraction-unavailable');
-    if(!Buffer.isBuffer(result.stdout)||result.stdout.length>RESPONSE_BYTES) return unavailable('core-extraction-rejected');
+    if(result.error||result.status!==0) return unavailable('core-extraction-unavailable','process');
+    if(!Buffer.isBuffer(result.stdout)||result.stdout.length>RESPONSE_BYTES) return unavailable('core-extraction-rejected','protocol');
     const raw=new TextDecoder('utf-8',{fatal:true}).decode(result.stdout);
     const response=JSON.parse(raw);
     // Core emits canonical strings/numbers. A lossless native JSON round-trip
     // rejects duplicate keys and alternate encodings without a second parser.
     const compact=raw.replace(/("(?:\\.|[^"\\])*")|\s+/g, (match,string)=>string??'');
-    if(JSON.stringify(response)!==compact) return unavailable('core-extraction-rejected');
-    if(!validStructureExtractions(response,sources,{details})) return unavailable('core-extraction-rejected');
+    if(JSON.stringify(response)!==compact) return unavailable('core-extraction-rejected','protocol');
+    if(!validStructureExtractions(response,sources,{details})) return unavailable('core-extraction-rejected','protocol');
     return {byPath:new Map(response.files.map(file=>[file.path,file])),reason:null};
-  } catch { return unavailable('core-extraction-rejected'); }
+  } catch(error) { return unavailable('core-extraction-rejected',processResult?'protocol':'process',error); }
 }
 
 // Preserve the original Python-only API while all languages share admission.

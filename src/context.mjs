@@ -202,14 +202,14 @@ function inspectTaskFile(cwd, file, prompt, admitted, extractions) {
   return signal;
 }
 
-export function extractTaskSignals(cwd = process.cwd(), session = {}) {
+export function extractTaskSignals(cwd = process.cwd(), session = {}, {onStructureFailure=null} = {}) {
   const prompt = String(session.prompt || '');
   const currentFile = preferredContextFile(session);
   const candidates = unique([currentFile, ...(session.touchedFiles || []).slice(-MAX_RELATED_FILES)]).filter(Boolean).slice(-MAX_RELATED_FILES);
   const admitted = new Map(unique([currentFile,...candidates]).map(file=>[file,readProjectSource(cwd,file)]));
   const sources = [...new Map([...admitted.values()].filter(Boolean).map(source=>[source.relative,source])).values()]
     .filter(source=>supportsStructurePath(source.relative));
-  const extractions = loadStructureExtractions(cwd,sources);
+  const extractions = loadStructureExtractions(cwd,sources,{onFailure:onStructureFailure});
   const current = inspectTaskFile(cwd, currentFile, prompt, admitted, extractions);
   const relatedFiles = candidates.map((file) => inspectTaskFile(cwd, file, prompt, admitted, extractions));
   const allTechnologies = unique([...(current.technologies || []), ...relatedFiles.flatMap((item) => item.technologies || [])]).slice(0, 16);
