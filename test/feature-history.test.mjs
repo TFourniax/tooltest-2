@@ -77,6 +77,27 @@ test('conflicting archive bytes are retained and stop writes without overwriting
   }finally{fs.rmSync(cwd,{recursive:true,force:true});}
 });
 
+test('first upgraded mutation archives retained legacy rows before hot-window eviction',()=>{
+  const cwd=fs.mkdtempSync(path.join(os.tmpdir(),'idleproof-history-upgrade-'));
+  try {
+    const state=freshState(cwd),key=model(0).featureKey;
+    for(let i=0;i<12;i++)rememberFeature(state,{id:'legacy'},model(i));
+    fs.mkdirSync(path.join(cwd,'.idleproof'));
+    const original=JSON.stringify(state,null,2)+'\n';fs.writeFileSync(path.join(cwd,'.idleproof','state.json'),original);
+    const retained=structuredClone(loadState(cwd).features[key].lineageObservations);
+    assert.equal(retained.items.length,8);assert.equal(retained.discarded,4);
+    mutateState(cwd,loaded=>{rememberFeature(loaded,{id:'upgraded'},model(12));});
+    const current=loadState(cwd).features[key].lineageObservations;
+    assert.equal(current.items.length,8);assert.equal(current.discarded,5);
+    assert.equal(fs.readFileSync(path.join(cwd,'.idleproof','state.json.bak'),'utf8'),original);
+    const archived=readFeatureHistory(cwd,key);
+    assert.equal(archived.items.length,9);
+    for(const item of retained.items)assert.deepEqual(readFeatureObservation(cwd,key,item.id),item);
+    assert.deepEqual(readFeatureObservation(cwd,key,current.items.at(-1).id),current.items.at(-1));
+    assert.equal(archived.olderHistory,'unknown');
+  } finally {fs.rmSync(cwd,{recursive:true,force:true});}
+});
+
 test('unsafe keys, cursors, duplicate JSON and symlink archives are rejected',()=>{
   const cwd=fs.mkdtempSync(path.join(os.tmpdir(),'idleproof-history-adversarial-'));
   try {

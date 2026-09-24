@@ -6,7 +6,7 @@ import {randomUUID} from 'node:crypto';
 import {validFeatureObservation,validFeatureObservations} from './feature-observations.mjs';
 
 const pending=new WeakMap(), pendingProjects=new Map(), MAX_BYTES=16*1024+1, MAX_PENDING_BYTES=4*1024*1024;
-const ARCHIVE_CHECKPOINT='idleproof.feature-observation-archive.v1';
+export const ARCHIVE_CHECKPOINT='idleproof.feature-observation-archive.v1';
 const featureKey=value=>typeof value==='string'&&/^[a-f0-9]{24}$/.test(value);
 const observationId=value=>typeof value==='string'&&/^ipfo_[a-f0-9]{64}$/.test(value);
 
