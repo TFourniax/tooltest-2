@@ -47,8 +47,46 @@ function cleanPath(value = '') {
   // A literal POSIX backslash cannot be a portable source path. Omit it,
   // including foreign Windows/UNC paths, instead of exporting an alias.
   if (projectPath.includes('\\')) return null;
-  if (!projectPath || projectPath.startsWith('/') || /^[A-Za-z]:\//.test(projectPath) || projectPath.includes('../')) return null;
-  return projectPath.slice(0,300);
+  if (!projectPath || projectPath.length>300 || /[\u0000-\u001f\u007f-\u009f]/.test(projectPath) || projectPath.startsWith('/') || /^[A-Za-z]:\//.test(projectPath) || projectPath.split('/').includes('..')) return null;
+  return projectPath;
+}
+
+function pathCoverageWarning(paths, rowLimited=[]) {
+  const rejected=new Set(paths.map(normalizedProjectPath).filter(value=>value && cleanPath(value)===null));
+  const limited=new Set(rowLimited.map(cleanPath).filter(Boolean));
+  const omitted=new Set([...rejected,...limited]);
+  if (!omitted.size) return null;
+  const long=[...omitted].filter(value=>value.length>300).length;
+  return `Portal path coverage incomplete: ${omitted.size} unique path(s) omitted (${long} exceed 300 characters; ${rejected.size-long} are not portable relative paths${limited.size ? `; ${limited.size} hit projection row limits` : ''}).`;
+}
+
+function pathsBeyondLimit(paths, limit) {
+  const admitted=paths.map(cleanPath).filter(Boolean);
+  const retained=new Set(admitted.slice(0,limit));
+  return admitted.slice(limit).filter(value=>!retained.has(value));
+}
+
+function storyLimitedPaths(story) {
+  const admitted=(story || []).filter(item=>item.type==='file' ? cleanPath(item.label) : redact(item.label,160));
+  const retained=new Set(admitted.slice(0,12).filter(item=>item.type==='file').map(item=>cleanPath(item.label)));
+  return admitted.slice(12).filter(item=>item.type==='file' && !retained.has(cleanPath(item.label))).map(item=>item.label);
+}
+
+function continuityLimitedPaths(value) {
+  if (!value) return [];
+  const components=(value.components || []).map(continuityComponent).filter(Boolean);
+  const changes=(value.recentRelatedChanges || []).filter(item=>/^dwchg_[a-f0-9]{24}$/.test(item.changeId));
+  const retainedChanges=new Set(changes.slice(0,8).flatMap(item=>(item.files || []).map(cleanPath).filter(Boolean).slice(0,8)));
+  return [...pathsBeyondLimit(components.map(item=>item.path),12),
+    ...changes.flatMap(item=>item.files || []).map(cleanPath).filter(value=>value && !retainedChanges.has(value))];
+}
+
+function continuityPaths(value) {
+  return [...(value?.components || []).map(item=>item.path), ...(value?.recentRelatedChanges || []).flatMap(item=>item.files || [])];
+}
+
+function prependWarning(memory, warning) {
+  if (warning) memory.warnings=unique([warning,...memory.warnings]).slice(0,8);
 }
 
 function unique(values) { return [...new Set((values || []).filter(Boolean))]; }
@@ -143,7 +181,7 @@ function safeContinuityMemory(value) {
   const omitted=identities.some(id=>continuityIdentity(id)===null);
   const warnings=value.warnings.slice(0,omitted ? 7 : 8).map(value=>redact(value,240));
   if (omitted) warnings.unshift('Some memory rows were omitted because their identities contain sensitive data.');
-  return {
+  const memory={
     schema:'idleproof.portal-continuity.v1',
     contextId,
     eventHead:/^[a-f0-9]{64}$/.test(String(value.state?.eventHead || '')) ? value.state.eventHead : null,
@@ -159,6 +197,18 @@ function safeContinuityMemory(value) {
     recentChanges:(Array.isArray(value.recentRelatedChanges)?value.recentRelatedChanges:[]).map(continuityChange).filter(Boolean).slice(0,8),
     warnings
   };
+  // A locally known row that is omitted cannot remain a projected endpoint.
+  // External citations absent from the input context are not invented rows.
+  const sourceIds=new Set(['objectives','tasks','decisions','invariants','failedApproaches','components'].flatMap(key=>(value[key] || []).map(item=>item.id)));
+  for (const item of value.knownDebt) sourceIds.add(item.debt_id);
+  for (const item of value.recentRelatedChanges) sourceIds.add(item.changeId);
+  const retainedIds=new Set(['objectives','tasks','decisions','invariants','failedApproaches','components','knownDebt'].flatMap(key=>memory[key].map(item=>item.id)));
+  for (const item of memory.recentChanges) retainedIds.add(item.changeId);
+  const removedIds=new Set([...sourceIds].filter(id=>!retainedIds.has(id)));
+  memory.relations=memory.relations.filter(item=>!removedIds.has(item.sourceId)&&!removedIds.has(item.targetId));
+  if (removedIds.size || memory.relations.length<value.relations.length) prependWarning(memory,'Some memory rows or relations were omitted by Portal privacy, path or row limits; coverage is incomplete.');
+  prependWarning(memory,pathCoverageWarning(continuityPaths(value),continuityLimitedPaths(value)));
+  return memory;
 }
 
 function safeTaskSummary(session=null, explanation=null) {
@@ -168,10 +218,10 @@ function safeTaskSummary(session=null, explanation=null) {
   const route=redact(signals.route || '',120);
   const table=redact(signals.table || '',120);
   const concept=redact(explanation?.concept?.name || explanation?.concept?.id || '',100);
-  if (symbol && file) return `Work around ${symbol} in ${file}`;
-  if (route && file) return `Work around route ${route} in ${file}`;
-  if (table && file) return `Work around data surface ${table} in ${file}`;
-  if (file) return `Work involving ${file}`;
+  if (symbol && file && `Work around ${symbol} in ${file}`.length<=300) return `Work around ${symbol} in ${file}`;
+  if (route && file && `Work around route ${route} in ${file}`.length<=300) return `Work around route ${route} in ${file}`;
+  if (table && file && `Work around data surface ${table} in ${file}`.length<=300) return `Work around data surface ${table} in ${file}`;
+  if (file) return `Work involving ${file}`.length<=300 ? `Work involving ${file}` : 'Work involving a file listed in this snapshot.';
   if (concept) return `Work involving ${concept}`;
   return null;
 }
@@ -270,14 +320,33 @@ export function projectLocalId(project = '', seed = '') {
 export function buildPortalSnapshot({ state={}, session=null, featureModel=null, projectModel=null, explanation=null, assurance=null }={}) {
   assertAssuranceSafe(assurance);
   const prompt=promptMetadata(session);
-  const filePaths=unique([
+  const allFilePaths=unique([
     ...(session?.touchedFiles || []).map(cleanPath),
     ...(explanation?.files || []).map((item)=>cleanPath(item.path)),
     ...(featureModel?.story || []).filter((item)=>item.type==='file').map((item)=>cleanPath(item.label))
-  ]).slice(0,40);
+  ]);
+  const filePaths=allFilePaths.slice(0,40);
   const surfaces=featureModel?.surfaces || {};
   const metrics=state.metrics || {};
   const continuity=safeContinuityMemory(projectModel?.continuity || null);
+  const pathWarning=pathCoverageWarning([
+    ...(session?.touchedFiles || []), session?.currentResource, session?.taskSignals?.file,
+    ...(explanation?.files || []).map(item=>item.path),
+    ...(featureModel?.story || []).filter(item=>item.type==='file').map(item=>item.label),
+    ...(featureModel?.tests || []), ...(continuity ? continuityPaths(projectModel.continuity) : [])
+  ], [
+    ...allFilePaths.slice(40),
+    ...pathsBeyondLimit((explanation?.files || []).map(item=>item.path),20),
+    ...storyLimitedPaths(featureModel?.story),
+    ...pathsBeyondLimit(featureModel?.tests || [],12),
+    ...continuityLimitedPaths(continuity ? projectModel.continuity : null)
+  ]);
+  if (continuity) prependWarning(continuity,pathWarning);
+  const taskSummary=safeTaskSummary(session,explanation);
+  // Preserve existing v1 consumers: coverage is visible in their existing text
+  // fields. Do not add an unsupported field or truncate a path into an alias.
+  const compactTask=filePaths.length ? 'Work involving the files listed in this snapshot.' : 'Work with partial path coverage.';
+  const summary=pathWarning ? `${taskSummary && `${taskSummary} ${pathWarning}`.length<=300 ? taskSummary : compactTask} ${pathWarning}` : taskSummary;
   const repositoryFingerprint=REPOSITORY_FINGERPRINT_RE.test(String(projectModel?.repositoryFingerprint || '')) ? String(projectModel.repositoryFingerprint) : null;
   const snapshot={
     schema:'idleproof.portal-snapshot.v1',
@@ -285,7 +354,7 @@ export function buildPortalSnapshot({ state={}, session=null, featureModel=null,
     generatedAt:new Date().toISOString(),
     project:{ name:redact(state.project || 'project',120), localId:projectLocalId(state.project || 'project', state.createdAt || ''), repositoryFingerprint },
     task:{
-      summary:safeTaskSummary(session,explanation),
+      summary,
       promptDigest:prompt.digest,
       promptChars:prompt.chars,
       source:redact(session?.source || 'agent',40),
