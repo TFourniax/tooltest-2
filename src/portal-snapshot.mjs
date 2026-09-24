@@ -76,9 +76,9 @@ function continuityLimitedPaths(value) {
   if (!value) return [];
   const components=(value.components || []).map(continuityComponent).filter(Boolean);
   const changes=(value.recentRelatedChanges || []).filter(item=>/^dwchg_[a-f0-9]{24}$/.test(item.changeId));
-  return [...components.slice(12).map(item=>item.path),
-    ...changes.slice(0,8).flatMap(item=>pathsBeyondLimit(item.files || [],8)),
-    ...changes.slice(8).flatMap(item=>item.files || [])];
+  const retainedChanges=new Set(changes.slice(0,8).flatMap(item=>(item.files || []).map(cleanPath).filter(Boolean).slice(0,8)));
+  return [...pathsBeyondLimit(components.map(item=>item.path),12),
+    ...changes.flatMap(item=>item.files || []).map(cleanPath).filter(value=>value && !retainedChanges.has(value))];
 }
 
 function continuityPaths(value) {

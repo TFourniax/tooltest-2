@@ -141,3 +141,15 @@ test('duplicate paths beyond a story cap are not falsely reported missing',()=>{
   assert.doesNotMatch(snapshot.task.summary || '',/path coverage incomplete/);
   assertPortalSnapshotSafe(snapshot);
 });
+
+test('duplicate paths in capped components and recent changes remain represented',()=>{
+  const input=args(['src/a.js']);
+  input.projectModel.continuity.components=Array.from({length:13},(_,i)=>({id:`COMP-${i}`,path:'src/a.js',provider:'python',epistemicStatus:'OBSERVED'}));
+  input.projectModel.continuity.recentRelatedChanges=Array.from({length:8},(_,i)=>({changeId:'dwchg_'+i.toString(16).padStart(24,'0'),files:['src/a.js'],proof:null,softwareDebt:null,understanding:null}));
+  const snapshot=buildPortalSnapshot(input);
+  assert.equal(snapshot.projectMemory.continuity.components.length,12);
+  assert.equal(snapshot.projectMemory.continuity.recentChanges.length,8);
+  assert.doesNotMatch(snapshot.task.summary || '',/path coverage incomplete/);
+  assert.ok(snapshot.projectMemory.continuity.warnings.some(x=>/memory rows.*omitted/.test(x)));
+  assertPortalSnapshotSafe(snapshot);
+});
