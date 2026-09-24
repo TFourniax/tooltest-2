@@ -305,6 +305,55 @@ test('status describes the currently configured enrollment, never a retained cur
   } finally { cleanup(cwd); }
 });
 
+test('a disconnect or re-enrollment during an in-flight page stops further sends with the old token', async () => {
+  for (const change of ['disconnect', 'reenroll']) {
+    const cwd = fixture();
+    try {
+      const events = journal([{ id:'decision:a' }, { id:'decision:b' }, { id:'decision:c' }]);
+      const server = portal();
+      const tokens = [];
+      const racing = async (url, init) => {
+        if (init?.method === 'POST') {
+          tokens.push(init.headers.authorization);
+          if (tokens.length === 1) {
+            if (change === 'disconnect') disconnectPortal(cwd);
+            else writePortalConfig(cwd, { endpoint:ENDPOINT, token:`ipd_${'q'.repeat(32)}` });
+          }
+        }
+        return server.fetchImpl(url, init);
+      };
+      const result = await syncPortalMemory(cwd, { fetchImpl:racing, coreRunner:core(events), pageEvents:1 });
+      assert.equal(result.status, 'superseded', change);
+      assert.equal(result.errorCode, 'CONFIG_CHANGED', change);
+      assert.equal(tokens.length, 1, `${change}: no page is sent after the configuration changed`);
+    } finally { cleanup(cwd); }
+  }
+});
+
+test('a resync that overlaps a re-enrollment never restores the obsolete binding', async () => {
+  const cwd = fixture();
+  try {
+    const events = journal([{ id:'decision:a' }, { id:'decision:b' }]);
+    const OLD = `ipd_${'x'.repeat(32)}`; const NEW = `ipd_${'w'.repeat(32)}`;
+    // The new enrollment already holds an acknowledged cursor.
+    writePortalConfig(cwd, { endpoint:ENDPOINT, token:NEW });
+    assert.equal((await syncPortalMemory(cwd, { fetchImpl:portal().fetchImpl, coreRunner:core(events) })).next, 2);
+    const before = fs.readFileSync(projectPaths(cwd).portalMemoryState, 'utf8');
+    // A resync started under the old configuration reads the journal while the user re-enrolls.
+    writePortalConfig(cwd, { endpoint:ENDPOINT, token:OLD });
+    let raced = false;
+    const racing = (args) => {
+      if (!raced) { raced = true; writePortalConfig(cwd, { endpoint:ENDPOINT, token:NEW }); }
+      return core(events)(args);
+    };
+    const stale = resyncPortalMemory(cwd, { coreRunner:racing });
+    assert.equal(stale.status, 'superseded');
+    assert.equal(stale.errorCode, 'CONFIG_CHANGED');
+    assert.equal(fs.readFileSync(projectPaths(cwd).portalMemoryState, 'utf8'), before, 'the new enrollment cursor is untouched');
+    assert.equal(portalMemoryStatus(cwd).next, 2);
+  } finally { cleanup(cwd); }
+});
+
 test('a transient capability failure is deferred, not incompatible', async () => {
   const cwd = fixture();
   try {

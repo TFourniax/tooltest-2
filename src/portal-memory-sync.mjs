@@ -137,6 +137,14 @@ function sameBinding(state, binding) {
     && state.localProjectId === binding.localProjectId && state.repositoryFingerprint === binding.repositoryFingerprint;
 }
 
+// The cursor file does not change on `portal configure`/`portal disconnect`, so work that started
+// under one configuration re-reads it before every write and every send and stops once it changed.
+function sameConfig(cwd, config) {
+  let current;
+  try { current = readPortalConfig(cwd); } catch { return false; }
+  return Boolean(current?.enabled) && current.endpoint === config.endpoint && current.token === config.token;
+}
+
 // ---------------------------------------------------------------------------------------------
 // Core journal source
 // ---------------------------------------------------------------------------------------------
@@ -410,8 +418,10 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
   const binding = currentBinding(cwd, config);
   if (!binding.repositoryFingerprint) return { configured:true, ok:false, status:'source-unavailable', errorCode:'REPOSITORY_FINGERPRINT_UNAVAILABLE', pagesSent:0 };
 
+  if (!sameConfig(cwd, config)) return { configured:true, ok:false, status:'superseded', errorCode:'CONFIG_CHANGED', pagesSent:0 };
   let state = updateState(cwd, (current) => {
     if (current && sameBinding(current, binding)) return null;
+    if (!sameConfig(cwd, config)) return null;
     // A different endpoint/enrollment/repository is a different server stream. The old cursor is
     // kept for inspection but never reused.
     return { ...freshState(binding), previous:current ? { endpoint:current.endpoint, enrollment:current.enrollment ?? null, journal:current.journal, epoch:current.epoch, next:current.next, status:current.status } : null };
@@ -424,7 +434,7 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
   const guarded = (owns, mutate) => {
     let applied = false;
     const next = updateState(cwd, (current) => {
-      if (!owns(current)) return null;
+      if (!owns(current) || !sameConfig(cwd, config)) return null;
       applied = true;
       return mutate(current);
     });
@@ -438,7 +448,7 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
   const ownsCursor = (current, view) => Boolean(current) && sameBinding(current, binding) && current.journal === view.journal
     && current.epoch === view.epoch && current.next === view.next && (current.headHash ?? null) === view.headHash;
   const cursorBound = (view, mutate) => guarded((current) => ownsCursor(current, view), mutate);
-  const superseded = () => ({ configured:true, ok:false, status:'superseded', errorCode:'CURSOR_SUPERSEDED', pagesSent, acknowledged });
+  const superseded = () => ({ configured:true, ok:false, status:'superseded', errorCode:sameConfig(cwd, config) ? 'CURSOR_SUPERSEDED' : 'CONFIG_CHANGED', pagesSent, acknowledged });
   let pagesSent = 0;
   let acknowledged = 0;
   if (['reset-required', 'identity-conflict'].includes(state.status)) {
@@ -455,7 +465,7 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
   if (!state) return superseded();
 
   for (let round = 0; round < maxPages; round += 1) {
-    if (!state || !sameBinding(state, binding)) return superseded();
+    if (!state || !sameBinding(state, binding) || !sameConfig(cwd, config)) return superseded();
     const view = cursorView(state);
     let page = state.pending;
     if (page) {
@@ -509,6 +519,8 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
     }
     if (failpoint === 'before-send') throw memoryError('IDLEPROOF_TEST_FAILPOINT', 'failpoint before-send');
 
+    // Never send with a token or endpoint the user has since replaced or disconnected.
+    if (!sameConfig(cwd, config) || !ownsStream(readPortalMemoryState(cwd), page)) return superseded();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     timer.unref?.();
@@ -589,10 +601,15 @@ export function resyncPortalMemory(cwd = process.cwd(), { coreRunner = null } = 
   const source = readJournalPage(cwd, { after:0, limit:1, runner:coreRunner });
   if (source.status !== 'ok') return { configured:true, ok:false, status:'source-unavailable', errorCode:source.status, detail:source.detail };
   const journal = source.genesis ? `dwjrn_${source.genesis}` : null;
+  let applied = false;
   const state = updateState(cwd, (current) => {
+    // A configuration replaced during the journal read wins: never restore the obsolete binding.
+    if (!sameConfig(cwd, config)) return null;
+    applied = true;
     const epoch = current && current.journal === journal && sameBinding(current, binding) ? current.epoch + 1 : 1;
     return { ...freshState(binding, journal, epoch), previous:current ? { journal:current.journal, epoch:current.epoch, next:current.next, status:current.status, statusCode:current.statusCode } : null };
   });
+  if (!applied) return { configured:true, ok:false, status:'superseded', errorCode:'CONFIG_CHANGED' };
   return { configured:true, ok:true, status:'active', journal:state.journal, epoch:state.epoch, next:0 };
 }
 
