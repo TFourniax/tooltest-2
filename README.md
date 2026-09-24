@@ -414,3 +414,25 @@ The hosted Portal, longitudinal intelligence and commercial service implementati
 ## License
 
 MIT.
+
+
+### Inspect older feature observations
+
+IdleProof keeps source-bound feature observations locally when it saves project
+state. The current view keeps eight entries; earlier captured entries can be
+read without changing state or contacting Portal:
+
+```sh
+idleproof feature-lineage --list --json
+idleproof feature-history --feature FEATURE_KEY --limit 20 --json
+idleproof feature-history --feature FEATURE_KEY --after OBSERVATION_ID --language fr
+idleproof feature-lineage --from OLD_KEY --to NEW_KEY --from-observation OLD_ID --to-observation NEW_ID --json
+```
+
+History pages use observation-ID order, not chronology. Existing installations
+retain the observations they still have; already discarded history stays unknown.
+Explicit historical comparisons still require the matching imported Core Git
+evidence. They do not transfer scores or prove that an old feature still applies.
+Back up the complete `.idleproof` directory to retain this local history. Archive
+corruption or an unsupported filesystem publication fails visibly; it is not
+silently replaced. Removing an installed package does not erase the project files.

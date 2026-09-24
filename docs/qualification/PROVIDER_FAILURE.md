@@ -21,3 +21,9 @@ Currentmainf4d5854 is integrated to preserve qualified path-identity fixes.
 All285local tests pass. Original raw logs and hashes are retained; the current
 PR remains unqualified until reviewed final-candidate CI and fresh main pass.
 A green later run cannot close the historical performance incident by itself.
+
+Main76d24a53 now includes the reviewed immutable-observation archive and its
+legacy migration fix. Integrating that exact main preserves both histories;
+all294local tests pass without skips. Prior68b6659 gates35938780558 all16PASS
+and review5805297735 do not substitute for review/CI of this new integration.
+The original timeout and other historical PM012 incidents remain open.
