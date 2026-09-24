@@ -416,20 +416,29 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
     // kept for inspection but never reused.
     return { ...freshState(binding), previous:current ? { endpoint:current.endpoint, enrollment:current.enrollment ?? null, journal:current.journal, epoch:current.epoch, next:current.next, status:current.status } : null };
   });
+  // Every update after the binding step is conditional on the state still belonging to this
+  // request's enrollment (and, after network I/O, to this page's stream). A concurrent
+  // re-enrollment or resync makes a late ack or error inert instead of advancing the new cursor.
+  const bound = (mutate) => updateState(cwd, (current) => current && sameBinding(current, binding) ? mutate(current) : null);
+  const ownsStream = (current, page) => Boolean(current) && sameBinding(current, binding)
+    && current.journal === page.stream.journal && current.epoch === page.stream.epoch;
+  const streamBound = (page, mutate) => updateState(cwd, (current) => ownsStream(current, page) ? mutate(current) : null);
+  const superseded = () => ({ configured:true, ok:false, status:'superseded', errorCode:'CURSOR_SUPERSEDED', pagesSent, acknowledged });
+  let pagesSent = 0;
+  let acknowledged = 0;
   if (['reset-required', 'identity-conflict'].includes(state.status)) {
     return { configured:true, ok:false, status:state.status, errorCode:state.statusCode, next:state.next, pagesSent:0, pending:Boolean(state.pending) };
   }
 
   const capability = await probeCapabilities(config.endpoint, fetchImpl, timeoutMs);
   if (!capability.ok) {
-    state = updateState(cwd, (current) => ({ ...current, status:capability.transient ? current.status : 'server-incompatible', statusCode:capability.reason }));
+    state = bound((current) => ({ ...current, status:capability.transient ? current.status : 'server-incompatible', statusCode:capability.reason }));
     return { configured:true, ok:false, degraded:!capability.transient, status:capability.transient ? 'deferred' : 'server-incompatible', errorCode:capability.reason, next:state.next, pagesSent:0, pending:Boolean(state.pending) };
   }
-  if (state.status === 'server-incompatible') state = updateState(cwd, (current) => ({ ...current, status:'active', statusCode:null }));
+  if (state.status === 'server-incompatible') state = bound((current) => ({ ...current, status:'active', statusCode:null }));
 
-  let pagesSent = 0;
-  let acknowledged = 0;
   for (let round = 0; round < maxPages; round += 1) {
+    if (!state || !sameBinding(state, binding)) return superseded();
     let page = state.pending;
     if (page) {
       // A restored page gets the same safety checks as a new one and must continue this cursor.
@@ -439,7 +448,7 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
         && page.range?.from === state.next && (page.range?.prefixHash ?? null) === state.headHash
         && page.project?.localId === binding.localProjectId && page.project?.repositoryFingerprint === binding.repositoryFingerprint;
       if (!valid) {
-        state = updateState(cwd, (current) => ({ ...current, status:'reset-required', statusCode:'PENDING_PAGE_INVALID' }));
+        state = bound((current) => ({ ...current, status:'reset-required', statusCode:'PENDING_PAGE_INVALID' }));
         return { configured:true, ok:false, status:'reset-required', errorCode:'PENDING_PAGE_INVALID', next:state.next, pagesSent, acknowledged, pending:true };
       }
     }
@@ -449,26 +458,26 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
         const origin = readJournalPage(cwd, { after:0, limit:1, timeoutMs, runner:coreRunner });
         const code = origin.status === 'ok' && state.journal && origin.genesis && `dwjrn_${origin.genesis}` !== state.journal
           ? 'JOURNAL_IDENTITY_CHANGED' : 'LOCAL_PREFIX_DIVERGED';
-        state = updateState(cwd, (current) => ({ ...current, status:'reset-required', statusCode:code }));
+        state = bound((current) => ({ ...current, status:'reset-required', statusCode:code }));
         return { configured:true, ok:false, status:'reset-required', errorCode:code, next:state.next, pagesSent, acknowledged };
       }
       if (source.status !== 'ok') {
-        state = updateState(cwd, (current) => ({ ...current, statusCode:source.status === 'unsupported' ? 'SOURCE_HISTORY_UNAVAILABLE' : 'SOURCE_UNAVAILABLE' }));
+        state = bound((current) => ({ ...current, statusCode:source.status === 'unsupported' ? 'SOURCE_HISTORY_UNAVAILABLE' : 'SOURCE_UNAVAILABLE' }));
         return { configured:true, ok:false, degraded:source.status === 'unsupported', status:'source-unavailable', errorCode:state.statusCode, detail:source.detail, next:state.next, pagesSent, acknowledged };
       }
       const journal = source.genesis ? `dwjrn_${source.genesis}` : null;
       if (!journal || !source.events.length) {
-        if (state.statusCode) state = updateState(cwd, (current) => ({ ...current, statusCode:null }));
+        if (state.statusCode) state = bound((current) => ({ ...current, statusCode:null }));
         return { configured:true, ok:true, status:'up-to-date', next:state.next, pagesSent, acknowledged };
       }
       if (state.journal && state.journal !== journal) {
-        state = updateState(cwd, (current) => ({ ...current, status:'reset-required', statusCode:'JOURNAL_IDENTITY_CHANGED' }));
+        state = bound((current) => ({ ...current, status:'reset-required', statusCode:'JOURNAL_IDENTITY_CHANGED' }));
         return { configured:true, ok:false, status:'reset-required', errorCode:'JOURNAL_IDENTITY_CHANGED', next:state.next, pagesSent, acknowledged };
       }
       page = buildMemoryPage({ binding, journal, epoch:state.epoch, after:state.next, prefixHash:state.headHash, events:source.events });
       assertPortalMemoryPageSafe(page);
       const expected = state.next;
-      state = updateState(cwd, (current) => current.next === expected && !current.pending ? { ...current, journal, pending:page } : null);
+      state = bound((current) => current.next === expected && !current.pending ? { ...current, journal, pending:page } : null);
       if (state.pending?.pageId !== page.pageId) continue; // another process advanced; re-read.
     }
     if (failpoint === 'before-send') throw memoryError('IDLEPROOF_TEST_FAILPOINT', 'failpoint before-send');
@@ -485,25 +494,27 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
     } catch (error) {
       clearTimeout(timer);
       const errorCode = error?.name === 'AbortError' ? 'TIMEOUT' : error?.code === 'IDLEPROOF_PORTAL_RESPONSE_TOO_LARGE' ? error.code : 'NETWORK_ERROR';
-      state = updateState(cwd, (current) => ({ ...current, statusCode:errorCode }));
+      state = bound((current) => ({ ...current, statusCode:errorCode }));
       return { configured:true, ok:false, status:'deferred', errorCode, next:state.next, pagesSent:pagesSent + 1, acknowledged, pending:true };
     }
     clearTimeout(timer);
     pagesSent += 1;
+    if (!ownsStream(readPortalMemoryState(cwd), page)) return superseded();
 
     if ([200, 202].includes(response.status)) {
       let ack;
       try { ack = validateMemoryAck(body, page); }
       catch (error) {
-        state = updateState(cwd, (current) => ({ ...current, statusCode:error.code }));
+        state = bound((current) => ({ ...current, statusCode:error.code }));
         return { configured:true, ok:false, status:'deferred', errorCode:error.code, next:state.next, pagesSent, acknowledged, pending:true };
       }
       if (failpoint === 'after-ack-before-cursor') throw memoryError('IDLEPROOF_TEST_FAILPOINT', 'failpoint after-ack-before-cursor');
       let target = { next:page.range.to, headHash:page.range.headHash };
       if (ack.next > page.range.to && verifiedCursor(cwd, ack, timeoutMs, coreRunner)) target = { next:ack.next, headHash:ack.headHash };
-      state = updateState(cwd, (current) => current.pending?.pageId === page.pageId
+      state = streamBound(page, (current) => current.pending?.pageId === page.pageId
         ? { ...current, next:target.next, headHash:target.headHash, pending:null, status:'active', statusCode:null, lastAckAt:new Date().toISOString() }
         : null);
+      if (!ownsStream(state, page)) return superseded();
       acknowledged += 1;
       continue;
     }
@@ -513,21 +524,21 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
       const cursor = body?.error?.cursor;
       const serverCursor = cursor && Number.isSafeInteger(cursor.next) ? { next:cursor.next, headHash:cursor.next === 0 ? null : cursor.headHash } : null;
       if (serverCursor && cursor?.stream?.journal === page.stream.journal && cursor?.stream?.epoch === page.stream.epoch && verifiedCursor(cwd, serverCursor, timeoutMs, coreRunner)) {
-        state = updateState(cwd, (current) => current.pending?.pageId === page.pageId
+        state = streamBound(page, (current) => current.pending?.pageId === page.pageId
           ? { ...current, next:serverCursor.next, headHash:serverCursor.headHash, pending:null, statusCode:'CURSOR_REALIGNED' } : null);
         continue;
       }
-      state = updateState(cwd, (current) => ({ ...current, status:'reset-required', statusCode:'SERVER_CURSOR_UNVERIFIABLE' }));
+      state = bound((current) => ({ ...current, status:'reset-required', statusCode:'SERVER_CURSOR_UNVERIFIABLE' }));
       return { configured:true, ok:false, status:'reset-required', errorCode:'SERVER_CURSOR_UNVERIFIABLE', next:state.next, pagesSent, acknowledged, pending:true };
     }
     if (code === 'PREFIX_DIVERGED' || code === 'IDENTITY_CONFLICT') {
       const status = code === 'IDENTITY_CONFLICT' ? 'identity-conflict' : 'reset-required';
-      state = updateState(cwd, (current) => ({ ...current, status, statusCode:code }));
+      state = bound((current) => ({ ...current, status, statusCode:code }));
       return { configured:true, ok:false, status, errorCode:code, next:state.next, pagesSent, acknowledged, pending:true };
     }
     const transient = response.status === 429 || response.status >= 500;
     const incompatible = !transient && ['SCHEMA_INVALID', 'INVALID_JSON', 'PAGE_ID_MISMATCH', 'METHOD_NOT_ALLOWED', 'INVALID_PAGE_SCHEMA'].includes(code);
-    state = updateState(cwd, (current) => ({ ...current, status:incompatible ? 'server-incompatible' : current.status, statusCode:code }));
+    state = bound((current) => ({ ...current, status:incompatible ? 'server-incompatible' : current.status, statusCode:code }));
     return { configured:true, ok:false, degraded:incompatible, status:transient ? 'deferred' : incompatible ? 'server-incompatible' : 'rejected', errorCode:code, httpStatus:response.status, next:state.next, pagesSent, acknowledged, pending:true };
   }
   return { configured:true, ok:true, status:'more-pending', next:state.next, pagesSent, acknowledged };

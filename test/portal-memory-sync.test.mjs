@@ -233,6 +233,33 @@ test('a new enrollment never reuses a caught-up cursor from another enrollment',
   } finally { cleanup(cwd); }
 });
 
+test('a late ack from a superseded enrollment never advances the new enrollment cursor', async () => {
+  const cwd = fixture();
+  try {
+    const events = journal([{ id:'decision:a' }, { id:'decision:b' }]);
+    const oldServer = portal();
+    const newServer = portal();
+    const racing = async (url, init) => {
+      if (init?.method === 'POST') {
+        // While the old request is in flight, the user re-enrolls and a concurrent sync prepares
+        // the byte-identical page for the new enrollment, then stops before sending it.
+        writePortalConfig(cwd, { endpoint:ENDPOINT, token:`ipd_${'n'.repeat(32)}` });
+        await assert.rejects(syncPortalMemory(cwd, { fetchImpl:newServer.fetchImpl, coreRunner:core(events), failpoint:'before-send' }), /failpoint/);
+      }
+      return oldServer.fetchImpl(url, init);
+    };
+    const late = await syncPortalMemory(cwd, { fetchImpl:racing, coreRunner:core(events) });
+    assert.equal(late.status, 'superseded');
+    const status = portalMemoryStatus(cwd);
+    assert.equal(status.next, 0, 'the old ack did not advance the new cursor');
+    assert.equal(status.pending, true, 'the new enrollment keeps its unsent page');
+    assert.equal(newServer.facts.size, 0);
+    const delivered = await syncPortalMemory(cwd, { fetchImpl:newServer.fetchImpl, coreRunner:core(events) });
+    assert.equal(delivered.next, 2);
+    assert.equal(newServer.facts.size, 2, 'the new project receives the history');
+  } finally { cleanup(cwd); }
+});
+
 test('a transient capability failure is deferred, not incompatible', async () => {
   const cwd = fixture();
   try {
