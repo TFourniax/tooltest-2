@@ -228,6 +228,17 @@ test('a lock that changes hands is never probed for its owner start time, a sett
   } finally { cleanup(cwd); }
 });
 
+test('a start time looked up for one lock owner is never reused for the next owner of that PID', () => {
+  // The PID is recycled during one acquisition attempt: the first owner started at 1000, the process
+  // that now has the PID (and has just taken the lock) at 2000.
+  let startedAt = 1000;
+  const probe = __memoryLockTest.memoProbe(() => startedAt);
+  assert.equal(__memoryLockTest.abandoned(`${process.pid} W1000 ${'6'.repeat(32)}\n`, probe), false);
+  startedAt = 2000;
+  assert.equal(__memoryLockTest.abandoned(`${process.pid} W2000 ${'7'.repeat(32)}\n`, probe), false, 'the new live owner is not evicted');
+  assert.equal(__memoryLockTest.abandoned(`${process.pid} W1000 ${'6'.repeat(32)}\n`, probe), false, 'a cached answer for an instance only keeps it held');
+});
+
 test('many processes recovering the same dead lock never overlap their critical sections', async () => {
   const cwd = fixture();
   try {

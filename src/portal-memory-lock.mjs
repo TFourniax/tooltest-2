@@ -102,13 +102,16 @@ function ownerGone(pid, incarnation, probe) {
     const now = probe.linux(pid);
     return now !== null && `L${now}` !== incarnation;
   }
-  const started = probe.startTime(pid);
+  const started = probe.startTime(pid, incarnation);
   return started !== null && `W${started}` !== incarnation;
 }
 
 const defaultProbe = { linux:linuxStartTicks, linuxState, startTime:startTimeOf };
-// One start-time lookup per PID per acquisition attempt: the wait loop polls every 10 ms and must
-// not spawn a process each time. A stale answer only ever keeps a lock held, never evicts it.
+// One start-time lookup per owner instance (PID and recorded incarnation) per acquisition attempt:
+// the wait loop polls every 10 ms and must not spawn a process each time. The answer is cached for
+// that instance only, never for its PID: a PID recycled by the next owner is looked up afresh.
+// A cached "gone" stays true (that incarnation can never run again); a stale "alive" only keeps the
+// lock held.
 // While a lock keeps changing hands its owners are live: the (possibly slow, PowerShell on Windows)
 // start-time lookup only matters for a lock that stays unchanged, which is what a recycled PID looks
 // like. Waiters therefore use it only after the same lock instance has been observed for this long.
@@ -116,9 +119,13 @@ const defaultProbe = { linux:linuxStartTicks, linuxState, startTime:startTimeOf 
 const PROBE_AFTER_MS = 500;
 const cheapProbe = { linux:linuxStartTicks, linuxState, startTime:() => null };
 
-function memoProbe() {
+function memoProbe(lookup = startTimeOf) {
   const seen = new Map();
-  return { linux:linuxStartTicks, linuxState, startTime:(pid) => { if (!seen.has(pid)) seen.set(pid, startTimeOf(pid)); return seen.get(pid); } };
+  return { linux:linuxStartTicks, linuxState, startTime:(pid, incarnation) => {
+    const key = `${pid} ${incarnation}`;
+    if (!seen.has(key)) seen.set(key, lookup(pid));
+    return seen.get(key);
+  } };
 }
 
 // Only a lock whose recorded owner provably no longer runs is abandoned. Anything unreadable is
@@ -228,4 +235,4 @@ export function withMemoryLock(cwd, fn) {
   }
 }
 
-export const __memoryLockTest = { tryEvict, abandoned, claimPath, ownIncarnation, newToken, startTimeOf, startTimeProbes:() => startTimeProbes };
+export const __memoryLockTest = { tryEvict, abandoned, memoProbe, claimPath, ownIncarnation, newToken, startTimeOf, startTimeProbes:() => startTimeProbes };
