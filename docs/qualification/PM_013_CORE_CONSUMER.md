@@ -146,9 +146,13 @@ it would score 36/234, which is the degraded mode above, covered by the regressi
 |---|---|---|
 | `real Core context consumer (<os>)` | `fbebc79` | baseline of the task and lifecycle contract (kept) |
 | `real Core context consumer (<os>, Core main a168829)` | `a168829` | **current version set** |
-| `real Core paged memory export (<os>)` | `01288e4`, and legacy `956f798` | PM-013 export and its fallback |
+| `real Core paged memory export (<os>)` | `a168829` (was `01288e4` until 2026-09-25, same tree `87d5e437`), and legacy `956f798` | PM-013 export and its fallback |
 | `quality` (torturebench only) | `a168829` | live symbols |
 | `Core first-extraction phases` | `a168829` | diagnostic only |
+
+Update 2026-09-25 (PM-014 preparation): the paged-export job now installs Core main `a168829`
+itself. Runs up to and including main run 36169527480 installed `01288e4`; those results stay
+attributed to `01288e4`. The legacy `956f798` fallback pin is unchanged.
 
 The `structure_*` modules are identical between `fbebc79` and `a168829`. Only CLI entry and
 continuity code changed. That identity does not stand in for running Core main, which is why the

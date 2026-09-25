@@ -310,14 +310,15 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
-      - name: Checkout exact Core with forward journal pages
+      # a168829: Core main, the commit whose tree (87d5e437) was first qualified here as 01288e4.
+      - name: Checkout exact Core main with forward journal pages
         uses: actions/checkout@v7
         with:
           repository: TFourniax/tooltest
-          ref: 01288e4deb3ea7e68250e04285953d9b3a2d9617
+          ref: a168829247df8e6604cf47f327be9acd3f57e155
           path: core-memory-fixture
           persist-credentials: false
-      - name: Checkout exact Core main without journal pages
+      - name: Checkout exact legacy Core without journal pages
         uses: actions/checkout@v7
         with:
           repository: TFourniax/tooltest
