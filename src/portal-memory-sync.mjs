@@ -174,6 +174,10 @@ export function readJournalPage(cwd, { after = 0, expectHead = null, limit = DEF
     if (page.next !== next || (next > 0 && page.events.length && page.head !== page.events.at(-1).event.event_hash)) {
       return { status:'unavailable', detail:'inconsistent Core page cursor' };
     }
+    // An empty page means the end of the journal only if it does not advertise more history.
+    if (!page.events.length && (page.hasMore || Number(page.journal?.eventCount ?? next) > next)) {
+      return { status:'unavailable', detail:'empty Core page advertises more history' };
+    }
     return { status:'ok', genesis, events:page.events, next, head:next === after ? (after ? expectHead : null) : page.head,
       hasMore:Boolean(page.hasMore), eventCount:Number(page.journal?.eventCount ?? next) };
   }
@@ -336,9 +340,36 @@ export function buildMemoryPage({ binding, journal, epoch, after, prefixHash, ev
 // ---------------------------------------------------------------------------------------------
 // Transport
 // ---------------------------------------------------------------------------------------------
+// The 16 KiB bound applies while reading: a declared oversized body is refused unread, and a body
+// stream is abandoned as soon as it exceeds the bound, so a bad response cannot exhaust memory.
 async function boundedJson(response) {
-  const text = await response.text();
-  if (Buffer.byteLength(text, 'utf8') > MAX_RESPONSE_BYTES) throw memoryError('IDLEPROOF_PORTAL_RESPONSE_TOO_LARGE', 'Portal response exceeded 16 KiB.');
+  const tooLarge = () => memoryError('IDLEPROOF_PORTAL_RESPONSE_TOO_LARGE', 'Portal response exceeded 16 KiB.');
+  const declared = Number(response.headers?.get?.('content-length'));
+  if (Number.isFinite(declared) && declared > MAX_RESPONSE_BYTES) {
+    try { await response.body?.cancel?.(); } catch {}
+    throw tooLarge();
+  }
+  let text;
+  if (typeof response.body?.getReader === 'function') {
+    const reader = response.body.getReader();
+    const chunks = [];
+    let total = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_RESPONSE_BYTES) {
+        try { await reader.cancel(); } catch {}
+        throw tooLarge();
+      }
+      chunks.push(Buffer.from(value.buffer, value.byteOffset, value.byteLength));
+    }
+    text = Buffer.concat(chunks).toString('utf8');
+  } else {
+    // Doubles without a body stream; the bound is then checked after the fact.
+    text = await response.text();
+    if (Buffer.byteLength(text, 'utf8') > MAX_RESPONSE_BYTES) throw tooLarge();
+  }
   try { return text ? JSON.parse(text) : {}; } catch { return {}; }
 }
 

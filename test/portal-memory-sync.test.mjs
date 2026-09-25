@@ -287,6 +287,46 @@ test('a resync completed during a source read is never undone by the stale read 
   } finally { cleanup(cwd); }
 });
 
+test('the 16 KiB response bound is enforced while reading, not after buffering', async () => {
+  for (const declared of [false, true]) {
+    const cwd = fixture();
+    try {
+      const events = journal([{ id:'decision:a' }]);
+      const server = portal();
+      let pulls = 0;
+      const chunk = new Uint8Array(4096).fill(32);
+      const huge = (url, init) => {
+        if (init?.method !== 'POST') return server.fetchImpl(url, init);
+        // 8 MiB of body, optionally declared up front; reading it all would take 2048 pulls.
+        const body = new ReadableStream({ pull(controller) { pulls += 1; if (pulls > 2048) controller.close(); else controller.enqueue(chunk); } });
+        return Promise.resolve(new Response(body, { status:202, headers:declared ? { 'content-length':String(8 * 1024 * 1024) } : {} }));
+      };
+      const result = await syncPortalMemory(cwd, { fetchImpl:huge, coreRunner:core(events) });
+      assert.equal(result.errorCode, 'IDLEPROOF_PORTAL_RESPONSE_TOO_LARGE', declared ? 'declared' : 'streamed');
+      assert.ok(pulls <= (declared ? 1 : 6), `read at most the bound (pulled ${pulls} chunks)`);
+      assert.equal(portalMemoryStatus(cwd).pending, true, 'the page stays pending');
+    } finally { cleanup(cwd); }
+  }
+});
+
+test('an empty source page that advertises more history is invalid, never up-to-date', async () => {
+  const cwd = fixture();
+  try {
+    const events = journal([{ id:'decision:a' }, { id:'decision:b' }]);
+    const source = core(events);
+    const truncated = (args) => {
+      const result = source(args);
+      if (!args.includes('--after') || !result.ok) return result;
+      const page = JSON.parse(result.stdout);
+      return { ...result, stdout:JSON.stringify({ ...page, events:[], next:page.after, head:null, hasMore:true }) };
+    };
+    const result = await syncPortalMemory(cwd, { fetchImpl:portal().fetchImpl, coreRunner:truncated });
+    assert.equal(result.ok, false);
+    assert.equal(result.status, 'source-unavailable', 'never up-to-date while Core says more history remains');
+    assert.equal(portalMemoryStatus(cwd).next, 0);
+  } finally { cleanup(cwd); }
+});
+
 test('a nonempty source page without a journal identity is invalid, never up-to-date', async () => {
   const cwd = fixture();
   try {
