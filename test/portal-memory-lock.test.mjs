@@ -188,6 +188,27 @@ test('the lock never needs hard links (filesystems without them work)', () => {
   } finally { fs.linkSync = original; cleanup(cwd); }
 });
 
+// Linux-only by nature: zombies and /proc process states are Linux kernel semantics.
+test('a lock owner that is a zombie (killed, not yet reaped) is recovered', { skip:process.platform !== 'linux' }, async () => {
+  const cwd = fixture();
+  // `sleep 0` exits in the background; its parent execs into `sleep 5`, which never reaps it.
+  const parent = spawn('sh', ['-c', 'sleep 0 & echo $!; exec sleep 5'], { stdio:['ignore', 'pipe', 'ignore'] });
+  try {
+    const pid = Number(await new Promise((resolve) => parent.stdout.once('data', (chunk) => resolve(String(chunk).trim()))));
+    let state = '';
+    for (let i = 0; i < 100 && state !== 'Z'; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      try { const stat = fs.readFileSync(`/proc/${pid}/stat`, 'utf8'); state = stat.slice(stat.lastIndexOf(')') + 2).split(' ')[0]; } catch { state = 'gone'; }
+    }
+    assert.equal(state, 'Z', 'the fixture owner is a zombie');
+    const stat = fs.readFileSync(`/proc/${pid}/stat`, 'utf8');
+    const ticks = stat.slice(stat.lastIndexOf(')') + 2).split(' ')[19];
+    const file = plant(cwd, `${pid} L${ticks} ${'3'.repeat(32)}\n`, 0); // its exact incarnation
+    assert.equal(withMemoryLock(cwd, () => 'recovered'), 'recovered');
+    assert.equal(fs.existsSync(file), false);
+  } finally { parent.kill(); cleanup(cwd); }
+});
+
 test('many processes recovering the same dead lock never overlap their critical sections', async () => {
   const cwd = fixture();
   try {

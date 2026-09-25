@@ -481,7 +481,14 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
         return { configured:true, ok:false, degraded:source.status === 'unsupported', status:'source-unavailable', errorCode:state.statusCode, detail:source.detail, next:state.next, pagesSent, acknowledged };
       }
       const journal = source.genesis ? `dwjrn_${source.genesis}` : null;
-      if (!journal || !source.events.length) {
+      // Only an empty page means "nothing new". Events without a journal identity are an invalid
+      // source, never a reason to skip them.
+      if (source.events.length && !journal) {
+        state = cursorBound(view, (current) => ({ ...current, statusCode:'SOURCE_JOURNAL_IDENTITY_MISSING' }));
+        if (!state) return superseded();
+        return { configured:true, ok:false, status:'source-unavailable', errorCode:'SOURCE_JOURNAL_IDENTITY_MISSING', next:state.next, pagesSent, acknowledged };
+      }
+      if (!source.events.length) {
         // "Up to date" is a claim about this enrollment's cursor: it must still be the one the read
         // started from, under the same configuration.
         if (state.statusCode) {
@@ -595,6 +602,7 @@ export function resyncPortalMemory(cwd = process.cwd(), { coreRunner = null } = 
   const source = readJournalPage(cwd, { after:0, limit:1, runner:coreRunner });
   if (source.status !== 'ok') return { configured:true, ok:false, status:'source-unavailable', errorCode:source.status, detail:source.detail };
   const journal = source.genesis ? `dwjrn_${source.genesis}` : null;
+  if (source.events?.length && !journal) return { configured:true, ok:false, status:'source-unavailable', errorCode:'SOURCE_JOURNAL_IDENTITY_MISSING' };
   let applied = false;
   const state = updateState(cwd, (current) => {
     // A configuration replaced during the journal read wins: never restore the obsolete binding.

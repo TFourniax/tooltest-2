@@ -51,6 +51,14 @@ function linuxStartTicks(pid) {
   } catch { return null; }
 }
 
+// Process state letter from /proc (`Z` zombie, `X` dead), or null when it cannot be read.
+function linuxState(pid) {
+  try {
+    const stat = fs.readFileSync(`/proc/${pid}/stat`, 'utf8');
+    return stat.slice(stat.lastIndexOf(')') + 2).split(' ')[0] || null;
+  } catch { return null; }
+}
+
 const LINUX = process.platform === 'linux' && linuxStartTicks('self') !== null;
 let selfIncarnation = null;
 
@@ -84,6 +92,8 @@ function startTimeOf(pid) {
 // belongs to a process with another OS start value (a recycled PID). Unknown is never "gone".
 function ownerGone(pid, incarnation, probe) {
   if (!processAlive(pid)) return true;
+  // A zombie still answers kill(pid, 0) and keeps its start tick, but can never run again.
+  if (LINUX && ['Z', 'X'].includes(probe.linuxState(pid))) return true;
   if (incarnation === 'U') return false;
   if (incarnation.startsWith('L')) {
     if (!LINUX) return false;
@@ -94,12 +104,12 @@ function ownerGone(pid, incarnation, probe) {
   return started !== null && `W${started}` !== incarnation;
 }
 
-const defaultProbe = { linux:linuxStartTicks, startTime:startTimeOf };
+const defaultProbe = { linux:linuxStartTicks, linuxState, startTime:startTimeOf };
 // One start-time lookup per PID per acquisition attempt: the wait loop polls every 10 ms and must
 // not spawn a process each time. A stale answer only ever keeps a lock held, never evicts it.
 function memoProbe() {
   const seen = new Map();
-  return { linux:linuxStartTicks, startTime:(pid) => { if (!seen.has(pid)) seen.set(pid, startTimeOf(pid)); return seen.get(pid); } };
+  return { linux:linuxStartTicks, linuxState, startTime:(pid) => { if (!seen.has(pid)) seen.set(pid, startTimeOf(pid)); return seen.get(pid); } };
 }
 
 // Only a lock whose recorded owner provably no longer runs is abandoned. Anything unreadable is

@@ -287,6 +287,30 @@ test('a resync completed during a source read is never undone by the stale read 
   } finally { cleanup(cwd); }
 });
 
+test('a nonempty source page without a journal identity is invalid, never up-to-date', async () => {
+  const cwd = fixture();
+  try {
+    const events = journal([{ id:'decision:a' }, { id:'decision:b' }]);
+    const source = core(events);
+    const anonymous = (args) => {
+      const result = source(args);
+      if (!args.includes('--after') || !result.ok) return result;
+      const page = JSON.parse(result.stdout);
+      delete page.journal.genesisHash; // a partially compatible Core
+      return { ...result, stdout:JSON.stringify(page) };
+    };
+    const server = portal();
+    const result = await syncPortalMemory(cwd, { fetchImpl:server.fetchImpl, coreRunner:anonymous });
+    assert.equal(result.ok, false);
+    assert.equal(result.status, 'source-unavailable');
+    assert.equal(result.errorCode, 'SOURCE_JOURNAL_IDENTITY_MISSING');
+    assert.equal(portalMemoryStatus(cwd).next, 0, 'nothing is skipped');
+    assert.equal(resyncPortalMemory(cwd, { coreRunner:anonymous }).errorCode, 'SOURCE_JOURNAL_IDENTITY_MISSING');
+    const healthy = await syncPortalMemory(cwd, { fetchImpl:server.fetchImpl, coreRunner:core(events) });
+    assert.equal(healthy.next, 2, 'the history is delivered once Core reports its journal');
+  } finally { cleanup(cwd); }
+});
+
 test('an empty source read never reports up-to-date for a replaced enrollment or cursor', async () => {
   for (const change of ['disconnect', 'reenroll', 'resync']) {
     const cwd = fixture();
