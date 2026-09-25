@@ -21,7 +21,10 @@ Portal as `idleproof.portal-memory-page.v1`, oldest first, then only new events.
 - Durability: the exact page is saved in `.idleproof/portal-memory.json` before sending; the
   cursor advances only after an ack that binds the same page, stream and range. A retransmission
   after a lost response is byte-identical and acknowledged as `duplicate`. A server cursor is
-  adopted only after the local journal proves the same prefix.
+  adopted only after the local journal proves the same prefix. A restored page is re-validated
+  before it is sent; its `generatedAt` (outside the page identity) must be a strict UTC timestamp.
+- Journal identity: any page (even an empty one) naming another journal than the cursor's is
+  `reset-required / JOURNAL_IDENTITY_CHANGED`, never `up-to-date`.
 - Explicit states: `server-incompatible` (Portal without `memoryPages`), `deferred` (network,
   429, 5xx), `reset-required` (`LOCAL_PREFIX_DIVERGED`, `JOURNAL_IDENTITY_CHANGED`,
   `PREFIX_DIVERGED`), `identity-conflict`. `idleproof portal memory resync` starts a new stream

@@ -537,6 +537,48 @@ test('a resync that overlaps a re-enrollment never restores the obsolete binding
   } finally { cleanup(cwd); }
 });
 
+test('a pending page whose generatedAt is not a strict timestamp is never sent', async () => {
+  for (const generatedAt of ['src/secret.js: function hidden() {}', '2026-02-30T10:00:00.000Z', 42, null]) {
+    const cwd = fixture();
+    try {
+      const events = journal([{ id:'decision:a' }]);
+      const server = portal();
+      await assert.rejects(syncPortalMemory(cwd, { fetchImpl:server.fetchImpl, coreRunner:core(events), failpoint:'before-send' }), /failpoint/);
+      const file = projectPaths(cwd).portalMemoryState;
+      const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+      saved.pending.generatedAt = generatedAt; // outside the sealed identity, so the pageId still matches
+      fs.writeFileSync(file, JSON.stringify(saved));
+      assert.throws(() => assertPortalMemoryPageSafe(saved.pending), /generatedAt/);
+      const result = await syncPortalMemory(cwd, { fetchImpl:server.fetchImpl, coreRunner:core(events) });
+      assert.equal(result.errorCode, 'PENDING_PAGE_INVALID', String(generatedAt));
+      assert.equal(server.received.length, 0);
+    } finally { cleanup(cwd); }
+  }
+});
+
+test('an empty continuation page from another journal is a journal change, not up-to-date', async () => {
+  const cwd = fixture();
+  try {
+    const events = journal([{ id:'decision:a' }, { id:'decision:b' }]);
+    const server = portal();
+    assert.equal((await syncPortalMemory(cwd, { fetchImpl:server.fetchImpl, coreRunner:core(events) })).next, 2);
+    const other = 'e'.repeat(64);
+    // Confirms the expected head but names another journal (e.g. an old cursor after replacement).
+    const replaced = (args) => {
+      const after = Number(args[args.indexOf('--after') + 1]);
+      return { ok:true, stdout:JSON.stringify({ schema_version:'project-event-page-1', journal:{ genesisHash:after === 2 ? other : events[0].event_hash, eventCount:2 },
+        after, events:[], next:after, head:events[1].event_hash, hasMore:false }) };
+    };
+    const result = await syncPortalMemory(cwd, { fetchImpl:server.fetchImpl, coreRunner:replaced });
+    assert.equal(result.status, 'reset-required', JSON.stringify(result));
+    assert.equal(result.errorCode, 'JOURNAL_IDENTITY_CHANGED');
+    // An empty page whose journal has fewer events than the cursor is inconsistent.
+    const behind = () => ({ ok:true, stdout:JSON.stringify({ schema_version:'project-event-page-1', journal:{ genesisHash:events[0].event_hash, eventCount:1 },
+      after:2, events:[], next:2, head:events[1].event_hash, hasMore:false }) });
+    assert.equal(readJournalPage(cwd, { after:2, expectHead:events[1].event_hash, runner:behind }).status, 'unavailable');
+  } finally { cleanup(cwd); }
+});
+
 test('a transient capability failure is deferred, not incompatible', async () => {
   const cwd = fixture();
   try {

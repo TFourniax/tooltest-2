@@ -185,6 +185,10 @@ export function readJournalPage(cwd, { after = 0, expectHead = null, limit = DEF
     if (!page.events.length && (page.hasMore || Number(page.journal?.eventCount ?? next) > next || (after === 0 && genesis !== null))) {
       return { status:'unavailable', detail:'empty Core page advertises more history' };
     }
+    // ... and a journal shorter than the cursor it answers is inconsistent.
+    if (!page.events.length && Number(page.journal?.eventCount ?? next) !== next) {
+      return { status:'unavailable', detail:'empty Core page reports a journal shorter than its cursor' };
+    }
     // An empty page past the start proves the prefix only if Core itself reports the expected head
     // (a Core that ignored --expect-head must not confirm a cursor on another journal).
     if (!page.events.length && after > 0 && page.head !== expectHead) {
@@ -302,9 +306,18 @@ export function sealMemoryPage(page) {
   return { ...page, pageId:`ipmpg_${portalDigest(portalCanonical(stable)).slice(0, 24)}` };
 }
 
+// `generatedAt` is outside the sealed identity, so it is held to the exact form this client writes
+// (a real UTC instant from toISOString): it can carry nothing else and is never free text.
+function strictInstant(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) return false;
+  const at = Date.parse(value);
+  return Number.isFinite(at) && new Date(at).toISOString() === value;
+}
+
 export function assertPortalMemoryPageSafe(page) {
   scanPage(page);
   if (page?.schema !== MEMORY_PAGE_SCHEMA || sealMemoryPage(page).pageId !== page.pageId) throw memoryError('IDLEPROOF_PORTAL_MEMORY_UNSAFE', 'Memory page identity does not match its content.');
+  if (!strictInstant(page.generatedAt)) throw memoryError('IDLEPROOF_PORTAL_MEMORY_UNSAFE', 'Memory page generatedAt is not a UTC timestamp.');
   if (!Array.isArray(page.items) || page.items.length > MAX_PAGE_ITEMS) throw memoryError('IDLEPROOF_PORTAL_MEMORY_UNSAFE', 'Memory page exceeds its item bound.');
   if (Buffer.byteLength(JSON.stringify(page), 'utf8') > MAX_PAGE_BYTES) throw memoryError('IDLEPROOF_PORTAL_MEMORY_UNSAFE', 'Memory page exceeds the 64 KiB wire bound.');
   const represented = new Set(page.items.map((item) => item.sequence)).size;
@@ -538,6 +551,13 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
         if (!state) return superseded();
         return { configured:true, ok:false, status:'source-unavailable', errorCode:'SOURCE_JOURNAL_IDENTITY_MISSING', next:state.next, pagesSent, acknowledged };
       }
+      // A page from another journal is a journal change, even an empty one: never report the old
+      // journal "up to date".
+      if (state.journal && journal && state.journal !== journal) {
+        state = cursorBound(view, (current) => ({ ...current, status:'reset-required', statusCode:'JOURNAL_IDENTITY_CHANGED' }));
+        if (!state) return superseded();
+        return { configured:true, ok:false, status:'reset-required', errorCode:'JOURNAL_IDENTITY_CHANGED', next:state.next, pagesSent, acknowledged };
+      }
       if (!source.events.length) {
         // "Up to date" is a claim about this enrollment's cursor: it must still be the one the read
         // started from, under the same configuration.
@@ -546,11 +566,6 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
           if (!state) return superseded();
         } else if (!ownsCursor(readPortalMemoryState(cwd), view) || !sameConfig(cwd, config)) return superseded();
         return { configured:true, ok:true, status:'up-to-date', next:state.next, pagesSent, acknowledged };
-      }
-      if (state.journal && state.journal !== journal) {
-        state = cursorBound(view, (current) => ({ ...current, status:'reset-required', statusCode:'JOURNAL_IDENTITY_CHANGED' }));
-        if (!state) return superseded();
-        return { configured:true, ok:false, status:'reset-required', errorCode:'JOURNAL_IDENTITY_CHANGED', next:state.next, pagesSent, acknowledged };
       }
       page = buildMemoryPage({ binding, journal, epoch:state.epoch, after:state.next, prefixHash:state.headHash, events:source.events });
       assertPortalMemoryPageSafe(page);
