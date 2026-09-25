@@ -44,6 +44,8 @@ jobs:
           node --check ./src/portal-client.mjs
           node --check ./src/portal-assurance.mjs
           node --check ./src/portal-cli.mjs
+          node --check ./src/portal-memory-sync.mjs
+          node --check ./src/portal-memory-lock.mjs
           node --check ./src/feature-model.mjs
           node --check ./src/feature-memory.mjs
           node --check ./src/feature-observations.mjs
@@ -241,6 +243,50 @@ jobs:
       - name: Diagnose failed JSON gate without changing its result
         if: failure() && steps.perf_json.conclusion == 'failure'
         run: node scripts/perf-diagnostics.mjs --data-core
+
+  core-memory-export:
+    name: real Core paged memory export (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Checkout exact Core with forward journal pages
+        uses: actions/checkout@v7
+        with:
+          repository: TFourniax/tooltest
+          ref: 01288e4deb3ea7e68250e04285953d9b3a2d9617
+          path: core-memory-fixture
+          persist-credentials: false
+      - name: Checkout exact Core main without journal pages
+        uses: actions/checkout@v7
+        with:
+          repository: TFourniax/tooltest
+          ref: 956f79840f7c2146ae9d565f4fafd9f5018d21a6
+          path: core-legacy-fixture
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Verify paged export through the real Core CLI
+        shell: bash
+        run: |
+          python -m venv "$RUNNER_TEMP/core-paged"
+          if [ "$RUNNER_OS" = "Windows" ]; then BIN="$RUNNER_TEMP/core-paged/Scripts"; else BIN="$RUNNER_TEMP/core-paged/bin"; fi
+          "$BIN/python" -m pip install --no-deps ./core-memory-fixture
+          PATH="$BIN:$PATH" node scripts/portal-memory-core-smoke.mjs
+      - name: Verify declared fallback with Core lacking journal pages
+        shell: bash
+        run: |
+          python -m venv "$RUNNER_TEMP/core-legacy"
+          if [ "$RUNNER_OS" = "Windows" ]; then BIN="$RUNNER_TEMP/core-legacy/Scripts"; else BIN="$RUNNER_TEMP/core-legacy/bin"; fi
+          "$BIN/python" -m pip install --no-deps ./core-legacy-fixture
+          PATH="$BIN:$PATH" node scripts/portal-memory-core-smoke.mjs --legacy
 
   package-e2e:
     name: installed package commercial-alpha journey (${{ matrix.os }})
