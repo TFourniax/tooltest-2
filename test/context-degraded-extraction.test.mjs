@@ -125,6 +125,21 @@ test('a language without a provider keeps its labelled heuristic, presented as a
   assert.equal(signals.structureCoverage.reason, 'language-adapter-pending');
   const explanation = buildPlainExplanation({session:{currentResource:'widget.vue', prompt:'Change mountWidget', taskSignals:signals}});
   assert.match(JSON.stringify(explanation), /a text-matched symbol candidate \(not parsed\) is `mountWidget`/);
+  // The summary never presents the candidate as the active symbol either.
+  assert.match(explanation.doing, /around the text-matched candidate `mountWidget` \(not parsed\)/);
+  assert.match(explanation.doing, /centered on the text-matched candidate `mountWidget` \(not parsed\)/);
+  assert.ok(!/around `mountWidget`|centered on `mountWidget`/.test(explanation.doing));
   assert.ok(!/observed symbol/.test(JSON.stringify(explanation)));
   assert.equal(explanation.certainty.level, 'bounded-inference');
+});
+
+test('learning context names a heuristic symbol as a candidate and a canonical one as active', async () => {
+  const { buildContextualCard } = await import('../src/learning.mjs');
+  const concept = {id:'testing', question:'What must be tested?', options:['a','b'], answer:0, lesson:'Test it.', review:'Review it.', why:'It matters.'};
+  const card = coverage => buildContextualCard(concept, {}, {prompt:'Change mountWidget', touchedFiles:['widget.vue'],
+    taskSignals:{file:'widget.vue', symbol:'mountWidget', structureCoverage:coverage}});
+  assert.match(card({provider:'legacy-heuristic', canonical:false, parsed:null, reason:'language-adapter-pending'}).why,
+    /text-matched symbol candidate mountWidget \(not parsed\)/);
+  assert.ok(!/active symbol/.test(card({provider:'legacy-heuristic', canonical:false, parsed:null}).why));
+  assert.match(card({provider:'tree-sitter-typescript', canonical:true, parsed:true}).why, /active symbol mountWidget/);
 });

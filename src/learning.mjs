@@ -150,7 +150,8 @@ function appliedQuiz(concept, phase) {
 function signalSentence(session) {
   const signals = session?.taskSignals || {};
   const parts = [];
-  if (signals.symbol) parts.push(`active symbol ${signals.symbol}`);
+  if (signals.symbol) parts.push(signals.structureCoverage?.canonical===true ? `active symbol ${signals.symbol}`
+    : `text-matched symbol candidate ${signals.symbol} (not parsed)`);
   if (signals.route) parts.push(`route ${signals.route}`);
   if (signals.table) parts.push(`table ${signals.table}`);
   if (signals.technologies?.length) parts.push(`stack signal ${signals.technologies.slice(0, 3).join(', ')}`);

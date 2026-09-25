@@ -165,3 +165,41 @@ matrix runs both.
 
 Hosted results are recorded below as they are obtained; the Windows incident stays open until a
 hosted run qualifies the gate without retry.
+
+## 7. Hosted results (dated, none erased)
+
+### Candidate `f7ed121936f7635341a3f3725685ff1b021b7e3c` — run 36165830568 (PR merge checkout `225749f`), 2026-09-25
+
+- **23/24 jobs SUCCESS.**
+- **Windows gates:** both passed: `real Core context consumer (windows-latest)` on `fbebc79`, and
+  the same job on Core main `a168829`.
+- **FAIL:** `real Core context consumer (macos-latest)` (job 108173217987, Core `fbebc79`), step
+  `Verify installed historical observations beyond eight entries`.
+  - `feature-history-smoke.mjs:60` expected 13 retained observations and got 12.
+  - This path goes through `feature-memory` and `feature-model`, which this PR does not change.
+  - An observation is recorded only after a canonical parsed extraction within the 500 ms
+    feature-map budget; one of the 13 calls did not yield one.
+  - The smoke did not report why, so the cause is **not established**.
+  - The same step passed on macOS with Core main in the same run, and at `b996638` (run 36147335199).
+  - Added: a non-qualifying print of each such call's fixed-field coverage (canonical, parsed, reason)
+    before the unchanged assertion.
+- **Cold-start diagnostic** (job 108173218012, Windows, Core `a168829`, each observation in its own
+  fresh install):
+  - **A, product call through the generated `dw.exe` launcher:** call 1 took 509.1 ms,
+    `ETIMEDOUT`/`SIGTERM`, which reproduces the incident. Calls 2–11 took 123–169 ms.
+  - **B, first call through `python.exe -m diffwitness.entry` under `-X importtime`:** 125.2 ms,
+    success. Imports 76.7 ms in total: `importlib.metadata` 19.9, `diffwitness.entry` 18.3,
+    `structure_transport` 14.3, grammars 0.7–1.1 each.
+  - **C, first in-process phase split:** 104.1 ms in total.
+  - **Observed:** the slow first call happens through the freshly generated `dw.exe` launcher. A
+    first call through `python.exe` in an equally fresh install is fast.
+  - **Not yet shown:** that the launcher's first execution alone carries the cost. Observation D,
+    added in the next candidate, runs `dw --version` first in a fresh install, then the product call.
+- **Same diagnostic on macOS and Ubuntu:** first product call 117.7 ms (macOS) and within budget on
+  Ubuntu; no timeout.
+
+Codex review of `f7ed121` (P2): the `doing` summary still presented a heuristic symbol, from a
+language without a provider, as the active symbol ("around", "centered on"). Fixed in the next
+candidate: the summary and the learning context name it as a candidate. The regressions fail on
+`f7ed121` and pass after the fix. A learning fixture that asserts an "active symbol" now carries the
+canonical coverage that makes it one.

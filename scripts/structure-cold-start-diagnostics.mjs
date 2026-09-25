@@ -107,6 +107,23 @@ print(json.dumps(phases))`;
     try { phases = JSON.parse(String(result.stdout).trim()); } catch {}
     emit({observation:'first-process-phases', label:'c', status:result.status, wallMs:ms(started), phases});
   }
+
+  // D. Separates the first execution of the freshly generated `dw` launcher from the extraction: a
+  // trivial `dw --version` first, then the same product call as A, in a fourth fresh install.
+  const d = freshEnvironment('d');
+  if (d.ok) {
+    let started = performance.now();
+    const version = spawnSync(d.dw, ['--version'], {cwd:project, encoding:'utf8', timeout:5000, windowsHide:true});
+    emit({observation:'launcher-first-exec', label:'d', status:version.status, elapsedMs:ms(started)});
+    started = performance.now();
+    const version2 = spawnSync(d.dw, ['--version'], {cwd:project, encoding:'utf8', timeout:5000, windowsHide:true});
+    emit({observation:'launcher-second-exec', label:'d', status:version2.status, elapsedMs:ms(started)});
+    const failures = [];
+    started = performance.now();
+    const result = loadStructureExtractions(project, sources, {command:d.dw, onFailure:record => failures.push(record)});
+    emit({observation:'product-call-after-launcher', label:'d', elapsedMs:ms(started), reason:result.reason, extracted:result.byPath.size,
+      failure:failures[0] ? {stage:failures[0].stage, code:failures[0].code, signal:failures[0].signal, elapsedMs:failures[0].elapsedMs} : null});
+  }
 } finally {
   fs.rmSync(root, {recursive:true, force:true});
 }

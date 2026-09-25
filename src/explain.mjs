@@ -50,6 +50,11 @@ function neutralImportReferences(signals={}) {
   return uniq(signals.importReferences).filter(value=>!dependencies.has(value)).slice(0,3);
 }
 
+// Only a canonical extraction observes a symbol; a text match from a language without a provider
+// stays a candidate wherever it is shown.
+const observedSymbol = signals => signals.structureCoverage?.canonical===true;
+const symbolLabel = signals => observedSymbol(signals) ? `\`${signals.symbol}\`` : `the text-matched candidate \`${signals.symbol}\` (not parsed)`;
+
 function fileObservation(file, session, currentFile) {
   const normalized = normalizedProjectPath(file);
   const related = (session.taskSignals?.relatedFiles || []).find((item) => normalizedProjectPath(item.file) === normalized);
@@ -57,8 +62,7 @@ function fileObservation(file, session, currentFile) {
   const inferred = inferFileRole(normalized, signals);
   const exact = `\`${normalized}\``;
   const facts=[];
-  // Only a canonical extraction observes a symbol; a text match from an unsupported language is a candidate.
-  if (signals.symbol) facts.push(signals.structureCoverage?.canonical===true ? `the observed symbol is \`${signals.symbol}\``
+  if (signals.symbol) facts.push(observedSymbol(signals) ? `the observed symbol is \`${signals.symbol}\``
     : `a text-matched symbol candidate (not parsed) is \`${signals.symbol}\``);
   if (signals.route) facts.push(`it exposes or references route \`${signals.route}\``);
   if (signals.table) facts.push(`it references data surface \`${signals.table}\``);
@@ -81,7 +85,7 @@ function conceptPlain(concept) { return CONCEPT_PLAIN[concept?.id] || null; }
 function detectedTerms(text) { const lower=String(text||'').toLowerCase(); return Object.entries(TERM_GLOSSARY).filter(([term])=>lower.includes(term)).map(([term,meaning])=>({term,meaning})).slice(0,5); }
 function surfaceSentence(signals={}) {
   const parts=[];
-  if (signals.symbol) parts.push(`the work is currently centered on \`${signals.symbol}\``);
+  if (signals.symbol) parts.push(`the work is currently centered on ${symbolLabel(signals)}`);
   if (signals.route) parts.push(`the task touches route \`${signals.route}\``);
   if (signals.table) parts.push(`the task touches stored data named \`${signals.table}\``);
   if ((signals.dependencies||[]).length) parts.push(`the current file references ${signals.dependencies.slice(0,3).map((value)=>`\`${value}\``).join(', ')}`);
@@ -107,7 +111,7 @@ export function buildPlainExplanation({session={},concept=null,phase='work'}={})
   const files=touched.map((file)=>fileObservation(file,session,currentFile));
   const current=files.find((item)=>item.path===currentFile)||files[0]||null;
   const plain=conceptPlain(concept); const signals=session.taskSignals||{};
-  const doing=[phaseSentence(phase,task),current?`Right now, the clearest local evidence is in \`${current.path}\`${signals.symbol?` around \`${signals.symbol}\``:''}.`:'',surfaceSentence(signals)].filter(Boolean).join(' ');
+  const doing=[phaseSentence(phase,task),current?`Right now, the clearest local evidence is in \`${current.path}\`${signals.symbol?` around ${symbolLabel(signals)}`:''}.`:'',surfaceSentence(signals)].filter(Boolean).join(' ');
   const fileDetails=files.slice(0,6).map((item)=>item.explanation).join(' ');
   const project=files.length ? `IdleProof observed ${files.length===1?'this file':`${files.length} files`} in the current task: ${files.map((item)=>`\`${item.path}\``).join(', ')}. ${fileDetails}` : 'IdleProof has the task context but has not yet observed a project-local file closely enough to make a file-specific claim.';
   const why=plain ? `${plain.meaning} ${plain.risk}` : 'This matters because the agent is changing behavior inside your project. IdleProof can explain the observed files and boundaries, but it will not invent a more specific business meaning until the code provides stronger evidence.';
@@ -117,7 +121,7 @@ export function buildPlainExplanation({session={},concept=null,phase='work'}={})
   return {
     schema:'idleproof.explanation.v1', title:task?'What this task means in your project':'What the agent is doing in your project', doing, project, why, expectedOutcome, watch, files,
     concept:plain?{id:concept.id,name:plain.name}:null, terms,
-    certainty:{ level:current&&signals.symbol&&signals.structureCoverage?.canonical===true?'observed-plus-inferred':'bounded-inference', limitations:[
+    certainty:{ level:current&&signals.symbol&&observedSymbol(signals)?'observed-plus-inferred':'bounded-inference', limitations:[
       'File roles are inferred from observed paths and static local context; they are not a proven runtime call graph.',
       'IdleProof distinguishes observed facts from inferred responsibility and keeps exact project names when evidence is weak.',
       'Whether the change is actually correct is a proof question for tests and DiffWitness, not something this explanation claims by itself.'

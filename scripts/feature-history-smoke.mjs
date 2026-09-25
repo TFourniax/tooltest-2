@@ -28,11 +28,19 @@ try {
   const state=freshState(repo),old=cachedFeatureModel(repo,{id:'before',currentResource:'old.py'});
   rememberFeature(state,{id:'before'},old);assert.equal(state.features[old.featureKey].lineageObservations.items.length,1);
   const oldest=state.features[old.featureKey].lineageObservations.items[0];
+  // Diagnostic only: an observation is recorded only after a canonical parsed extraction, so print the
+  // fixed-field coverage of any call that had none. The assertions below are unchanged.
+  const uncovered=[];
+  const coverageOf=(model,call)=>{const item=(model.generatedFrom?.coverage||[]).find(entry=>entry.path==='old.py');
+    if(!item?.canonical||!item?.parsed) uncovered.push({call,canonical:item?.canonical??null,parsed:item?.parsed??null,reason:item?.reason??null});};
+  coverageOf(old,0);
   for(let i=0;i<12;i++) {
     fs.writeFileSync(path.join(repo,'old.py'),`def calculate(value):\n    return value + ${i+2}\n`);
     const observed=cachedFeatureModel(repo,{id:'before',currentResource:'old.py'});
+    coverageOf(observed,i+1);
     assert.equal(observed.featureKey,old.featureKey);rememberFeature(state,{id:'before'},observed);
   }
+  if(uncovered.length) console.error(JSON.stringify({schema:'idleproof-feature-history-coverage-diagnostic-1',classification:'MACHINE',qualification:false,uncovered}));
   assert.equal(state.features[old.featureKey].lineageObservations.items.length,8);
   assert.ok(!state.features[old.featureKey].lineageObservations.items.some(item=>item.id===oldest.id));
   fs.writeFileSync(path.join(repo,'old.py'),'def calculate(value):\n    return value + 1\n');
