@@ -198,8 +198,37 @@ hosted run qualifies the gate without retry.
 - **Same diagnostic on macOS and Ubuntu:** first product call 117.7 ms (macOS) and within budget on
   Ubuntu; no timeout.
 
+### Candidate `f6667179d0d08998f71b537f3c01bdfaee0361f6` — run 36167041291 (merge checkout `220f402`)
+
+- **24/24 jobs SUCCESS**, including both macOS context jobs and both Windows gates.
+- **Windows cold-start diagnostic** (job 108177210427, one fresh install per observation):
+  - **A, first product call through `dw.exe`:** 196.8 ms, no timeout; calls 2–11 took 157–170 ms.
+  - **B, first call through `python.exe -m`:** 176.7 ms.
+  - **C, first in-process phases:** 142.2 ms.
+  - **D, first `dw --version`:** 82.1 ms (second 78.0 ms), then the product call 163.4 ms.
+- **Conclusion:** the launcher hypothesis is **not demonstrated**. The slow first call is
+  intermittent: seen in the `d8e7c9b` gate (509.8 ms), in diagnostic A at `f7ed121` (509.1 ms), and
+  in earlier runs 35927891752 and 35936695431. It was absent from the gates of runs 36165830568 and
+  36167041291 and from this diagnostic.
+- **Excluded by measurement:** in-process Core work on Windows (imports, metadata, grammar loading,
+  parsing) stays around 100–140 ms, far inside 500 ms. No code path in IdleProof or Core accounts for
+  the spike, so no code change is justified by the evidence. The threshold is unchanged.
+- **Status: open, characterized, cause undetermined.** Establishing it would need OS-level tracing
+  of process start on the hosted runner, which is outside this lot.
+- **Product consequence, now safe:** when that first call misses the deadline, IdleProof reports
+  `unavailable` with no structural facts (section 2), and the next call extracts normally.
+
 Codex review of `f7ed121` (P2): the `doing` summary still presented a heuristic symbol, from a
 language without a provider, as the active symbol ("around", "centered on"). Fixed in the next
 candidate: the summary and the learning context name it as a candidate. The regressions fail on
 `f7ed121` and pass after the fix. A learning fixture that asserts an "active symbol" now carries the
 canonical coverage that makes it one.
+
+Codex review of `f6667179` (P2): the learning card still used a heuristic symbol as a code location
+(`learningTarget`, `applicationPrompt`: "Open fake in widget.vue"). Fixed at the source in the next
+candidate with one rule (`src/symbol-provenance.mjs`): a symbol whose coverage is explicitly
+non-canonical is a candidate. Explanations may name it as such, but it never becomes a location,
+subject or summary anchor, whether in the learning card, the IDE question or the Portal task summary.
+Hand-built or legacy signals without `structureCoverage` keep their previous behaviour, because every
+signal produced by extraction declares it. The earlier fixture additions are therefore reverted.
+Regressions fail on `f6667179` and pass after the fix.

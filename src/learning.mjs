@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { CONCEPT_BY_ID } from './catalog.mjs';
+import { observedSymbol, symbolIsCandidate } from './symbol-provenance.mjs';
 
 function compact(value = '', max = 120) {
   const text = String(value || '').replace(/\s+/g, ' ').trim();
@@ -18,7 +19,7 @@ function latestTouchedFile(session) {
 
 function learningTarget(session, file) {
   const signals = session?.taskSignals || {};
-  if (signals.symbol && file) return `${signals.symbol} in ${file}`;
+  if (observedSymbol(signals) && file) return `${observedSymbol(signals)} in ${file}`;
   if (signals.route && file) return `${signals.route} in ${file}`;
   if (signals.table && file) return `${signals.table} in ${file}`;
   return file || null;
@@ -150,8 +151,8 @@ function appliedQuiz(concept, phase) {
 function signalSentence(session) {
   const signals = session?.taskSignals || {};
   const parts = [];
-  if (signals.symbol) parts.push(signals.structureCoverage?.canonical===true ? `active symbol ${signals.symbol}`
-    : `text-matched symbol candidate ${signals.symbol} (not parsed)`);
+  if (signals.symbol) parts.push(symbolIsCandidate(signals) ? `text-matched symbol candidate ${signals.symbol} (not parsed)`
+    : `active symbol ${signals.symbol}`);
   if (signals.route) parts.push(`route ${signals.route}`);
   if (signals.table) parts.push(`table ${signals.table}`);
   if (signals.technologies?.length) parts.push(`stack signal ${signals.technologies.slice(0, 3).join(', ')}`);
@@ -169,7 +170,7 @@ function taskConnection(concept, task, phase, file, session) {
 
 function applicationPrompt(concept, phase, file, session) {
   const signals = session?.taskSignals || {};
-  const anchor = signals.symbol ? `${signals.symbol}${file ? ` in ${file}` : ''}` : file;
+  const anchor = observedSymbol(signals) ? `${observedSymbol(signals)}${file ? ` in ${file}` : ''}` : file;
   const target = anchor ? `Open ${anchor}` : 'Look at the agent’s current change';
   if (phase === 'handoff') return `${target} before accepting the turn and ${lowerFirst(concept.review)}`;
   if (phase === 'verify') return `${target} and predict which failure or invariant the current verification should catch.`;

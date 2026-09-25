@@ -142,4 +142,17 @@ test('learning context names a heuristic symbol as a candidate and a canonical o
     /text-matched symbol candidate mountWidget \(not parsed\)/);
   assert.ok(!/active symbol/.test(card({provider:'legacy-heuristic', canonical:false, parsed:null}).why));
   assert.match(card({provider:'tree-sitter-typescript', canonical:true, parsed:true}).why, /active symbol mountWidget/);
+  // A candidate is never used as a code location in the question, lesson or review.
+  const heuristic = card({provider:'legacy-heuristic', canonical:false, parsed:null, reason:'language-adapter-pending'});
+  for (const field of ['question', 'lesson', 'review'])
+    assert.ok(!/mountWidget in widget\.vue/.test(heuristic[field]), `${field}: ${heuristic[field]}`);
+  assert.match(heuristic.lesson, /Open widget\.vue/);
+  assert.match(card({provider:'tree-sitter-typescript', canonical:true, parsed:true}).lesson, /Open mountWidget in widget\.vue/);
+});
+
+test('a candidate symbol never anchors the Portal task summary', () => {
+  const summary = coverage => buildPortalSnapshot({session:{prompt:'Change mountWidget', currentResource:'widget.vue', touchedFiles:['widget.vue'],
+    taskSignals:{file:'widget.vue', symbol:'mountWidget', structureCoverage:coverage}}}).task.summary;
+  assert.equal(summary({provider:'legacy-heuristic', canonical:false, parsed:null, reason:'language-adapter-pending'}), 'Work involving widget.vue');
+  assert.equal(summary({provider:'tree-sitter-typescript', canonical:true, parsed:true}), 'Work around mountWidget in widget.vue');
 });

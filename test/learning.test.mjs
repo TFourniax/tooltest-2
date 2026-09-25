@@ -23,9 +23,7 @@ test('contextual learning card is grounded in the active task, file and local sy
     currentTool: 'Write',
     currentCapabilities: ['code.modify'],
     touchedFiles: ['src/auth/session.ts'],
-    // An active symbol is an observed fact, so the fixture carries the canonical coverage it comes from.
-    taskSignals: { file: 'src/auth/session.ts', symbol: 'authorizeAdmin', route: '/admin', table: null, technologies: ['OAuth'],
-      structureCoverage: { provider: 'tree-sitter-typescript', parsed: true, canonical: true } },
+    taskSignals: { file: 'src/auth/session.ts', symbol: 'authorizeAdmin', route: '/admin', table: null, technologies: ['OAuth'] },
     concepts: { auth: { events: 3 } },
     events: []
   };

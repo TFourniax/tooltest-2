@@ -1,4 +1,5 @@
 import { normalizedProjectPath } from './project-path.mjs';
+import { observedSymbol } from './symbol-provenance.mjs';
 import { createHash } from 'node:crypto';
 import { validContext, validContextIdentity } from './continuity-contract.mjs';
 
@@ -214,7 +215,7 @@ function safeContinuityMemory(value) {
 function safeTaskSummary(session=null, explanation=null) {
   const signals=session?.taskSignals || {};
   const file=cleanPath(signals.file || session?.currentResource || [...(session?.touchedFiles || [])].at(-1) || '');
-  const symbol=redact(signals.symbol || '',100);
+  const symbol=redact(observedSymbol(signals) || '',100);
   const route=redact(signals.route || '',120);
   const table=redact(signals.table || '',120);
   const concept=redact(explanation?.concept?.name || explanation?.concept?.id || '',100);

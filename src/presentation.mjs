@@ -1,4 +1,5 @@
 import { buildPlainExplanation } from './explain.mjs';
+import { observedSymbol } from './symbol-provenance.mjs';
 
 function compact(value = '', max = 180) {
   const text = String(value || '').replace(/\s+/g, ' ').trim();
@@ -32,7 +33,7 @@ function naturalizeQuestion(question = '', target = '') {
 }
 
 function subjectFrom(signals = {}) {
-  return signals.symbol || signals.route || signals.table || null;
+  return observedSymbol(signals) || signals.route || signals.table || null;
 }
 
 function specializedQuestion(card, fallback) {
@@ -45,7 +46,7 @@ function specializedQuestion(card, fallback) {
 
   if (card.id === 'http' && (technologies.has('Stripe') || /webhooks?/i.test(route || ''))) {
     const webhook = route || subject || 'this webhook';
-    const handler = signals.symbol ? ` in ${signals.symbol}` : '';
+    const handler = observedSymbol(signals) ? ` in ${observedSymbol(signals)}` : '';
     if (phase === 'implement') return `If Stripe retries ${webhook}${handler}, what property must this handler preserve?`;
     if (phase === 'verify') return `For ${webhook}${handler}, which behavior most needs an explicit retry or duplicate-delivery test?`;
     if (phase === 'handoff') return `Before accepting ${webhook}${handler}, what part of the API contract must still cover duplicate delivery and failure semantics?`;
