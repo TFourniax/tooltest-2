@@ -551,9 +551,17 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
         if (!state) return superseded();
         return { configured:true, ok:false, status:'source-unavailable', errorCode:'SOURCE_JOURNAL_IDENTITY_MISSING', next:state.next, pagesSent, acknowledged };
       }
+      // A cursor that has a journal is only ever confirmed by a page naming that journal. Past the
+      // start, a page without one is an invalid source (Core names its journal whenever it has
+      // events); at the start of an epoch it means the journal is now empty, a journal change.
+      if (state.journal && !journal && state.next > 0) {
+        state = cursorBound(view, (current) => ({ ...current, statusCode:'SOURCE_JOURNAL_IDENTITY_MISSING' }));
+        if (!state) return superseded();
+        return { configured:true, ok:false, status:'source-unavailable', errorCode:'SOURCE_JOURNAL_IDENTITY_MISSING', next:state.next, pagesSent, acknowledged };
+      }
       // A page from another journal is a journal change, even an empty one: never report the old
       // journal "up to date".
-      if (state.journal && journal && state.journal !== journal) {
+      if (state.journal && state.journal !== journal) {
         state = cursorBound(view, (current) => ({ ...current, status:'reset-required', statusCode:'JOURNAL_IDENTITY_CHANGED' }));
         if (!state) return superseded();
         return { configured:true, ok:false, status:'reset-required', errorCode:'JOURNAL_IDENTITY_CHANGED', next:state.next, pagesSent, acknowledged };

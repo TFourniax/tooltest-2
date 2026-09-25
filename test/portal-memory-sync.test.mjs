@@ -593,6 +593,30 @@ test('resync without a repository identity is refused, never reported active', (
   } finally { cleanup(cwd); }
 });
 
+test('an empty page without a journal identity never confirms a cursor that has one', async () => {
+  const cwd = fixture();
+  try {
+    const events = journal([{ id:'decision:a' }, { id:'decision:b' }]);
+    const server = portal();
+    assert.equal((await syncPortalMemory(cwd, { fetchImpl:server.fetchImpl, coreRunner:core(events) })).next, 2);
+    // Echoes the expected head and a consistent count, but names no journal.
+    const anonymous = (args) => {
+      const after = Number(args[args.indexOf('--after') + 1]);
+      return { ok:true, stdout:JSON.stringify({ schema_version:'project-event-page-1', journal:{ genesisHash:null, eventCount:after },
+        after, events:[], next:after, head:after ? events[after - 1].event_hash : null, hasMore:false }) };
+    };
+    const result = await syncPortalMemory(cwd, { fetchImpl:server.fetchImpl, coreRunner:anonymous });
+    assert.equal(result.status, 'source-unavailable', JSON.stringify(result));
+    assert.equal(result.errorCode, 'SOURCE_JOURNAL_IDENTITY_MISSING');
+    assert.equal(portalMemoryStatus(cwd).next, 2);
+    // At the start of an epoch, a journal that is now empty is a journal change.
+    assert.equal(resyncPortalMemory(cwd, { coreRunner:core(events) }).ok, true);
+    const emptied = await syncPortalMemory(cwd, { fetchImpl:server.fetchImpl, coreRunner:anonymous });
+    assert.equal(emptied.status, 'reset-required', JSON.stringify(emptied));
+    assert.equal(emptied.errorCode, 'JOURNAL_IDENTITY_CHANGED');
+  } finally { cleanup(cwd); }
+});
+
 test('a transient capability failure is deferred, not incompatible', async () => {
   const cwd = fixture();
   try {
