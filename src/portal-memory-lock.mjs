@@ -3,16 +3,20 @@
 // the initiation of every memory page request: once a change is committed, no page is started
 // with the old token or endpoint.
 //
-// A lock is never evicted because of its age: a paused but live owner keeps it. It is recovered
-// only when the process recorded in it no longer exists (or the file is unreadable garbage left
-// by a crash), and an owner only ever removes the file while it still holds its own token.
+// Acquisition is atomic with the owner's identity: the token is written to a private temporary
+// file which is then hard-linked into place, so the lock never exists without its owner. A lock is
+// never evicted because of its age. It is recovered only when the process recorded in it no longer
+// exists, and recovery is itself exclusive: the evictor first pins the stale inode with a hard
+// link that only one contender can create, then removes the lock only if that pinned inode still
+// carries the stale content and is still the one at the lock path. An owner only ever removes the
+// file while it still holds its own token.
 import fs from 'node:fs';
 import path from 'node:path';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { projectPaths } from './paths.mjs';
 
 const LOCK_TIMEOUT_MS = 3000;
-const GARBAGE_STALE_MS = 10000;
+const OWNER = /^(\d+) [a-f0-9]{32}\n$/;
 const sleepBuffer = new Int32Array(new SharedArrayBuffer(4));
 
 function readOwner(file) {
@@ -24,12 +28,53 @@ function processAlive(pid) {
   catch (error) { return error?.code === 'EPERM'; }
 }
 
-// True only when the current holder provably cannot release the lock any more.
-function abandoned(file, content) {
-  const match = /^(\d+) [a-f0-9]{32}\n$/.exec(content ?? '');
-  if (match) return !processAlive(Number(match[1]));
-  // Unparseable (a crash between create and write): recover only after a grace period.
-  try { return Date.now() - fs.statSync(file).mtimeMs > GARBAGE_STALE_MS; } catch { return false; }
+// Only a lock whose recorded owner provably no longer exists is abandoned. Anything unreadable is
+// treated as held: acquisition never publishes a lock without its owner, so it cannot be ours to
+// recover.
+function abandoned(content) {
+  const match = OWNER.exec(content ?? '');
+  return Boolean(match) && !processAlive(Number(match[1]));
+}
+
+function tryCreate(file, token) {
+  const temporary = `${file}.${process.pid}.${randomBytes(8).toString('hex')}.tmp`;
+  fs.writeFileSync(temporary, token, { mode:0o600, flag:'wx' });
+  try {
+    fs.linkSync(temporary, file);
+    return true;
+  } catch (error) {
+    if (['EEXIST', 'EPERM', 'EACCES'].includes(error?.code)) return false;
+    throw error;
+  } finally {
+    try { fs.unlinkSync(temporary); } catch {}
+  }
+}
+
+function sameInode(left, right) {
+  try {
+    const a = fs.statSync(left, { bigint:true });
+    const b = fs.statSync(right, { bigint:true });
+    return a.ino === b.ino && a.dev === b.dev;
+  } catch { return false; }
+}
+
+// Exclusive recovery of the abandoned lock whose content was observed as `content`.
+function tryEvict(file, content) {
+  const claim = `${file}.evict-${createHash('sha256').update(content).digest('hex').slice(0, 24)}`;
+  try { fs.linkSync(file, claim); }
+  catch { return false; } // another evictor holds the claim, or the lock is already gone
+  try {
+    // The claim pins whatever inode was at the lock path; it must be the abandoned one we inspected
+    // and still be the one there. Nobody can publish a new lock while the path is occupied, and no
+    // other evictor can pass the claim, so the unlink removes exactly the abandoned lock.
+    if (readOwner(claim) !== content || !abandoned(content) || !sameInode(claim, file)) return false;
+    fs.unlinkSync(file);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    try { fs.unlinkSync(claim); } catch {}
+  }
 }
 
 export function withMemoryLock(cwd, fn) {
@@ -39,27 +84,13 @@ export function withMemoryLock(cwd, fn) {
   const started = Date.now();
   let owned = false;
   while (Date.now() - started < LOCK_TIMEOUT_MS) {
-    let fd = null;
-    try {
-      fd = fs.openSync(file, 'wx', 0o600);
-      fs.writeFileSync(fd, token);
-      owned = true;
-      break;
-    } catch (error) {
-      if (!['EEXIST', 'EPERM', 'EACCES'].includes(error?.code)) throw error;
-      const content = readOwner(file);
-      // Remove an abandoned lock only if it is still the same abandoned lock we inspected.
-      if (content !== null && abandoned(file, content) && readOwner(file) === content) {
-        try { fs.unlinkSync(file); } catch {}
-        continue;
-      }
-      Atomics.wait(sleepBuffer, 0, 0, 10);
-    } finally {
-      if (fd !== null) { try { fs.closeSync(fd); } catch {} }
-    }
+    if (tryCreate(file, token)) { owned = true; break; }
+    const content = readOwner(file);
+    if (content !== null && abandoned(content) && tryEvict(file, content)) continue;
+    Atomics.wait(sleepBuffer, 0, 0, 10);
   }
   if (!owned) {
-    const error = new Error('Portal memory cursor stayed busy for 3s.');
+    const error = new Error(`Portal memory cursor stayed busy for 3s (lock ${file}).`);
     error.code = 'IDLEPROOF_PORTAL_MEMORY_BUSY';
     throw error;
   }
@@ -69,3 +100,5 @@ export function withMemoryLock(cwd, fn) {
     if (readOwner(file) === token) { try { fs.unlinkSync(file); } catch {} }
   }
 }
+
+export const __memoryLockTest = { tryEvict, abandoned };
