@@ -156,10 +156,16 @@ function inspectTaskFile(cwd, file, prompt, admitted, extractions) {
     return { ...fallback, fileRole:inferFileRole(file || '', fallback) };
   }
   const canonical = extractions.byPath.get(safe.relative);
+  // A language with a canonical provider whose extraction is unavailable or rejected has no
+  // structural facts: text matching cannot tell a declaration from one quoted in a string, so
+  // it would present an absent symbol as observed. Only languages without a provider keep the
+  // explicitly labelled legacy heuristic.
+  const providerFailed = !canonical && supportsStructurePath(safe.relative);
   const structureCoverage = canonical
     ? {provider:canonical.provider,sourceSha256:safe.sha256,parsed:canonical.parsed,canonical:true}
-    : {provider:'legacy-heuristic',sourceSha256:safe.sha256,parsed:null,canonical:false,
-       reason:supportsStructurePath(safe.relative) ? extractions.reason : 'language-adapter-pending'};
+    : providerFailed
+      ? {provider:'unavailable',sourceSha256:safe.sha256,parsed:null,canonical:false,reason:extractions.reason}
+      : {provider:'legacy-heuristic',sourceSha256:safe.sha256,parsed:null,canonical:false,reason:'language-adapter-pending'};
   const cacheKey = JSON.stringify([safe.absolute, safe.sha256, createHash('sha256').update(prompt).digest('hex'),
                                  canonical||structureCoverage]);
   if (cache.has(cacheKey)) return structuredClone(cache.get(cacheKey));
@@ -173,7 +179,7 @@ function inspectTaskFile(cwd, file, prompt, admitted, extractions) {
     return dataSource ? name : name.split('.').at(-1);
   };
   const symbols = canonical ? unique(canonical.symbols.map(displayName)).slice(0,60)
-                            : dataSource ? [] : symbolsFromText(evidenceText);
+                            : dataSource||providerFailed ? [] : symbolsFromText(evidenceText);
   // Data syntax has its own admitted facts. Values and SQL literal/query text
   // must not re-enter task facts through the legacy code-language heuristics.
   const routes = dataSource ? [] : routesFromText(`${prompt}\n${evidenceText}`);
@@ -181,7 +187,7 @@ function inspectTaskFile(cwd, file, prompt, admitted, extractions) {
     ? canonical.symbols.filter(symbol=>symbol.kind==='table').map(displayName) : []
     : tablesFromText(`${prompt}\n${evidenceText}`);
   const importReferences = canonical ? unique(canonical.imports.map(item=>item.target)).slice(0,24) : [];
-  const dependencies = dataSource||unresolvedOrigin ? [] : canonical ? unique(canonical.imports.map(item=>externalDependency(
+  const dependencies = dataSource||unresolvedOrigin||providerFailed ? [] : canonical ? unique(canonical.imports.map(item=>externalDependency(
     canonical.language==='python' ? item.target.split('.')[0] : item.target,canonical.language))).slice(0,24)
     : dependenciesFromText(evidenceText);
   const base = {
@@ -202,14 +208,14 @@ function inspectTaskFile(cwd, file, prompt, admitted, extractions) {
   return signal;
 }
 
-export function extractTaskSignals(cwd = process.cwd(), session = {}, {onStructureFailure=null} = {}) {
+export function extractTaskSignals(cwd = process.cwd(), session = {}, {onStructureFailure=null, structureOptions={}} = {}) {
   const prompt = String(session.prompt || '');
   const currentFile = preferredContextFile(session);
   const candidates = unique([currentFile, ...(session.touchedFiles || []).slice(-MAX_RELATED_FILES)]).filter(Boolean).slice(-MAX_RELATED_FILES);
   const admitted = new Map(unique([currentFile,...candidates]).map(file=>[file,readProjectSource(cwd,file)]));
   const sources = [...new Map([...admitted.values()].filter(Boolean).map(source=>[source.relative,source])).values()]
     .filter(source=>supportsStructurePath(source.relative));
-  const extractions = loadStructureExtractions(cwd,sources,{onFailure:onStructureFailure});
+  const extractions = loadStructureExtractions(cwd,sources,{...structureOptions,onFailure:onStructureFailure});
   const current = inspectTaskFile(cwd, currentFile, prompt, admitted, extractions);
   const relatedFiles = candidates.map((file) => inspectTaskFile(cwd, file, prompt, admitted, extractions));
   const allTechnologies = unique([...(current.technologies || []), ...relatedFiles.flatMap((item) => item.technologies || [])]).slice(0, 16);

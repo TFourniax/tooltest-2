@@ -4,6 +4,7 @@ import path from 'node:path';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { extractTaskSignals } from '../src/context.mjs';
+import { canonicalCore } from './support/canonical-core.mjs';
 
 test('task signals extract a relevant symbol, route and technology without returning source code', () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'idleproof-context-'));
@@ -19,7 +20,7 @@ export function unrelatedHelper() { return true; }
   const result = extractTaskSignals(cwd, {
     prompt: 'Make handleStripeWebhook idempotent and verify the Stripe webhook signature.',
     touchedFiles: ['src/stripe.ts']
-  });
+  }, {structureOptions:canonicalCore({'src/stripe.ts':{symbols:['handleStripeWebhook','unrelatedHelper'],imports:['stripe']}})});
 
   assert.equal(result.file, 'src/stripe.ts');
   assert.equal(result.symbol, 'handleStripeWebhook');
@@ -39,7 +40,7 @@ test('read activity prefers the resource being inspected over the last edited fi
     touchedFiles: ['src/old.ts'],
     currentResource: 'src/live.ts',
     currentCapabilities: ['code.read']
-  });
+  }, {structureOptions:canonicalCore({'src/live.ts':{symbols:['inspectMe']},'src/old.ts':{symbols:['oldThing']}})});
 
   assert.equal(result.file, 'src/live.ts');
   assert.equal(result.symbol, 'inspectMe');

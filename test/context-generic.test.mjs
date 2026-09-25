@@ -4,29 +4,35 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { extractTaskSignals } from '../src/context.mjs';
+import { canonicalCore } from './support/canonical-core.mjs';
 
-function fixture(file, content, prompt) {
+function fixture(file, content, prompt, facts={}) {
   const cwd=fs.mkdtempSync(path.join(os.tmpdir(),'idleproof-context-generic-'));
   const full=path.join(cwd,file); fs.mkdirSync(path.dirname(full),{recursive:true}); fs.writeFileSync(full,content);
-  try { return extractTaskSignals(cwd,{ prompt, touchedFiles:[file], currentResource:file, currentCapabilities:['code.modify'] }); }
+  try { return extractTaskSignals(cwd,{ prompt, touchedFiles:[file], currentResource:file, currentCapabilities:['code.modify'] },{structureOptions:canonicalCore({[file]:facts})}); }
   finally { fs.rmSync(cwd,{recursive:true,force:true}); }
 }
 
 test('extracts exact Go symbol and arbitrary package dependency', () => {
-  const s=fixture('internal/payments/odd_receiver.go',`package payments\nimport (\"github.com/acme/weirdpay/v7\")\nfunc SettleOddInvoice(id string) error { return nil }\n`,'Change SettleOddInvoice retry behavior');
+  const s=fixture('internal/payments/odd_receiver.go',`package payments\nimport (\"github.com/acme/weirdpay/v7\")\nfunc SettleOddInvoice(id string) error { return nil }\n`,'Change SettleOddInvoice retry behavior',
+    {symbols:['SettleOddInvoice'],imports:['github.com/acme/weirdpay/v7']});
   assert.equal(s.symbol,'SettleOddInvoice');
   assert.ok(s.dependencies.includes('github.com/acme/weirdpay/v7'));
 });
 
 test('extracts Rust symbol and crate dependency without pretending std is external', () => {
-  const s=fixture('src/queue_worker.rs',`use mystery_bus::Client;\nuse std::sync::Arc;\nfn drain_pending_jobs() {}`,'Make drain_pending_jobs safe');
+  const s=fixture('src/queue_worker.rs',`use mystery_bus::Client;\nuse std::sync::Arc;\nfn drain_pending_jobs() {}`,'Make drain_pending_jobs safe',
+    {symbols:['drain_pending_jobs'],imports:['mystery_bus::Client','std::sync::Arc']});
   assert.equal(s.symbol,'drain_pending_jobs');
-  assert.ok(s.dependencies.includes('mystery_bus'));
-  assert.ok(!s.dependencies.includes('std'));
+  // Canonical Rust imports keep the full external target, as the real-Core dependency smoke asserts
+  // (`serde::Serialize`); the crate is its first path segment and the standard library is excluded.
+  assert.deepEqual(s.dependencies,['mystery_bus::Client']);
+  assert.ok(!s.dependencies.some(value=>value.split('::')[0]==='std'));
 });
 
 test('extracts Java route and class while preserving exact file', () => {
-  const s=fixture('src/main/java/com/acme/FrobnicatorEndpoint.java',`import com.vendor.odd.Client;\n@RestController\nclass FrobnicatorEndpoint {\n @PostMapping(\"/v1/frobnicate\") void frobnicate() {}\n}`,'Update FrobnicatorEndpoint');
+  const s=fixture('src/main/java/com/acme/FrobnicatorEndpoint.java',`import com.vendor.odd.Client;\n@RestController\nclass FrobnicatorEndpoint {\n @PostMapping(\"/v1/frobnicate\") void frobnicate() {}\n}`,'Update FrobnicatorEndpoint',
+    {symbols:['FrobnicatorEndpoint','frobnicate'],imports:['com.vendor.odd.Client']});
   assert.equal(s.file,'src/main/java/com/acme/FrobnicatorEndpoint.java');
   assert.equal(s.route,'/v1/frobnicate');
   assert.equal(s.symbol,'FrobnicatorEndpoint');
@@ -47,7 +53,7 @@ test('inspects multiple touched files and keeps file-specific facts separated', 
     const s=extractTaskSignals(cwd,{
       prompt:'Receive a widget and store the event',
       currentResource:'src/odd/entry.go', touchedFiles:['src/odd/storage.py','src/odd/entry.go'], currentCapabilities:['code.modify']
-    });
+    },{structureOptions:canonicalCore({'src/odd/entry.go':{symbols:['ReceiveWidget']},'src/odd/storage.py':{symbols:['save_widget']}})});
     const entry=s.relatedFiles.find((item)=>item.file==='src/odd/entry.go');
     const storage=s.relatedFiles.find((item)=>item.file==='src/odd/storage.py');
     assert.equal(entry.symbol,'ReceiveWidget');

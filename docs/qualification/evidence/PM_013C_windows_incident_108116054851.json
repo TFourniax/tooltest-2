@@ -1,0 +1,65 @@
+{
+ "schema": "idleproof-windows-incident-extract-1",
+ "source": {
+  "repository": "TFourniax/tooltest-2",
+  "run": 36148651667,
+  "job": 108116054851,
+  "idleproofSha": "d8e7c9bd8e50fb1aa87800655a63761214c16c1f",
+  "coreSha": "fbebc797968014600c1b89aed603984e15f78d5c",
+  "runnerImage": "win25-vs2026 20260922.246",
+  "python": "3.12.10",
+  "node": "v22.23.2"
+ },
+ "gate": {
+  "step": "Verify actual JS/TS/Go/Rust task context",
+  "command": "node scripts/structure-languages-smoke.mjs",
+  "assertion": "scripts/structure-languages-smoke.mjs:21 first.symbol expected actual, got invented",
+  "failure": {
+   "schema": "idleproof-extraction-failure-1",
+   "classification": "MACHINE",
+   "qualification": false,
+   "reason": "core-extraction-unavailable",
+   "stage": "process",
+   "elapsedMs": 1.5192000000001826,
+   "code": "ENOENT",
+   "status": null,
+   "signal": null,
+   "stdoutBytes": null,
+   "stderrBytes": null
+  }
+ },
+ "diagnosticAfterGate": {
+  "service.ts": {
+   "samples": 100,
+   "failures": 0,
+   "minMs": 95.3,
+   "medianMs": 103.5,
+   "p95Ms": 113.9,
+   "maxMs": 125.2
+  },
+  "service.js": {
+   "samples": 100,
+   "failures": 0,
+   "minMs": 95.0,
+   "medianMs": 103.3,
+   "p95Ms": 116.2,
+   "maxMs": 195.9
+  },
+  "service.go": {
+   "samples": 100,
+   "failures": 0,
+   "minMs": 95.2,
+   "medianMs": 103.4,
+   "p95Ms": 112.3,
+   "maxMs": 159.0
+  },
+  "service.rs": {
+   "samples": 100,
+   "failures": 0,
+   "minMs": 95.0,
+   "medianMs": 103.5,
+   "p95Ms": 114.6,
+   "maxMs": 136.0
+  }
+ }
+}

@@ -7,6 +7,7 @@ import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {readProjectSource} from '../src/project-source.mjs';
 import {extractTaskSignals} from '../src/context.mjs';
+import {canonicalCore} from './support/canonical-core.mjs';
 import {buildFeatureModel} from '../src/feature-model.mjs';
 import {buildChangeImpact} from '../src/project-model.mjs';
 import {buildPlainExplanation} from '../src/explain.mjs';
@@ -40,7 +41,9 @@ test('native nested paths remain readable on each operating system',t=>{
 test('POSIX backslash source is unavailable instead of relabelled as a nested file',posix,t=>{
   const cwd=fixture(t);
   assert.equal(readProjectSource(cwd,'part\\file.py'),null);
-  const signals=extractTaskSignals(cwd,{currentResource:'part\\file.py',currentCapabilities:['code.read'],touchedFiles:['part/file.py']});
+  // The real-Core job (IDLEPROOF_REQUIRE_CANONICAL=1) exercises the actual Core boundary.
+  const structureOptions=process.env.IDLEPROOF_REQUIRE_CANONICAL==='1' ? {} : canonicalCore({'part/file.py':{symbols:['nested_symbol']}});
+  const signals=extractTaskSignals(cwd,{currentResource:'part\\file.py',currentCapabilities:['code.read'],touchedFiles:['part/file.py']},{structureOptions});
   assert.equal(signals.file,'part\\file.py');
   assert.equal(signals.symbol,null);
   assert.equal(signals.structureCoverage.canonical,false);

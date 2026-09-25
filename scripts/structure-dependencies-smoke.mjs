@@ -29,5 +29,13 @@ try{
     fs.writeFileSync(path.join(cwd,file),external);
     assert.deepEqual(extractTaskSignals(cwd,{currentResource:file}).dependencies,[target]);
   }
+  // Complete mode of the Rust task-context unit case: the actual provider yields the live symbol and
+  // the full external target, never the standard library.
+  fs.writeFileSync(path.join(cwd,'queue_worker.rs'),'use mystery_bus::Client;\nuse std::sync::Arc;\nfn drain_pending_jobs() {}');
+  const rust=extractTaskSignals(cwd,{currentResource:'queue_worker.rs',currentCapabilities:['code.modify'],prompt:'Make drain_pending_jobs safe'});
+  assert.equal(rust.structureCoverage.provider,'tree-sitter-rust');
+  assert.equal(rust.structureCoverage.parsed,true);
+  assert.equal(rust.symbol,'drain_pending_jobs');
+  assert.deepEqual(rust.dependencies,['mystery_bus::Client']);
   console.log('ACTUAL MODULE ORIGIN FILTER PASS: raw imports retained, local/platform excluded, candidate external targets preserved; MACHINE');
 }finally{fs.rmSync(cwd,{recursive:true,force:true});}

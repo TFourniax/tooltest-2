@@ -14,10 +14,11 @@ const languages = [
   { ext:'go', symbol:'ProcessThing', body:(s)=>`package odd\nfunc ${s}(value string) string { return value }\n` },
   { ext:'rs', symbol:'process_thing', body:(s)=>`fn ${s}(value: String) -> String { value }\n` },
   { ext:'java', symbol:'RunnerV7', body:(s)=>`public class ${s} { public String run(String value) { return value; } }\n` },
-  { ext:'kt', symbol:'RunnerV7', body:(s)=>`class ${s} { fun run(value: String): String = value }\n` },
+  // tree-sitter-kotlin 1.1.0 rejects a one-line class body with an expression member; one member per line.
+  { ext:'kt', symbol:'RunnerV7', body:(s)=>`class ${s} {\n    fun run(value: String): String = value\n}\n` },
   { ext:'cs', symbol:'RunnerV7', body:(s)=>`public class ${s} { public string Run(string value) => value; }\n` },
   { ext:'rb', symbol:'process_thing', body:(s)=>`def ${s}(value)\n  value\nend\n` },
-  { ext:'php', symbol:'processThing', body:(s)=>`<?php\nfunction ${s}($value) { return $value; }\n` },
+  { ext:'php', symbol:'processThing', body:(s)=>`function ${s}($value) { return $value; }\n`, prologue:'<?php\n' },
   { ext:'swift', symbol:'RunnerV7', body:(s)=>`struct ${s} { func run(_ value: String) -> String { value } }\n` },
   { ext:'cpp', symbol:'RunnerV7', body:(s)=>`struct ${s} { int run(int value) { return value; } };\n` },
 ];
@@ -43,6 +44,18 @@ const pathShapes = [
   'schemas/not_a_schema/thing',
 ];
 
+// The misleading notes must be real comments in each language: text that is not a comment is invalid
+// source, which a parser correctly leaves unparsed. Their misleading content is identical everywhere.
+const HASH_LINE = new Set(['py', 'rb']);
+function comment(ext, kind, text) {
+  if (kind === 'block') {
+    if (ext === 'rb') return `=begin\n${text}\n=end\n`;
+    if (ext === 'py') return `# ${text}\n`;
+    return `/* ${text} */\n`;
+  }
+  return HASH_LINE.has(ext) ? `# ${text}\n` : `// ${text}\n`;
+}
+
 let cases = 0;
 let exactPaths = 0;
 let exactSymbols = 0;
@@ -55,11 +68,11 @@ try {
     fs.mkdirSync(path.dirname(absolute), { recursive:true });
     const symbol = `${language.symbol}${index}`;
     const misleading = index % 3 === 0
-      ? `// OLD DEAD NOTE: Stripe OAuth PostgreSQL Redis /api/fake-route fake_table\n`
+      ? comment(language.ext, 'line', 'OLD DEAD NOTE: Stripe OAuth PostgreSQL Redis /api/fake-route fake_table')
       : index % 3 === 1
-        ? `/* obsolete code: function FakeStripeHandler() {} route /webhooks/fake */\n`
-        : `# old documentation only: OAuth Redis fake_table /api/fake\n`;
-    fs.writeFileSync(absolute, misleading + language.body(symbol), 'utf8');
+        ? comment(language.ext, 'block', 'obsolete code: function FakeStripeHandler() {} route /webhooks/fake')
+        : comment(language.ext, 'line', 'old documentation only: OAuth Redis fake_table /api/fake');
+    fs.writeFileSync(absolute, (language.prologue || '') + misleading + language.body(symbol), 'utf8');
 
     const prompt = `Change ${symbol} so the opaque value is handled safely`;
     const session = { prompt, currentResource:file, touchedFiles:[file], currentCapabilities:['code.read'] };

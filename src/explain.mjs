@@ -57,7 +57,9 @@ function fileObservation(file, session, currentFile) {
   const inferred = inferFileRole(normalized, signals);
   const exact = `\`${normalized}\``;
   const facts=[];
-  if (signals.symbol) facts.push(`the observed symbol is \`${signals.symbol}\``);
+  // Only a canonical extraction observes a symbol; a text match from an unsupported language is a candidate.
+  if (signals.symbol) facts.push(signals.structureCoverage?.canonical===true ? `the observed symbol is \`${signals.symbol}\``
+    : `a text-matched symbol candidate (not parsed) is \`${signals.symbol}\``);
   if (signals.route) facts.push(`it exposes or references route \`${signals.route}\``);
   if (signals.table) facts.push(`it references data surface \`${signals.table}\``);
   if ((signals.dependencies||[]).length) facts.push(`it references ${signals.dependencies.slice(0,3).map((value)=>`\`${value}\``).join(', ')}`);
@@ -115,7 +117,7 @@ export function buildPlainExplanation({session={},concept=null,phase='work'}={})
   return {
     schema:'idleproof.explanation.v1', title:task?'What this task means in your project':'What the agent is doing in your project', doing, project, why, expectedOutcome, watch, files,
     concept:plain?{id:concept.id,name:plain.name}:null, terms,
-    certainty:{ level:current&&signals.symbol?'observed-plus-inferred':'bounded-inference', limitations:[
+    certainty:{ level:current&&signals.symbol&&signals.structureCoverage?.canonical===true?'observed-plus-inferred':'bounded-inference', limitations:[
       'File roles are inferred from observed paths and static local context; they are not a proven runtime call graph.',
       'IdleProof distinguishes observed facts from inferred responsibility and keeps exact project names when evidence is weak.',
       'Whether the change is actually correct is a proof question for tests and DiffWitness, not something this explanation claims by itself.'

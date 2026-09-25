@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { extractTaskSignals } from '../src/context.mjs';
+import { canonicalCore } from './support/canonical-core.mjs';
 
 function fixture(t) {
   const base = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'idleproof-context-source-')));
@@ -13,7 +14,10 @@ function fixture(t) {
   return {cwd, outside};
 }
 const link = (target, alias) => fs.symlinkSync(target, alias, process.platform === 'win32' ? 'junction' : 'dir');
-const inspect = (cwd, file) => extractTaskSignals(cwd, {currentResource:file, prompt:'Inspect source'});
+// Core observes these declarations when they occur in the bytes it is sent.
+const core = canonicalCore(Object.fromEntries(['source.js','state.js','changed.js','invalid.js','outside.js'].map(file=>[file,
+  {symbols:['privateOutside','privateState','beforeEdit','after_Edit','realSymbol','localSymbol','inside','outside','invalidSource']}])));
+const inspect = (cwd, file) => extractTaskSignals(cwd, {currentResource:file, prompt:'Inspect source'}, {structureOptions:core});
 
 test('task signals reject external and excluded-state source aliases', (t) => {
   const {cwd, outside} = fixture(t);

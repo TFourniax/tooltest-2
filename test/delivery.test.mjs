@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { buildHookDelivery } from '../src/delivery.mjs';
 import { freshState } from '../src/state.mjs';
+import { canonicalCore } from './support/canonical-core.mjs';
 
 test('IDE delivery uses exact project facts and is suppressed when nothing meaningful changed',()=>{
   const cwd=fs.mkdtempSync(path.join(os.tmpdir(),'idleproof-delivery-'));
@@ -14,12 +15,13 @@ test('IDE delivery uses exact project facts and is suppressed when nothing meani
     const state=freshState(cwd);
     const session={id:'s1',status:'active',prompt:'Receive a widget safely',currentTool:'Edit',currentCapabilities:['code.modify'],touchedFiles:['src/odd/receiver.go'],concepts:{},events:[]};
     state.sessions.s1=session;
-    const first=buildHookDelivery(cwd,state,session,'PostToolUse');
+    const structureOptions=canonicalCore({'src/odd/receiver.go':{symbols:['ReceiveWidget']}});
+    const first=buildHookDelivery(cwd,state,session,'PostToolUse',{structureOptions});
     assert.ok(first);
     assert.match(first.message,/src\/odd\/receiver\.go/);
     assert.match(first.message,/ReceiveWidget/);
     session.lastSurfacedExplanationKey=first.key;
-    assert.equal(buildHookDelivery(cwd,state,session,'PostToolUse'),null);
+    assert.equal(buildHookDelivery(cwd,state,session,'PostToolUse',{structureOptions}),null);
   } finally { fs.rmSync(cwd,{recursive:true,force:true}); }
 });
 
