@@ -3,10 +3,13 @@
 // the initiation of every memory page request: once a change is committed, no page is started
 // with the old token or endpoint.
 //
-// Acquisition is atomic with the owner's identity: the `<pid> <random token>` line is written to a
-// private temporary file which is then hard-linked into place, so a lock never exists without its
-// owner, and its content identifies that one lock instance. A lock is never evicted because of its
-// age. It is recovered only when the process recorded in it no longer exists, and recovery is
+// Acquisition is atomic with the owner's identity: the `<pid> <incarnation> <random token>` line is
+// written to a private temporary file which is then hard-linked into place, so a lock never exists
+// without its owner, and its content identifies that one lock instance. The incarnation is the
+// process start (exact start tick on Linux, start time elsewhere), so a PID recycled by an
+// unrelated process is not mistaken for the owner. A lock is never evicted because of its age. It
+// is recovered only when the process recorded in it provably no longer exists (its PID is gone or
+// now belongs to a later process); when that cannot be determined the lock stays held. Recovery is
 // itself exclusive: the evictor first takes a claim named after the abandoned instance, then removes
 // the lock only if it still holds that instance. A claim is a lock of the same kind (owner token,
 // atomic publication, never evicted while its owner lives), so a claim left by an evictor that died
@@ -14,11 +17,15 @@
 // still holds its own token.
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import { projectPaths } from './paths.mjs';
 
 const LOCK_TIMEOUT_MS = 3000;
-const OWNER = /^(\d+) [a-f0-9]{32}\n$/;
+const OWNER = /^(\d+) ([LW]\d+) [a-f0-9]{32}\n$/;
+// Start-time sources outside Linux have second precision and Node's own start estimate lags the
+// OS start, so a different incarnation is one that started clearly after the recorded one.
+const START_TOLERANCE_MS = 2000;
 const sleepBuffer = new Int32Array(new SharedArrayBuffer(4));
 
 function readOwner(file) {
@@ -30,12 +37,67 @@ function processAlive(pid) {
   catch (error) { return error?.code === 'EPERM'; }
 }
 
-// Only a lock whose recorded owner provably no longer exists is abandoned. Anything unreadable is
+function linuxStartTicks(pid) {
+  try {
+    const stat = fs.readFileSync(`/proc/${pid}/stat`, 'utf8');
+    const ticks = stat.slice(stat.lastIndexOf(')') + 2).split(' ')[19];
+    return /^\d+$/.test(ticks ?? '') ? ticks : null;
+  } catch { return null; }
+}
+
+const LINUX = process.platform === 'linux' && linuxStartTicks('self') !== null;
+let selfIncarnation = null;
+
+// This process's incarnation, recorded in every lock and claim it publishes.
+function ownIncarnation() {
+  if (selfIncarnation === null) {
+    selfIncarnation = LINUX ? `L${linuxStartTicks('self')}` : `W${Math.round(Date.now() - process.uptime() * 1000)}`;
+  }
+  return selfIncarnation;
+}
+
+// Start time (epoch ms) of whichever process now has `pid`, or null when it cannot be read.
+function startTimeOf(pid) {
+  try {
+    if (process.platform === 'win32') {
+      const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+        `(Get-Process -Id ${pid} -ErrorAction Stop).StartTime.ToUniversalTime().ToString('o')`], { encoding:'utf8', timeout:5000, windowsHide:true });
+      const at = result.status === 0 ? Date.parse(result.stdout.trim()) : NaN;
+      return Number.isFinite(at) ? at : null;
+    }
+    const result = spawnSync('ps', ['-o', 'lstart=', '-p', String(pid)], { encoding:'utf8', timeout:5000, env:{ ...process.env, LC_ALL:'C' } });
+    const at = result.status === 0 ? Date.parse(result.stdout.trim()) : NaN;
+    return Number.isFinite(at) ? at : null;
+  } catch { return null; }
+}
+
+// True only when the recorded incarnation provably no longer runs: its PID is gone, or that PID now
+// belongs to a process that started later (a recycled PID). Unknown is never "gone".
+function ownerGone(pid, incarnation, probe) {
+  if (!processAlive(pid)) return true;
+  if (incarnation.startsWith('L')) {
+    if (!LINUX) return false;
+    const now = probe.linux(pid);
+    return now !== null && `L${now}` !== incarnation;
+  }
+  const started = probe.startTime(pid);
+  return started !== null && started > Number(incarnation.slice(1)) + START_TOLERANCE_MS;
+}
+
+const defaultProbe = { linux:linuxStartTicks, startTime:startTimeOf };
+// One start-time lookup per PID per acquisition attempt: the wait loop polls every 10 ms and must
+// not spawn a process each time. A stale answer only ever keeps a lock held, never evicts it.
+function memoProbe() {
+  const seen = new Map();
+  return { linux:linuxStartTicks, startTime:(pid) => { if (!seen.has(pid)) seen.set(pid, startTimeOf(pid)); return seen.get(pid); } };
+}
+
+// Only a lock whose recorded owner provably no longer runs is abandoned. Anything unreadable is
 // treated as held: acquisition never publishes a lock without its owner, so it cannot be ours to
 // recover.
-function abandoned(content) {
+function abandoned(content, probe = defaultProbe) {
   const match = OWNER.exec(content ?? '');
-  return Boolean(match) && !processAlive(Number(match[1]));
+  return Boolean(match) && ownerGone(Number(match[1]), match[2], probe);
 }
 
 function tryCreate(file, token) {
@@ -52,23 +114,26 @@ function tryCreate(file, token) {
   }
 }
 
-const MAX_CLAIM_DEPTH = 4;
-const newToken = () => `${process.pid} ${randomBytes(16).toString('hex')}\n`;
-const claimPath = (file, content) => `${file}.evict-${createHash('sha256').update(content).digest('hex').slice(0, 24)}`;
+const newToken = () => `${process.pid} ${ownIncarnation()} ${randomBytes(16).toString('hex')}\n`;
+// Claims are flat, fixed-length names derived from the claimed file and instance, so a chain of
+// abandoned claims of any depth stays within file-name limits.
+const claimPath = (file, content) => path.join(path.dirname(file),
+  `${path.basename(file).split('.evict-')[0]}.evict-${createHash('sha256').update(`${path.basename(file)}\n${content}`).digest('hex').slice(0, 32)}`);
 
 // Removes `file` only if it is still the abandoned instance observed as `content`. The claim for
 // that instance is exclusive: it is created atomically with its owner's token, removed only by that
 // owner, or recovered (under its own claim) once that owner is gone. While we hold it, the instance
 // can be removed by nobody else and its dead owner never releases it, so the check and the unlink
 // cannot be separated by another removal.
-function tryEvict(file, content, depth = 0) {
-  if (!abandoned(content)) return false;
+function tryEvict(file, content, probe = defaultProbe) {
+  if (!abandoned(content, probe)) return false;
   const claim = claimPath(file, content);
   const token = newToken();
   if (!tryCreate(claim, token)) {
-    // A claim left by an evictor that died is recovered one level down, then retried once.
+    // A claim left by an evictor that died is recovered one level down (to any depth: every level
+    // is a claim whose owner is gone), then retried once.
     const held = readOwner(claim);
-    if (depth >= MAX_CLAIM_DEPTH || held === null || !abandoned(held) || !tryEvict(claim, held, depth + 1)) return false;
+    if (held === null || !abandoned(held, probe) || !tryEvict(claim, held, probe)) return false;
     if (!tryCreate(claim, token)) return false;
   }
   try {
@@ -87,11 +152,12 @@ export function withMemoryLock(cwd, fn) {
   fs.mkdirSync(path.dirname(file), { recursive:true });
   const token = newToken();
   const started = Date.now();
+  const probe = memoProbe();
   let owned = false;
   while (Date.now() - started < LOCK_TIMEOUT_MS) {
     if (tryCreate(file, token)) { owned = true; break; }
     const content = readOwner(file);
-    if (content !== null && abandoned(content) && tryEvict(file, content)) continue;
+    if (content !== null && abandoned(content, probe) && tryEvict(file, content, probe)) continue;
     Atomics.wait(sleepBuffer, 0, 0, 10);
   }
   if (!owned) {
@@ -106,4 +172,4 @@ export function withMemoryLock(cwd, fn) {
   }
 }
 
-export const __memoryLockTest = { tryEvict, abandoned, claimPath };
+export const __memoryLockTest = { tryEvict, abandoned, claimPath, ownIncarnation, newToken };

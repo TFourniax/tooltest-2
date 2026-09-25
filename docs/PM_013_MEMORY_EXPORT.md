@@ -34,10 +34,12 @@ Portal as `idleproof.portal-memory-page.v1`, oldest first, then only new events.
   initiation: once a change is committed no page is started with the old token, and a resync
   started under the old configuration is refused (`CONFIG_CHANGED`). A request already started
   before the change may still complete; its result is then dropped as `superseded`.
-- Cursor lock: published atomically with its owner (`<pid> <token>`), never evicted by age, and
-  recovered only when its owner process is gone, under an exclusive claim that is itself a lock of
-  the same kind. A claim left by an evictor that died is recovered the same way, so a crash never
-  leaves the cursor permanently busy.
+- Cursor lock: published atomically with its owner (`<pid> <incarnation> <token>`; the incarnation
+  is the process start, so a recycled PID is not taken for the owner), never evicted by age, and
+  recovered only when its owner provably no longer runs, under an exclusive claim that is itself a
+  lock of the same kind. Claims left by evictors that died are recovered the same way, to any
+  depth, so a crash never leaves the cursor permanently busy. When the owner's state cannot be
+  determined the lock stays held and the command reports `IDLEPROOF_PORTAL_MEMORY_BUSY`.
 - `portal memory status` reports the enrollment configured now: `not-configured` after
   disconnect, `not-started` (`ENROLLMENT_CHANGED`) after a new token or endpoint; an older cursor
   is shown only as `retained`.
