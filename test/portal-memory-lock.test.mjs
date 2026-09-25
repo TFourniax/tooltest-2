@@ -5,8 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { spawn, spawnSync } from 'node:child_process';
 import { projectPaths } from '../src/paths.mjs';
 import { __memoryLockTest, withMemoryLock } from '../src/portal-memory-lock.mjs';
 
@@ -94,22 +93,48 @@ test('while one evictor holds the recovery claim, no other evictor can remove th
   try {
     const stale = `${deadPid()} ${'e'.repeat(32)}\n`;
     const file = plant(cwd, stale, 0);
-    const claim = `${file}.evict-${createHash('sha256').update(stale).digest('hex').slice(0, 24)}`;
-    fs.linkSync(file, claim); // a first evictor is between its checks and its unlink
+    const claim = __memoryLockTest.claimPath(file, stale);
+    fs.writeFileSync(claim, `${process.pid} ${'9'.repeat(32)}\n`); // a live evictor is between its check and its unlink
     assert.equal(__memoryLockTest.tryEvict(file, stale), false);
+    assert.throws(() => withMemoryLock(cwd, () => 'stolen'), { code:'IDLEPROOF_PORTAL_MEMORY_BUSY' });
     assert.equal(fs.readFileSync(file, 'utf8'), stale, 'the lock is untouched');
+    assert.equal(fs.readFileSync(claim, 'utf8'), `${process.pid} ${'9'.repeat(32)}\n`, 'the live claim is untouched');
   } finally { cleanup(cwd); }
 });
 
-test('many processes recovering the same dead lock never overlap their critical sections', () => {
+test('a claim left by an evictor that died is recovered, and so is a claim on that claim', () => {
+  for (const levels of [1, 2]) {
+    const cwd = fixture();
+    try {
+      const stale = `${deadPid()} ${'7'.repeat(32)}\n`;
+      const file = plant(cwd, stale, 0);
+      // Evictors that died after taking their claim and before releasing it.
+      let target = file, content = stale;
+      for (let level = 0; level < levels; level += 1) {
+        const claim = __memoryLockTest.claimPath(target, content);
+        content = `${deadPid()} ${String(level).repeat(32)}\n`;
+        fs.writeFileSync(claim, content);
+        target = claim;
+      }
+      assert.equal(withMemoryLock(cwd, () => 'recovered'), 'recovered', `${levels} abandoned claim level(s)`);
+      assert.equal(fs.existsSync(file), false);
+    } finally { cleanup(cwd); }
+  }
+});
+
+test('many processes recovering the same dead lock never overlap their critical sections', async () => {
   const cwd = fixture();
   try {
-    plant(cwd, `${deadPid()} ${'f'.repeat(32)}\n`, 0);
+    const stale = `${deadPid()} ${'f'.repeat(32)}\n`;
+    const file = plant(cwd, stale, 0);
+    // The first recovery also has to get past a claim left by an evictor that died.
+    fs.writeFileSync(__memoryLockTest.claimPath(file, stale), `${deadPid()} ${'8'.repeat(32)}\n`);
     const marker = path.join(cwd, 'inside');
     const worker = `
       import fs from 'node:fs';
       import { withMemoryLock } from ${JSON.stringify(new URL('../src/portal-memory-lock.mjs', import.meta.url).href)};
       const sleep = new Int32Array(new SharedArrayBuffer(4));
+      Atomics.wait(sleep, 0, 0, Number(process.argv[3]) - Date.now()); // start together
       for (let i = 0; i < 25; i += 1) {
         withMemoryLock(process.argv[1], () => {
           fs.writeFileSync(process.argv[2], String(process.pid), { flag:'wx' }); // throws if another holder is inside
@@ -117,7 +142,14 @@ test('many processes recovering the same dead lock never overlap their critical 
           fs.unlinkSync(process.argv[2]);
         });
       }`;
-    const children = Array.from({ length:6 }, () => spawnSync(process.execPath, ['--input-type=module', '-e', worker, cwd, marker], { encoding:'utf8', timeout:60000 }));
+    const startAt = String(Date.now() + 1500);
+    const run = () => new Promise((resolve) => {
+      const child = spawn(process.execPath, ['--input-type=module', '-e', worker, cwd, marker, startAt], { stdio:['ignore', 'ignore', 'pipe'] });
+      let stderr = '';
+      child.stderr.on('data', (chunk) => { stderr += chunk; });
+      child.on('close', (status) => resolve({ status, stderr }));
+    });
+    const children = await Promise.all(Array.from({ length:6 }, run)); // concurrently, not one after another
     for (const child of children) assert.equal(child.status, 0, child.stderr);
   } finally { cleanup(cwd); }
 });
