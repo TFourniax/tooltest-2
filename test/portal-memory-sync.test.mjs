@@ -617,6 +617,77 @@ test('an empty page without a journal identity never confirms a cursor that has 
   } finally { cleanup(cwd); }
 });
 
+test('a capability result never overwrites a terminal state recorded meanwhile', async () => {
+  for (const reachable of [false, true]) {
+    const cwd = fixture();
+    try {
+      const events = journal([{ id:'decision:a' }]);
+      const server = portal();
+      await assert.rejects(syncPortalMemory(cwd, { fetchImpl:server.fetchImpl, coreRunner:core(events), failpoint:'before-send' }), /failpoint/);
+      const file = projectPaths(cwd).portalMemoryState;
+      if (reachable) { const saved = JSON.parse(fs.readFileSync(file, 'utf8')); fs.writeFileSync(file, JSON.stringify({ ...saved, status:'server-incompatible' })); }
+      // While this sync probes the server, another process records divergence for this cursor.
+      const probing = async (url, init = {}) => {
+        if (init.method === 'GET') {
+          const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+          fs.writeFileSync(file, JSON.stringify({ ...saved, status:'reset-required', statusCode:'LOCAL_PREFIX_DIVERGED' }));
+          if (!reachable) return { status:200, ok:true, text:async () => JSON.stringify({ schema:'idleproof.portal-ingest-capabilities.v1' }) };
+        }
+        return server.fetchImpl(url, init);
+      };
+      const result = await syncPortalMemory(cwd, { fetchImpl:probing, coreRunner:core(events) });
+      assert.equal(result.status, 'reset-required', `${reachable}: ${JSON.stringify(result)}`);
+      assert.equal(portalMemoryStatus(cwd).status, 'reset-required');
+      assert.equal(server.received.length, 0, 'the pending page is not retried');
+    } finally { cleanup(cwd); }
+  }
+});
+
+test('a journal read made stale by a pending page or a recorded divergence is dropped', async () => {
+  for (const change of ['pending', 'reset-required']) {
+    const cwd = fixture();
+    try {
+      const events = journal([{ id:'decision:a' }, { id:'decision:b' }]);
+      let visible = events.slice(0, 1);
+      const source = core(() => visible);
+      const server = portal();
+      assert.equal((await syncPortalMemory(cwd, { fetchImpl:server.fetchImpl, coreRunner:source })).next, 1);
+      const file = projectPaths(cwd).portalMemoryState;
+      let other = null;
+      if (change === 'pending') {
+        // Another process stores the page after event 1; this sync's read is from before event 2.
+        visible = events;
+        const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+        other = buildMemoryPage({ binding:{ localProjectId:saved.binding?.localProjectId ?? saved.localProjectId, repositoryFingerprint:saved.binding?.repositoryFingerprint ?? saved.repositoryFingerprint },
+          journal:saved.journal, epoch:saved.epoch, after:1, prefixHash:events[0].event_hash, events:[{ sequence:2, event:events[1] }] });
+        visible = events.slice(0, 1);
+      } else visible = events;
+      let raced = false;
+      const racing = (args) => {
+        const result = source(args);
+        if (!raced && args.includes('--after') && args[args.indexOf('--after') + 1] === '1') {
+          raced = true;
+          const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+          fs.writeFileSync(file, JSON.stringify(change === 'pending' ? { ...saved, pending:other } : { ...saved, status:'reset-required', statusCode:'LOCAL_PREFIX_DIVERGED' }));
+        }
+        return result;
+      };
+      const sent = [];
+      const recording = (url, init) => { if (init?.method === 'POST') sent.push(JSON.parse(init.body)); return server.fetchImpl(url, init); };
+      const result = await syncPortalMemory(cwd, { fetchImpl:recording, coreRunner:racing, maxPages:1 });
+      assert.equal(raced, true);
+      if (change === 'pending') {
+        assert.notEqual(result.status, 'up-to-date', 'a stale empty read never reports up-to-date over a pending page');
+        assert.ok(sent.every((page) => page.pageId === other.pageId), 'only the stored page is ever sent');
+      } else {
+        assert.equal(sent.length, 0, 'nothing is sent after divergence was recorded');
+        assert.equal(result.ok, false, JSON.stringify(result));
+        assert.equal(portalMemoryStatus(cwd).status, 'reset-required');
+      }
+    } finally { cleanup(cwd); }
+  }
+});
+
 test('a transient capability failure is deferred, not incompatible', async () => {
   const cwd = fixture();
   try {

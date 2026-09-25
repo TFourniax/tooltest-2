@@ -486,26 +486,34 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
   // A failure of a request applies only while this request's page is still the pending one: if
   // another process acknowledged it (or replaced it) meanwhile, the failure is stale.
   const pageBound = (page, mutate) => guarded((current) => ownsStream(current, page) && current.pending?.pageId === page.pageId, mutate);
-  const cursorView = (current) => ({ journal:current.journal, epoch:current.epoch, next:current.next, headHash:current.headHash ?? null });
+  // A read made from a cursor is applied only while that cursor is unchanged: position, and also its
+  // pending page and status, so a page stored or a divergence recorded meanwhile wins.
+  const cursorView = (current) => ({ journal:current.journal, epoch:current.epoch, next:current.next, headHash:current.headHash ?? null,
+    pending:current.pending?.pageId ?? null, status:current.status ?? null });
   const ownsCursor = (current, view) => Boolean(current) && sameBinding(current, binding) && current.journal === view.journal
-    && current.epoch === view.epoch && current.next === view.next && (current.headHash ?? null) === view.headHash;
+    && current.epoch === view.epoch && current.next === view.next && (current.headHash ?? null) === view.headHash
+    && (current.pending?.pageId ?? null) === view.pending && (current.status ?? null) === view.status;
   const cursorBound = (view, mutate) => guarded((current) => ownsCursor(current, view), mutate);
   const superseded = () => ({ configured:true, ok:false, status:'superseded', errorCode:sameConfig(cwd, config) ? 'CURSOR_SUPERSEDED' : 'CONFIG_CHANGED', pagesSent, acknowledged });
   let pagesSent = 0;
   let acknowledged = 0;
   // The first binding is skipped when the configuration changed while waiting for the lock.
   if (!state || !sameBinding(state, binding)) return superseded();
-  if (['reset-required', 'identity-conflict'].includes(state.status)) {
-    return { configured:true, ok:false, status:state.status, errorCode:state.statusCode, next:state.next, pagesSent:0, pending:Boolean(state.pending) };
-  }
+  // Terminal states stay until an explicit resync; no later result of this request overwrites one.
+  const terminal = (current) => ['reset-required', 'identity-conflict'].includes(current?.status);
+  const blocked = (current) => ({ configured:true, ok:false, status:current.status, errorCode:current.statusCode, next:current.next, pagesSent, acknowledged, pending:Boolean(current.pending) });
+  const afterDeclined = () => { const current = readPortalMemoryState(cwd); return current && sameBinding(current, binding) && terminal(current) ? blocked(current) : superseded(); };
+  if (terminal(state)) return blocked(state);
 
   const capability = await probeCapabilities(config.endpoint, fetchImpl, timeoutMs);
   if (!capability.ok) {
-    state = bound((current) => ({ ...current, status:capability.transient ? current.status : 'server-incompatible', statusCode:capability.reason }));
-    if (!state) return superseded();
+    state = bound((current) => terminal(current) ? null : ({ ...current, status:capability.transient ? current.status : 'server-incompatible', statusCode:capability.reason }));
+    if (!state) return afterDeclined();
     return { configured:true, ok:false, degraded:!capability.transient, status:capability.transient ? 'deferred' : 'server-incompatible', errorCode:capability.reason, next:state.next, pagesSent:0, pending:Boolean(state.pending) };
   }
-  if (state.status === 'server-incompatible') state = bound((current) => ({ ...current, status:'active', statusCode:null }));
+  if (state.status === 'server-incompatible') {
+    state = bound((current) => current.status === 'server-incompatible' ? { ...current, status:'active', statusCode:null } : null) || readPortalMemoryState(cwd);
+  }
   if (!state) return superseded();
 
   // Rounds that lost the race to store the pending page sent nothing and do not count against
@@ -513,6 +521,7 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
   let lostRaces = 0;
   for (let round = 0; round < maxPages; round += 1) {
     if (!state || !sameBinding(state, binding) || !sameConfig(cwd, config)) return superseded();
+    if (terminal(state)) return blocked(state);
     const view = cursorView(state);
     let page = state.pending;
     if (page) {
