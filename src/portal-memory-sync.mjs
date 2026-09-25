@@ -180,7 +180,12 @@ export function readJournalPage(cwd, { after = 0, expectHead = null, limit = DEF
     if (!page.events.length && (page.hasMore || Number(page.journal?.eventCount ?? next) > next || (after === 0 && genesis !== null))) {
       return { status:'unavailable', detail:'empty Core page advertises more history' };
     }
-    return { status:'ok', genesis, events:page.events, next, head:next === after ? (after ? expectHead : null) : page.head,
+    // An empty page past the start proves the prefix only if Core itself reports the expected head
+    // (a Core that ignored --expect-head must not confirm a cursor on another journal).
+    if (!page.events.length && after > 0 && page.head !== expectHead) {
+      return { status:'unavailable', detail:'empty Core page does not confirm the expected head' };
+    }
+    return { status:'ok', genesis, events:page.events, next, head:next === after ? (after ? page.head : null) : page.head,
       hasMore:Boolean(page.hasMore), eventCount:Number(page.journal?.eventCount ?? next) };
   }
   if (/restart/i.test(result.stderr)) return { status:'prefix-mismatch', detail:'journal prefix differs from the acknowledged cursor' };

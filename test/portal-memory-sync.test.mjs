@@ -617,6 +617,25 @@ test('relations with a sensitive endpoint are partial drops; a wholly unrepresen
   assert.throws(() => assertPortalMemoryPageSafe(uncovered), /every source event/);
 });
 
+test('an empty page at the journal end confirms a cursor only with the expected head', () => {
+  const cwd = fixture();
+  try {
+    const events = journal([{ id:'decision:a' }, { id:'decision:b' }]);
+    // A partially compatible Core that ignores --expect-head and reports its own (different) head.
+    const ignoring = (args) => {
+      const i = args.indexOf('--after');
+      const after = Number(args[i + 1]);
+      return { ok:true, stdout:JSON.stringify({ schema_version:'project-event-page-1', journal:{ genesisHash:events[0].event_hash, eventCount:after },
+        after, events:[], next:after, head:events[1].event_hash, hasMore:false }) };
+    };
+    const claimed = 'c'.repeat(64); // the server's cursor head, which this journal does not have
+    assert.equal(readJournalPage(cwd, { after:2, expectHead:claimed, runner:ignoring }).status, 'unavailable');
+    const genuine = readJournalPage(cwd, { after:2, expectHead:events[1].event_hash, runner:ignoring });
+    assert.equal(genuine.status, 'ok');
+    assert.equal(genuine.head, events[1].event_hash);
+  } finally { cleanup(cwd); }
+});
+
 test('legacy Core without paging is used only when it proves the complete journal', () => {
   const cwd = fixture();
   try {
