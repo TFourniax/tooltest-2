@@ -169,7 +169,8 @@ export function readJournalPage(cwd, { after = 0, expectHead = null, limit = DEF
     const genesis = page.journal?.genesisHash ?? null;
     if (genesis !== null && !HASH.test(String(genesis))) return { status:'unavailable', detail:'invalid journal identity' };
     // The genesis is the first event's hash; on the first page it must match the chain it heads.
-    if (after === 0 && page.events.length && genesis !== page.events[0]?.event?.event_hash) {
+    // (A missing genesis is reported separately as SOURCE_JOURNAL_IDENTITY_MISSING.)
+    if (after === 0 && page.events.length && genesis !== null && genesis !== page.events[0]?.event?.event_hash) {
       return { status:'unavailable', detail:'journal identity does not match the first event' };
     }
     try { checkedEvents(page.events, after, after > 0 ? expectHead : null); }
