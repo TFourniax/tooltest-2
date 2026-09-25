@@ -579,6 +579,20 @@ test('an empty continuation page from another journal is a journal change, not u
   } finally { cleanup(cwd); }
 });
 
+test('resync without a repository identity is refused, never reported active', () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'idleproof-memory-sync-'));
+  try {
+    execFileSync('git', ['init', '-q'], { cwd }); // no root commit: no repository fingerprint
+    saveState(cwd, freshState(cwd));
+    writePortalConfig(cwd, { endpoint:ENDPOINT, token:`ipd_${'x'.repeat(32)}` });
+    const result = resyncPortalMemory(cwd, { coreRunner:core(journal([{}])) });
+    assert.equal(result.ok, false, JSON.stringify(result));
+    assert.equal(result.errorCode, 'REPOSITORY_FINGERPRINT_UNAVAILABLE');
+    assert.equal(fs.existsSync(projectPaths(cwd).portalMemoryState), false, 'no epoch is written');
+    assert.notEqual(portalMemoryStatus(cwd).status, 'active');
+  } finally { cleanup(cwd); }
+});
+
 test('a transient capability failure is deferred, not incompatible', async () => {
   const cwd = fixture();
   try {

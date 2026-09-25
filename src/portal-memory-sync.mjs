@@ -668,6 +668,8 @@ export function resyncPortalMemory(cwd = process.cwd(), { coreRunner = null } = 
   const config = readPortalConfig(cwd);
   if (!config?.enabled) return { configured:false, ok:false, status:'not-configured' };
   const binding = currentBinding(cwd, config);
+  // Same precondition as a sync: an epoch that no sync could ever send is never reported active.
+  if (!binding.repositoryFingerprint) return { configured:true, ok:false, status:'source-unavailable', errorCode:'REPOSITORY_FINGERPRINT_UNAVAILABLE' };
   const source = readJournalPage(cwd, { after:0, limit:1, runner:coreRunner });
   if (source.status !== 'ok') return { configured:true, ok:false, status:'source-unavailable', errorCode:source.status, detail:source.detail };
   const journal = source.genesis ? `dwjrn_${source.genesis}` : null;
