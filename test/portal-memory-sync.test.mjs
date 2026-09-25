@@ -705,6 +705,37 @@ test('a later page stored first by another process is the one sent, not the loca
   } finally { cleanup(cwd); }
 });
 
+test('losing the race to store a page does not use up the send budget', async () => {
+  const cwd = fixture();
+  try {
+    const events = journal([{ id:'decision:a' }]);
+    const source = core(events);
+    const stateFile = projectPaths(cwd).portalMemoryState;
+    let raced = false;
+    // Another process stores the page first, then exits before sending it.
+    const racing = (args) => {
+      const result = source(args);
+      if (!raced && args.includes('--after')) {
+        raced = true;
+        const state = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+        const page = JSON.parse(result.stdout);
+        const theirs = buildMemoryPage({ binding:{ localProjectId:state.binding?.localProjectId ?? state.localProjectId, repositoryFingerprint:state.binding?.repositoryFingerprint ?? state.repositoryFingerprint },
+          journal:`dwjrn_${page.journal.genesisHash}`, epoch:state.epoch, after:0, prefixHash:null, events:page.events });
+        fs.writeFileSync(stateFile, JSON.stringify({ ...state, journal:`dwjrn_${page.journal.genesisHash}`, pending:theirs }));
+      }
+      return result;
+    };
+    const server = portal();
+    const sent = [];
+    const recording = (url, init) => { if (init?.method === 'POST') sent.push(JSON.parse(init.body)); return server.fetchImpl(url, init); };
+    const result = await syncPortalMemory(cwd, { fetchImpl:recording, coreRunner:racing, maxPages:1 });
+    assert.equal(raced, true);
+    assert.equal(sent.length, 1, 'the stored page is sent within the same budget');
+    assert.equal(result.ok, true, JSON.stringify(result));
+    assert.equal(result.acknowledged, 1);
+  } finally { cleanup(cwd); }
+});
+
 test('an empty page at the journal end confirms a cursor only with the expected head', () => {
   const cwd = fixture();
   try {

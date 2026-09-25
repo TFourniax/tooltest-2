@@ -495,6 +495,9 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
   if (state.status === 'server-incompatible') state = bound((current) => ({ ...current, status:'active', statusCode:null }));
   if (!state) return superseded();
 
+  // Rounds that lost the race to store the pending page sent nothing and do not count against
+  // `maxPages`; they are themselves bounded so the loop always ends.
+  let lostRaces = 0;
   for (let round = 0; round < maxPages; round += 1) {
     if (!state || !sameBinding(state, binding) || !sameConfig(cwd, config)) return superseded();
     const view = cursorView(state);
@@ -558,7 +561,8 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
       // Send exactly the bytes that were persisted. If another process stored its page first (the
       // same pageId can carry another generatedAt), the next round sends that stored page after
       // the same validation as any restored page, so every retransmission repeats those bytes.
-      if (!stored) continue;
+      // That round sent nothing, so it does not use up the page budget.
+      if (!stored) { if (lostRaces < maxPages) { lostRaces += 1; round -= 1; } continue; }
     }
     if (failpoint === 'before-send') throw memoryError('IDLEPROOF_TEST_FAILPOINT', 'failpoint before-send');
 
