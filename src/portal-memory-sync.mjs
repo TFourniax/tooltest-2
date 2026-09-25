@@ -168,6 +168,10 @@ export function readJournalPage(cwd, { after = 0, expectHead = null, limit = DEF
     }
     const genesis = page.journal?.genesisHash ?? null;
     if (genesis !== null && !HASH.test(String(genesis))) return { status:'unavailable', detail:'invalid journal identity' };
+    // The genesis is the first event's hash; on the first page it must match the chain it heads.
+    if (after === 0 && page.events.length && genesis !== page.events[0]?.event?.event_hash) {
+      return { status:'unavailable', detail:'journal identity does not match the first event' };
+    }
     try { checkedEvents(page.events, after, after > 0 ? expectHead : null); }
     catch (error) { return { status:'unavailable', detail:error.message }; }
     const next = after + page.events.length;
@@ -546,7 +550,10 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
       // meanwhile, re-read instead of storing a page for a stream that no longer exists.
       const stored = cursorBound(view, (current) => current.pending ? null : { ...current, journal, pending:page });
       state = stored || readPortalMemoryState(cwd);
-      if (state?.pending?.pageId !== page.pageId) continue;
+      // Send exactly the bytes that were persisted. If another process stored its page first (the
+      // same pageId can carry another generatedAt), the next round sends that stored page after
+      // the same validation as any restored page, so every retransmission repeats those bytes.
+      if (!stored) continue;
     }
     if (failpoint === 'before-send') throw memoryError('IDLEPROOF_TEST_FAILPOINT', 'failpoint before-send');
 

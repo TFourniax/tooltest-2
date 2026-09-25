@@ -617,6 +617,57 @@ test('relations with a sensitive endpoint are partial drops; a wholly unrepresen
   assert.throws(() => assertPortalMemoryPageSafe(uncovered), /every source event/);
 });
 
+test('a first page whose journal identity does not head its chain is refused', async () => {
+  const cwd = fixture();
+  try {
+    const events = journal([{ id:'decision:a' }, { id:'decision:b' }]);
+    const source = core(events);
+    const forged = (args) => {
+      const result = source(args);
+      if (!args.includes('--after') || !result.ok) return result;
+      const page = JSON.parse(result.stdout);
+      return { ...result, stdout:JSON.stringify({ ...page, journal:{ ...page.journal, genesisHash:'d'.repeat(64) } }) };
+    };
+    assert.equal(readJournalPage(cwd, { after:0, runner:forged }).status, 'unavailable');
+    const result = await syncPortalMemory(cwd, { fetchImpl:portal().fetchImpl, coreRunner:forged });
+    assert.equal(result.status, 'source-unavailable');
+    assert.equal(portalMemoryStatus(cwd).next, 0);
+  } finally { cleanup(cwd); }
+});
+
+test('the page sent is the one persisted, even when another process stored it first', async () => {
+  const cwd = fixture();
+  try {
+    const events = journal([{ id:'decision:a' }, { id:'decision:b' }]);
+    const source = core(events);
+    const stateFile = projectPaths(cwd).portalMemoryState;
+    let raced = false;
+    // While this process reads the journal, another one builds the same cursor page (same pageId,
+    // another generatedAt) and stores it as the pending page first.
+    const racing = (args) => {
+      const result = source(args);
+      if (!raced && args.includes('--after')) {
+        raced = true;
+        const state = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+        const page = JSON.parse(result.stdout);
+        const theirs = buildMemoryPage({ binding:{ localProjectId:state.binding?.localProjectId ?? state.localProjectId, repositoryFingerprint:state.binding?.repositoryFingerprint ?? state.repositoryFingerprint },
+          journal:`dwjrn_${page.journal.genesisHash}`, epoch:state.epoch, after:0, prefixHash:null, events:page.events });
+        theirs.generatedAt = '2000-01-01T00:00:00.000Z';
+        fs.writeFileSync(stateFile, JSON.stringify({ ...state, journal:`dwjrn_${page.journal.genesisHash}`, pending:theirs }));
+      }
+      return result;
+    };
+    const server = portal();
+    const sent = [];
+    const recording = (url, init) => { if (init?.method === 'POST') sent.push(JSON.parse(init.body)); return server.fetchImpl(url, init); };
+    const result = await syncPortalMemory(cwd, { fetchImpl:recording, coreRunner:racing });
+    assert.equal(raced, true);
+    assert.equal(result.ok, true, JSON.stringify(result));
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].generatedAt, '2000-01-01T00:00:00.000Z', 'the stored bytes are sent, not a never-persisted local copy');
+  } finally { cleanup(cwd); }
+});
+
 test('an empty page at the journal end confirms a cursor only with the expected head', () => {
   const cwd = fixture();
   try {
