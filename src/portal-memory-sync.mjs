@@ -175,7 +175,9 @@ export function readJournalPage(cwd, { after = 0, expectHead = null, limit = DEF
       return { status:'unavailable', detail:'inconsistent Core page cursor' };
     }
     // An empty page means the end of the journal only if it does not advertise more history.
-    if (!page.events.length && (page.hasMore || Number(page.journal?.eventCount ?? next) > next)) {
+    // A genesis names the journal's first event, so an empty first page that carries one is not an
+    // empty journal either.
+    if (!page.events.length && (page.hasMore || Number(page.journal?.eventCount ?? next) > next || (after === 0 && genesis !== null))) {
       return { status:'unavailable', detail:'empty Core page advertises more history' };
     }
     return { status:'ok', genesis, events:page.events, next, head:next === after ? (after ? expectHead : null) : page.head,

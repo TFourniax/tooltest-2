@@ -320,6 +320,15 @@ test('an empty source page that advertises more history is invalid, never up-to-
       const page = JSON.parse(result.stdout);
       return { ...result, stdout:JSON.stringify({ ...page, events:[], next:page.after, head:null, hasMore:true }) };
     };
+    // Same, without hasMore or a count, but with the journal's genesis on the first page.
+    const genesisOnly = (args) => {
+      const result = source(args);
+      if (!args.includes('--after') || !result.ok) return result;
+      const page = JSON.parse(result.stdout);
+      return { ...result, stdout:JSON.stringify({ ...page, events:[], next:page.after, head:null, hasMore:false, journal:{ genesisHash:page.journal.genesisHash } }) };
+    };
+    const initial = await syncPortalMemory(cwd, { fetchImpl:portal().fetchImpl, coreRunner:genesisOnly });
+    assert.equal(initial.status, 'source-unavailable', 'an empty first page that names a genesis event is not an empty journal');
     const result = await syncPortalMemory(cwd, { fetchImpl:portal().fetchImpl, coreRunner:truncated });
     assert.equal(result.ok, false);
     assert.equal(result.status, 'source-unavailable', 'never up-to-date while Core says more history remains');
