@@ -668,6 +668,43 @@ test('the page sent is the one persisted, even when another process stored it fi
   } finally { cleanup(cwd); }
 });
 
+test('a later page stored first by another process is the one sent, not the local copy', async () => {
+  const cwd = fixture();
+  try {
+    const events = journal([{ id:'decision:a' }, { id:'decision:b' }]);
+    let visible = events.slice(0, 1);
+    const source = core(() => visible);
+    const server = portal();
+    assert.equal((await syncPortalMemory(cwd, { fetchImpl:server.fetchImpl, coreRunner:source })).ok, true);
+    visible = events;
+    const stateFile = projectPaths(cwd).portalMemoryState;
+    let raced = false;
+    // The journal and cursor are already set: another process builds the page after event 1 from the
+    // same cursor (same pageId, another generatedAt) and stores it first.
+    const racing = (args) => {
+      const result = source(args);
+      if (!raced && args.includes('--after') && args[args.indexOf('--after') + 1] === '1') {
+        raced = true;
+        const state = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+        const page = JSON.parse(result.stdout);
+        const theirs = buildMemoryPage({ binding:{ localProjectId:state.binding?.localProjectId ?? state.localProjectId, repositoryFingerprint:state.binding?.repositoryFingerprint ?? state.repositoryFingerprint },
+          journal:state.journal, epoch:state.epoch, after:1, prefixHash:events[0].event_hash, events:page.events });
+        theirs.generatedAt = '2000-01-01T00:00:00.000Z';
+        fs.writeFileSync(stateFile, JSON.stringify({ ...state, pending:theirs }));
+      }
+      return result;
+    };
+    const sent = [];
+    const recording = (url, init) => { if (init?.method === 'POST') sent.push(JSON.parse(init.body)); return server.fetchImpl(url, init); };
+    const result = await syncPortalMemory(cwd, { fetchImpl:recording, coreRunner:racing });
+    assert.equal(raced, true);
+    assert.equal(result.ok, true, JSON.stringify(result));
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].range.from, 1);
+    assert.equal(sent[0].generatedAt, '2000-01-01T00:00:00.000Z', 'the stored bytes are sent, not a never-persisted local copy');
+  } finally { cleanup(cwd); }
+});
+
 test('an empty page at the journal end confirms a cursor only with the expected head', () => {
   const cwd = fixture();
   try {

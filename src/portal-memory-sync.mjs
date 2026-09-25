@@ -453,12 +453,16 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
   // re-enrollment or resync makes a late ack or error inert instead of advancing the new cursor.
   // Updates after local journal I/O also require the exact cursor the read started from, so a
   // concurrent `portal memory resync` (new epoch) or another sync's progress is never undone.
+  // The result is the written state, or null when nothing was written: the state is not owned, or
+  // the mutation itself declined (returned null), so callers never mistake another process's write
+  // for their own.
   const guarded = (owns, mutate) => {
     let applied = false;
     const next = updateState(cwd, (current) => {
       if (!owns(current) || !sameConfig(cwd, config)) return null;
-      applied = true;
-      return mutate(current);
+      const result = mutate(current);
+      applied = Boolean(result);
+      return result;
     });
     return applied ? next : null;
   };
