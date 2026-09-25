@@ -35,7 +35,8 @@ Portal as `idleproof.portal-memory-page.v1`, oldest first, then only new events.
   started under the old configuration is refused (`CONFIG_CHANGED`). A request already started
   before the change may still complete; its result is then dropped as `superseded`.
 - Cursor lock: published atomically with its owner (`<pid> <incarnation> <token>`; the incarnation
-  is the process start, so a recycled PID is not taken for the owner), never evicted by age, and
+  is the process start as the OS records it — Linux start tick, `ps`/Windows start time elsewhere,
+  read once per process — so a recycled PID is not taken for the owner), never evicted by age, and
   recovered only when its owner provably no longer runs, under an exclusive claim that is itself a
   lock of the same kind. Claims left by evictors that died are recovered the same way, to any
   depth, so a crash never leaves the cursor permanently busy. When the owner's state cannot be

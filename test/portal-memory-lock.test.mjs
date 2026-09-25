@@ -133,10 +133,13 @@ test('a PID recycled by a later process is not mistaken for the lock owner', () 
     assert.equal(__memoryLockTest.abandoned(fs.readFileSync(file, 'utf8')), true);
     assert.equal(withMemoryLock(cwd, () => 'recovered'), 'recovered');
     assert.equal(fs.existsSync(file), false);
-    // The start-time form (used outside Linux) is judged the same way on every platform.
-    const startedAt = Math.round(Date.now() - process.uptime() * 1000);
-    assert.equal(__memoryLockTest.abandoned(`${process.pid} W${startedAt - 3600000} ${'5'.repeat(32)}\n`), true, 'an hour-earlier incarnation is gone');
+    // The start-time form (used outside Linux) compares the OS-recorded start exactly, on every platform.
+    const startedAt = __memoryLockTest.startTimeOf(process.pid);
+    assert.equal(typeof startedAt, 'number', 'the OS start time of this process is readable');
+    assert.equal(startedAt, __memoryLockTest.startTimeOf(process.pid), 'the OS start value is stable across reads');
+    assert.equal(__memoryLockTest.abandoned(`${process.pid} W${startedAt - 1000} ${'5'.repeat(32)}\n`), true, 'another incarnation of this PID is gone');
     assert.equal(__memoryLockTest.abandoned(`${process.pid} W${startedAt} ${'5'.repeat(32)}\n`), false, 'the current incarnation is alive');
+    assert.equal(__memoryLockTest.abandoned(`${process.pid} U ${'5'.repeat(32)}\n`), false, 'an unknown incarnation of a live PID is held');
     // The same PID with its own incarnation is the live owner and keeps the lock.
     plant(cwd, `${process.pid} ${ME} ${'6'.repeat(32)}\n`, 0);
     assert.throws(() => withMemoryLock(cwd, () => 'stolen'), { code:'IDLEPROOF_PORTAL_MEMORY_BUSY' });

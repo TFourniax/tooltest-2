@@ -6,8 +6,10 @@
 // Acquisition is atomic with the owner's identity: the `<pid> <incarnation> <random token>` line is
 // written to a private temporary file which is then hard-linked into place, so a lock never exists
 // without its owner, and its content identifies that one lock instance. The incarnation is the
-// process start (exact start tick on Linux, start time elsewhere), so a PID recycled by an
-// unrelated process is not mistaken for the owner. A lock is never evicted because of its age. It
+// process start as the OS reports it (the start tick on Linux, the recorded start time from `ps` or
+// Windows elsewhere; the same source contenders read), so a PID recycled by an unrelated process is
+// not mistaken for the owner. When the OS value cannot be read the lock records none and only PID
+// liveness is judged, which can keep a lock held but never evicts a live owner. A lock is never evicted because of its age. It
 // is recovered only when the process recorded in it provably no longer exists (its PID is gone or
 // now belongs to a later process); when that cannot be determined the lock stays held. Recovery is
 // itself exclusive: the evictor first takes a claim named after the abandoned instance, then removes
@@ -22,10 +24,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { projectPaths } from './paths.mjs';
 
 const LOCK_TIMEOUT_MS = 3000;
-const OWNER = /^(\d+) ([LW]\d+) [a-f0-9]{32}\n$/;
-// Start-time sources outside Linux have second precision and Node's own start estimate lags the
-// OS start, so a different incarnation is one that started clearly after the recorded one.
-const START_TOLERANCE_MS = 2000;
+const OWNER = /^(\d+) ([LW]\d+|U) [a-f0-9]{32}\n$/;
 const sleepBuffer = new Int32Array(new SharedArrayBuffer(4));
 
 function readOwner(file) {
@@ -48,15 +47,18 @@ function linuxStartTicks(pid) {
 const LINUX = process.platform === 'linux' && linuxStartTicks('self') !== null;
 let selfIncarnation = null;
 
-// This process's incarnation, recorded in every lock and claim it publishes.
+// This process's incarnation, recorded in every lock and claim it publishes: read once from the same
+// OS source contenders use, never estimated.
 function ownIncarnation() {
   if (selfIncarnation === null) {
-    selfIncarnation = LINUX ? `L${linuxStartTicks('self')}` : `W${Math.round(Date.now() - process.uptime() * 1000)}`;
+    if (LINUX) selfIncarnation = `L${linuxStartTicks('self')}`;
+    else { const started = startTimeOf(process.pid); selfIncarnation = started === null ? 'U' : `W${started}`; }
   }
   return selfIncarnation;
 }
 
-// Start time (epoch ms) of whichever process now has `pid`, or null when it cannot be read.
+// Start time (epoch ms, UTC) the OS recorded for whichever process now has `pid`, or null when it
+// cannot be read. The value is fixed at process creation, so later clock changes do not move it.
 function startTimeOf(pid) {
   try {
     if (process.platform === 'win32') {
@@ -65,23 +67,24 @@ function startTimeOf(pid) {
       const at = result.status === 0 ? Date.parse(result.stdout.trim()) : NaN;
       return Number.isFinite(at) ? at : null;
     }
-    const result = spawnSync('ps', ['-o', 'lstart=', '-p', String(pid)], { encoding:'utf8', timeout:5000, env:{ ...process.env, LC_ALL:'C' } });
-    const at = result.status === 0 ? Date.parse(result.stdout.trim()) : NaN;
+    const result = spawnSync('ps', ['-o', 'lstart=', '-p', String(pid)], { encoding:'utf8', timeout:5000, env:{ ...process.env, LC_ALL:'C', TZ:'UTC0' } });
+    const at = result.status === 0 && result.stdout.trim() ? Date.parse(`${result.stdout.trim()} GMT`) : NaN;
     return Number.isFinite(at) ? at : null;
   } catch { return null; }
 }
 
 // True only when the recorded incarnation provably no longer runs: its PID is gone, or that PID now
-// belongs to a process that started later (a recycled PID). Unknown is never "gone".
+// belongs to a process with another OS start value (a recycled PID). Unknown is never "gone".
 function ownerGone(pid, incarnation, probe) {
   if (!processAlive(pid)) return true;
+  if (incarnation === 'U') return false;
   if (incarnation.startsWith('L')) {
     if (!LINUX) return false;
     const now = probe.linux(pid);
     return now !== null && `L${now}` !== incarnation;
   }
   const started = probe.startTime(pid);
-  return started !== null && started > Number(incarnation.slice(1)) + START_TOLERANCE_MS;
+  return started !== null && `W${started}` !== incarnation;
 }
 
 const defaultProbe = { linux:linuxStartTicks, startTime:startTimeOf };
@@ -172,4 +175,4 @@ export function withMemoryLock(cwd, fn) {
   }
 }
 
-export const __memoryLockTest = { tryEvict, abandoned, claimPath, ownIncarnation, newToken };
+export const __memoryLockTest = { tryEvict, abandoned, claimPath, ownIncarnation, newToken, startTimeOf };
