@@ -12,10 +12,13 @@ import { __memoryLockTest, withMemoryLock } from '../src/portal-memory-lock.mjs'
 const fixture = () => fs.mkdtempSync(path.join(os.tmpdir(), 'idleproof-memory-lock-'));
 const ME = __memoryLockTest.ownIncarnation();
 const cleanup = (cwd) => { try { fs.rmSync(cwd, { recursive:true, force:true }); } catch {} };
+// A lock (or claim) is a directory holding its owner line.
+const put = (lock, content) => { fs.mkdirSync(lock, { recursive:true }); fs.writeFileSync(path.join(lock, 'owner'), content); };
+const ownerOf = (lock) => fs.readFileSync(path.join(lock, 'owner'), 'utf8');
 const plant = (cwd, content, ageMs) => {
   const file = projectPaths(cwd).portalMemoryLock;
   fs.mkdirSync(path.dirname(file), { recursive:true });
-  fs.writeFileSync(file, content);
+  put(file, content);
   const when = new Date(Date.now() - ageMs);
   fs.utimesSync(file, when, when);
   return file;
@@ -27,7 +30,7 @@ test('a live owner keeps the lock however old it is', () => {
     // A paused but live process (this one) holding the lock for a minute.
     const file = plant(cwd, `${process.pid} ${ME} ${'a'.repeat(32)}\n`, 60000);
     assert.throws(() => withMemoryLock(cwd, () => 'stolen'), { code:'IDLEPROOF_PORTAL_MEMORY_BUSY' });
-    assert.equal(fs.readFileSync(file, 'utf8'), `${process.pid} ${ME} ${'a'.repeat(32)}\n`, 'the live owner still holds it');
+    assert.equal(ownerOf(file), `${process.pid} ${ME} ${'a'.repeat(32)}\n`, 'the live owner still holds it');
   } finally { cleanup(cwd); }
 });
 
@@ -48,8 +51,8 @@ test('an owner never removes a lock that is no longer its own', () => {
   try {
     const file = projectPaths(cwd).portalMemoryLock;
     const foreign = `${process.pid} ${ME} ${'c'.repeat(32)}\n`;
-    withMemoryLock(cwd, () => { fs.writeFileSync(file, foreign); });
-    assert.equal(fs.readFileSync(file, 'utf8'), foreign, 'the replacement owner keeps its lock');
+    withMemoryLock(cwd, () => { fs.writeFileSync(path.join(file, 'owner'), foreign); });
+    assert.equal(ownerOf(file), foreign, 'the replacement owner keeps its lock');
   } finally { cleanup(cwd); }
 });
 
@@ -68,8 +71,8 @@ test('the lock never exists without its owner token', () => {
   const cwd = fixture();
   try {
     const file = projectPaths(cwd).portalMemoryLock;
-    withMemoryLock(cwd, () => { assert.match(fs.readFileSync(file, 'utf8'), /^\d+ [LW]\d+ [a-f0-9]{32}\n$/); });
-    assert.deepEqual(fs.readdirSync(path.dirname(file)).filter((name) => name.endsWith('.tmp')), [], 'no temporary file is left behind');
+    withMemoryLock(cwd, () => { assert.match(ownerOf(file), /^\d+ [LW]\d+ [a-f0-9]{32}\n$/); });
+    assert.deepEqual(fs.readdirSync(path.dirname(file)).filter((name) => name.endsWith('.tmp')), [], 'no temporary directory is left behind');
   } finally { cleanup(cwd); }
 });
 
@@ -81,9 +84,9 @@ test('a second evictor with a stale view never removes the lock the first evicto
     const kept = withMemoryLock(cwd, () => {
       // The first contender evicted the dead lock and now holds a new one. The second contender,
       // which inspected the same dead lock earlier, tries to recover it now.
-      const mine = fs.readFileSync(file, 'utf8');
+      const mine = ownerOf(file);
       assert.equal(__memoryLockTest.tryEvict(file, stale), false);
-      return fs.readFileSync(file, 'utf8') === mine;
+      return ownerOf(file) === mine;
     });
     assert.equal(kept, true, 'the live replacement lock survived the stale eviction attempt');
   } finally { cleanup(cwd); }
@@ -95,11 +98,11 @@ test('while one evictor holds the recovery claim, no other evictor can remove th
     const stale = `${deadPid()} ${ME} ${'e'.repeat(32)}\n`;
     const file = plant(cwd, stale, 0);
     const claim = __memoryLockTest.claimPath(file, stale);
-    fs.writeFileSync(claim, `${process.pid} ${ME} ${'9'.repeat(32)}\n`); // a live evictor is between its check and its unlink
+    put(claim, `${process.pid} ${ME} ${'9'.repeat(32)}\n`); // a live evictor is between its check and its unlink
     assert.equal(__memoryLockTest.tryEvict(file, stale), false);
     assert.throws(() => withMemoryLock(cwd, () => 'stolen'), { code:'IDLEPROOF_PORTAL_MEMORY_BUSY' });
-    assert.equal(fs.readFileSync(file, 'utf8'), stale, 'the lock is untouched');
-    assert.equal(fs.readFileSync(claim, 'utf8'), `${process.pid} ${ME} ${'9'.repeat(32)}\n`, 'the live claim is untouched');
+    assert.equal(ownerOf(file), stale, 'the lock is untouched');
+    assert.equal(ownerOf(claim), `${process.pid} ${ME} ${'9'.repeat(32)}\n`, 'the live claim is untouched');
   } finally { cleanup(cwd); }
 });
 
@@ -114,7 +117,7 @@ test('a claim left by an evictor that died is recovered, and so is a claim on th
       for (let level = 0; level < levels; level += 1) {
         const claim = __memoryLockTest.claimPath(target, content);
         content = `${deadPid()} ${ME} ${String(level).repeat(32)}\n`;
-        fs.writeFileSync(claim, content);
+        put(claim, content);
         target = claim;
       }
       assert.equal(withMemoryLock(cwd, () => 'recovered'), 'recovered', `${levels} abandoned claim level(s)`);
@@ -130,7 +133,7 @@ test('a PID recycled by a later process is not mistaken for the lock owner', () 
     // the lock records an earlier incarnation of that PID.
     const earlier = ME.startsWith('L') ? 'L1' : 'W1';
     const file = plant(cwd, `${process.pid} ${earlier} ${'5'.repeat(32)}\n`, 0);
-    assert.equal(__memoryLockTest.abandoned(fs.readFileSync(file, 'utf8')), true);
+    assert.equal(__memoryLockTest.abandoned(ownerOf(file)), true);
     assert.equal(withMemoryLock(cwd, () => 'recovered'), 'recovered');
     assert.equal(fs.existsSync(file), false);
     // The start-time form (used outside Linux) compares the OS-recorded start exactly, on every platform.
@@ -156,12 +159,33 @@ test('an abandoned claim chain of any depth is recovered, with bounded file name
       const claim = __memoryLockTest.claimPath(target, content);
       assert.ok(path.basename(claim).length <= path.basename(file).length + 40, 'claim names do not grow with depth');
       content = `${deadPid()} ${ME} ${String(level).repeat(32)}\n`;
-      fs.writeFileSync(claim, content);
+      put(claim, content);
       target = claim;
     }
     assert.equal(withMemoryLock(cwd, () => 'recovered'), 'recovered');
     assert.equal(fs.existsSync(file), false);
   } finally { cleanup(cwd); }
+});
+
+test('a lock directory left without its owner by an interrupted release is reclaimed', () => {
+  const cwd = fixture();
+  try {
+    const file = projectPaths(cwd).portalMemoryLock;
+    fs.mkdirSync(file, { recursive:true }); // the owner file was removed, the directory was not
+    assert.equal(withMemoryLock(cwd, () => 'acquired'), 'acquired');
+    assert.equal(fs.existsSync(file), false);
+  } finally { cleanup(cwd); }
+});
+
+test('the lock never needs hard links (filesystems without them work)', () => {
+  const cwd = fixture();
+  const original = fs.linkSync;
+  // As on exFAT or some network mounts: every hard link is refused although no lock exists.
+  fs.linkSync = () => { const error = new Error('operation not permitted'); error.code = 'EPERM'; throw error; };
+  try {
+    assert.equal(withMemoryLock(cwd, () => 'acquired'), 'acquired');
+    assert.equal(withMemoryLock(cwd, () => 'again'), 'again', 'released and acquired again');
+  } finally { fs.linkSync = original; cleanup(cwd); }
 });
 
 test('many processes recovering the same dead lock never overlap their critical sections', async () => {
@@ -170,7 +194,7 @@ test('many processes recovering the same dead lock never overlap their critical 
     const stale = `${deadPid()} ${ME} ${'f'.repeat(32)}\n`;
     const file = plant(cwd, stale, 0);
     // The first recovery also has to get past a claim left by an evictor that died.
-    fs.writeFileSync(__memoryLockTest.claimPath(file, stale), `${deadPid()} ${ME} ${'8'.repeat(32)}\n`);
+    put(__memoryLockTest.claimPath(file, stale), `${deadPid()} ${ME} ${'8'.repeat(32)}\n`);
     const marker = path.join(cwd, 'inside');
     const worker = `
       import fs from 'node:fs';

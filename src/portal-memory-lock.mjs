@@ -3,13 +3,18 @@
 // the initiation of every memory page request: once a change is committed, no page is started
 // with the old token or endpoint.
 //
-// Acquisition is atomic with the owner's identity: the `<pid> <incarnation> <random token>` line is
-// written to a private temporary file which is then hard-linked into place, so a lock never exists
-// without its owner, and its content identifies that one lock instance. The incarnation is the
+// A lock is a directory holding an `owner` file. Acquisition is atomic with the owner's identity: the
+// `<pid> <incarnation> <random token>` line is written into a private temporary directory which is
+// then renamed into place (rename fails while a lock with an owner exists; no hard links are needed,
+// so filesystems without them work), so a lock never exists without its owner, and its content
+// identifies that one lock instance. The incarnation is the
 // process start as the OS reports it (the start tick on Linux, the recorded start time from `ps` or
 // Windows elsewhere; the same source contenders read), so a PID recycled by an unrelated process is
 // not mistaken for the owner. When the OS value cannot be read the lock records none and only PID
-// liveness is judged, which can keep a lock held but never evicts a live owner. A lock is never evicted because of its age. It
+// liveness is judged, which can keep a lock held but never evicts a live owner. The same holds when a
+// PID is reused within the OS value's resolution (one second from `ps`, one tick on Linux): with
+// sequential PID allocation that needs a full wrap of the PID space, and the effect is a lock that
+// stays held, never an eviction. A lock is never evicted because of its age. It
 // is recovered only when the process recorded in it provably no longer exists (its PID is gone or
 // now belongs to a later process); when that cannot be determined the lock stays held. Recovery is
 // itself exclusive: the evictor first takes a claim named after the abandoned instance, then removes
@@ -27,8 +32,10 @@ const LOCK_TIMEOUT_MS = 3000;
 const OWNER = /^(\d+) ([LW]\d+|U) [a-f0-9]{32}\n$/;
 const sleepBuffer = new Int32Array(new SharedArrayBuffer(4));
 
-function readOwner(file) {
-  try { return fs.readFileSync(file, 'utf8'); } catch { return null; }
+const ownerFile = (lock) => path.join(lock, 'owner');
+
+function readOwner(lock) {
+  try { return fs.readFileSync(ownerFile(lock), 'utf8'); } catch { return null; }
 }
 
 function processAlive(pid) {
@@ -103,18 +110,40 @@ function abandoned(content, probe = defaultProbe) {
   return Boolean(match) && ownerGone(Number(match[1]), match[2], probe);
 }
 
-function tryCreate(file, token) {
-  const temporary = `${file}.${process.pid}.${randomBytes(8).toString('hex')}.tmp`;
-  fs.writeFileSync(temporary, token, { mode:0o600, flag:'wx' });
+function exists(target) {
+  try { fs.lstatSync(target); return true; } catch { return false; }
+}
+
+// Removes a lock directory: its owner file, then the directory itself. `rmdir` only ever removes an
+// empty directory, so it can never take away a lock another owner has just published in its place.
+function removeLock(lock) {
+  try { fs.unlinkSync(ownerFile(lock)); } catch {}
+  try { fs.rmdirSync(lock); } catch {}
+}
+
+function tryCreate(lock, token) {
+  const temporary = `${lock}.${process.pid}.${randomBytes(8).toString('hex')}.tmp`;
+  fs.mkdirSync(temporary, { mode:0o700 });
   try {
-    fs.linkSync(temporary, file);
+    fs.writeFileSync(ownerFile(temporary), token, { mode:0o600, flag:'wx' });
+    fs.renameSync(temporary, lock);
     return true;
   } catch (error) {
-    if (['EEXIST', 'EPERM', 'EACCES'].includes(error?.code)) return false;
+    // An existing lock is contention (EEXIST/ENOTEMPTY, or EPERM/EACCES on Windows). Without one,
+    // EPERM/EACCES/EBUSY are the transient sharing violations Windows reports while another program
+    // holds a handle, retried within the wait; any other failure is reported, never spun on.
+    if (exists(lock) || ['EEXIST', 'ENOTEMPTY', 'EPERM', 'EACCES', 'EBUSY'].includes(error?.code)) return false;
     throw error;
   } finally {
-    try { fs.unlinkSync(temporary); } catch {}
+    removeLock(temporary);
   }
+}
+
+// A lock directory without an owner can only be a release or recovery that was interrupted between
+// its two steps (publication always carries the owner). Reclaim it; `rmdir` fails if an owner exists.
+function reclaimEmpty(lock) {
+  if (readOwner(lock) !== null) return false;
+  try { fs.rmdirSync(lock); return true; } catch { return false; }
 }
 
 const newToken = () => `${process.pid} ${ownIncarnation()} ${randomBytes(16).toString('hex')}\n`;
@@ -136,17 +165,18 @@ function tryEvict(file, content, probe = defaultProbe) {
     // A claim left by an evictor that died is recovered one level down (to any depth: every level
     // is a claim whose owner is gone), then retried once.
     const held = readOwner(claim);
-    if (held === null || !abandoned(held, probe) || !tryEvict(claim, held, probe)) return false;
+    if (held === null) { if (!reclaimEmpty(claim)) return false; }
+    else if (!abandoned(held, probe) || !tryEvict(claim, held, probe)) return false;
     if (!tryCreate(claim, token)) return false;
   }
   try {
     if (readOwner(file) !== content) return false; // already recovered, possibly replaced by a live lock
-    fs.unlinkSync(file);
+    removeLock(file);
     return true;
   } catch {
     return false;
   } finally {
-    if (readOwner(claim) === token) { try { fs.unlinkSync(claim); } catch {} }
+    if (readOwner(claim) === token) removeLock(claim);
   }
 }
 
@@ -160,7 +190,7 @@ export function withMemoryLock(cwd, fn) {
   while (Date.now() - started < LOCK_TIMEOUT_MS) {
     if (tryCreate(file, token)) { owned = true; break; }
     const content = readOwner(file);
-    if (content !== null && abandoned(content, probe) && tryEvict(file, content, probe)) continue;
+    if (content === null ? reclaimEmpty(file) : abandoned(content, probe) && tryEvict(file, content, probe)) continue;
     Atomics.wait(sleepBuffer, 0, 0, 10);
   }
   if (!owned) {
@@ -171,7 +201,7 @@ export function withMemoryLock(cwd, fn) {
   try { return fn(); }
   finally {
     // Never remove a lock that is no longer ours.
-    if (readOwner(file) === token) { try { fs.unlinkSync(file); } catch {} }
+    if (readOwner(file) === token) removeLock(file);
   }
 }
 
