@@ -287,6 +287,60 @@ test('a resync completed during a source read is never undone by the stale read 
   } finally { cleanup(cwd); }
 });
 
+test('an empty source read never reports up-to-date for a replaced enrollment or cursor', async () => {
+  for (const change of ['disconnect', 'reenroll', 'resync']) {
+    const cwd = fixture();
+    try {
+      const events = journal([{ id:'decision:a' }, { id:'decision:b' }]);
+      assert.equal((await syncPortalMemory(cwd, { fetchImpl:portal().fetchImpl, coreRunner:core(events) })).next, 2);
+      const source = core(events);
+      let raced = false;
+      const racing = (args) => {
+        // While the caught-up cursor reads "no new events", another process changes the enrollment
+        // or starts a new epoch.
+        if (!raced && args.includes('--expect-head')) {
+          raced = true;
+          if (change === 'disconnect') disconnectPortal(cwd);
+          else if (change === 'reenroll') writePortalConfig(cwd, { endpoint:ENDPOINT, token:`ipd_${'n'.repeat(32)}` });
+          else resyncPortalMemory(cwd, { coreRunner:core(events) });
+        }
+        return source(args);
+      };
+      const result = await syncPortalMemory(cwd, { fetchImpl:portal().fetchImpl, coreRunner:racing });
+      assert.equal(raced, true, change);
+      assert.equal(result.status, 'superseded', `${change}: never up-to-date for a cursor that no longer applies`);
+      assert.equal(result.ok, false, change);
+    } finally { cleanup(cwd); }
+  }
+});
+
+test('a late transport failure never marks a page another process has acknowledged', async () => {
+  const cwd = fixture();
+  try {
+    const events = journal([{ id:'decision:a' }, { id:'decision:b' }]);
+    const server = portal();
+    await assert.rejects(syncPortalMemory(cwd, { fetchImpl:server.fetchImpl, coreRunner:core(events), failpoint:'before-send' }), /failpoint/);
+    assert.ok(portalMemoryStatus(cwd).pending, 'both processes will send the same pending page');
+    let other = null;
+    const failing = (url, init) => {
+      if (init?.method !== 'POST') return server.fetchImpl(url, init);
+      // This request has started; meanwhile another process delivers and acknowledges the same
+      // page, then this request fails late.
+      return new Promise((resolve) => setImmediate(resolve)).then(async () => {
+        other = await syncPortalMemory(cwd, { fetchImpl:server.fetchImpl, coreRunner:core(events) });
+        throw Object.assign(new Error('socket hang up'), { code:'ECONNRESET' });
+      });
+    };
+    const late = await syncPortalMemory(cwd, { fetchImpl:failing, coreRunner:core(events) });
+    assert.equal(other?.ok, true, 'the other process acknowledged the page');
+    assert.equal(late.status, 'superseded', 'the late failure is not reported as a deferred page');
+    const status = portalMemoryStatus(cwd);
+    assert.equal(status.next, 2);
+    assert.equal(status.pending, false);
+    assert.equal(status.statusCode ?? null, null, 'no NETWORK_ERROR is written onto the advanced cursor');
+  } finally { cleanup(cwd); }
+});
+
 test('status describes the currently configured enrollment, never a retained cursor', async () => {
   const cwd = fixture();
   try {

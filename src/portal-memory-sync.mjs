@@ -423,6 +423,9 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
   const ownsStream = (current, page) => Boolean(current) && sameBinding(current, binding)
     && current.journal === page.stream.journal && current.epoch === page.stream.epoch;
   const streamBound = (page, mutate) => guarded((current) => ownsStream(current, page), mutate);
+  // A failure of a request applies only while this request's page is still the pending one: if
+  // another process acknowledged it (or replaced it) meanwhile, the failure is stale.
+  const pageBound = (page, mutate) => guarded((current) => ownsStream(current, page) && current.pending?.pageId === page.pageId, mutate);
   const cursorView = (current) => ({ journal:current.journal, epoch:current.epoch, next:current.next, headHash:current.headHash ?? null });
   const ownsCursor = (current, view) => Boolean(current) && sameBinding(current, binding) && current.journal === view.journal
     && current.epoch === view.epoch && current.next === view.next && (current.headHash ?? null) === view.headHash;
@@ -479,10 +482,12 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
       }
       const journal = source.genesis ? `dwjrn_${source.genesis}` : null;
       if (!journal || !source.events.length) {
+        // "Up to date" is a claim about this enrollment's cursor: it must still be the one the read
+        // started from, under the same configuration.
         if (state.statusCode) {
           state = cursorBound(view, (current) => ({ ...current, statusCode:null }));
           if (!state) return superseded();
-        }
+        } else if (!ownsCursor(readPortalMemoryState(cwd), view) || !sameConfig(cwd, config)) return superseded();
         return { configured:true, ok:true, status:'up-to-date', next:state.next, pagesSent, acknowledged };
       }
       if (state.journal && state.journal !== journal) {
@@ -522,7 +527,7 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
     } catch (error) {
       clearTimeout(timer);
       const errorCode = error?.name === 'AbortError' ? 'TIMEOUT' : error?.code === 'IDLEPROOF_PORTAL_RESPONSE_TOO_LARGE' ? error.code : 'NETWORK_ERROR';
-      state = streamBound(page, (current) => ({ ...current, statusCode:errorCode }));
+      state = pageBound(page, (current) => ({ ...current, statusCode:errorCode }));
       if (!state) return superseded();
       return { configured:true, ok:false, status:'deferred', errorCode, next:state.next, pagesSent:pagesSent + 1, acknowledged, pending:true };
     }
@@ -534,7 +539,7 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
       let ack;
       try { ack = validateMemoryAck(body, page); }
       catch (error) {
-        state = streamBound(page, (current) => ({ ...current, statusCode:error.code }));
+        state = pageBound(page, (current) => ({ ...current, statusCode:error.code }));
         if (!state) return superseded();
         return { configured:true, ok:false, status:'deferred', errorCode:error.code, next:state.next, pagesSent, acknowledged, pending:true };
       }
@@ -562,19 +567,19 @@ export async function syncPortalMemory(cwd = process.cwd(), { fetchImpl = global
           || readPortalMemoryState(cwd);
         continue;
       }
-      state = streamBound(page, (current) => ({ ...current, status:'reset-required', statusCode:'SERVER_CURSOR_UNVERIFIABLE' }));
+      state = pageBound(page, (current) => ({ ...current, status:'reset-required', statusCode:'SERVER_CURSOR_UNVERIFIABLE' }));
       if (!state) return superseded();
       return { configured:true, ok:false, status:'reset-required', errorCode:'SERVER_CURSOR_UNVERIFIABLE', next:state.next, pagesSent, acknowledged, pending:true };
     }
     if (code === 'PREFIX_DIVERGED' || code === 'IDENTITY_CONFLICT') {
       const status = code === 'IDENTITY_CONFLICT' ? 'identity-conflict' : 'reset-required';
-      state = streamBound(page, (current) => ({ ...current, status, statusCode:code }));
+      state = pageBound(page, (current) => ({ ...current, status, statusCode:code }));
       if (!state) return superseded();
       return { configured:true, ok:false, status, errorCode:code, next:state.next, pagesSent, acknowledged, pending:true };
     }
     const transient = response.status === 429 || response.status >= 500;
     const incompatible = !transient && ['SCHEMA_INVALID', 'INVALID_JSON', 'PAGE_ID_MISMATCH', 'METHOD_NOT_ALLOWED', 'INVALID_PAGE_SCHEMA'].includes(code);
-    state = streamBound(page, (current) => ({ ...current, status:incompatible ? 'server-incompatible' : current.status, statusCode:code }));
+    state = pageBound(page, (current) => ({ ...current, status:incompatible ? 'server-incompatible' : current.status, statusCode:code }));
     if (!state) return superseded();
     return { configured:true, ok:false, degraded:incompatible, status:transient ? 'deferred' : incompatible ? 'server-incompatible' : 'rejected', errorCode:code, httpStatus:response.status, next:state.next, pagesSent, acknowledged, pending:true };
   }
