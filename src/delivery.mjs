@@ -64,12 +64,12 @@ function conceptFor(state,session) {
   return CONCEPT_BY_ID[id]||null;
 }
 
-export function buildHookDelivery(cwd,state,session,eventName) {
+export function buildHookDelivery(cwd,state,session,eventName,{structureOptions={}}={}) {
   if (!ELIGIBLE_EVENTS.has(eventName) || !session) return null;
   // Relevance uses the stable task plus its current substantive focus. Human-facing copy stays
   // anchored to the primary objective so a turn such as "yes, continue" never becomes the task.
   const semanticSession={...session,prompt:taskContextQuery(session)};
-  const signals=extractTaskSignals(cwd,semanticSession);
+  const signals=extractTaskSignals(cwd,semanticSession,{structureOptions});
   const phase=detectLearningPhase({...semanticSession,taskSignals:signals});
   if (phase!=='handoff' && !signals.file) return null;
   const enriched={...semanticSession,prompt:taskDisplayText(session),taskSignals:signals};
