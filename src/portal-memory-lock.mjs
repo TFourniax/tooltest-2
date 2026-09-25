@@ -74,7 +74,9 @@ function ownIncarnation() {
 
 // Start time (epoch ms, UTC) the OS recorded for whichever process now has `pid`, or null when it
 // cannot be read. The value is fixed at process creation, so later clock changes do not move it.
+let startTimeProbes = 0;
 function startTimeOf(pid) {
+  startTimeProbes += 1;
   try {
     if (process.platform === 'win32') {
       const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
@@ -107,6 +109,13 @@ function ownerGone(pid, incarnation, probe) {
 const defaultProbe = { linux:linuxStartTicks, linuxState, startTime:startTimeOf };
 // One start-time lookup per PID per acquisition attempt: the wait loop polls every 10 ms and must
 // not spawn a process each time. A stale answer only ever keeps a lock held, never evicts it.
+// While a lock keeps changing hands its owners are live: the (possibly slow, PowerShell on Windows)
+// start-time lookup only matters for a lock that stays unchanged, which is what a recycled PID looks
+// like. Waiters therefore use it only after the same lock instance has been observed for this long.
+// A dead PID is still detected at once, and no lock is ever evicted without proof its owner is gone.
+const PROBE_AFTER_MS = 500;
+const cheapProbe = { linux:linuxStartTicks, linuxState, startTime:() => null };
+
 function memoProbe() {
   const seen = new Map();
   return { linux:linuxStartTicks, linuxState, startTime:(pid) => { if (!seen.has(pid)) seen.set(pid, startTimeOf(pid)); return seen.get(pid); } };
@@ -196,11 +205,15 @@ export function withMemoryLock(cwd, fn) {
   const token = newToken();
   const started = Date.now();
   const probe = memoProbe();
+  let observed = null;
+  let observedSince = 0;
   let owned = false;
   while (Date.now() - started < LOCK_TIMEOUT_MS) {
     if (tryCreate(file, token)) { owned = true; break; }
     const content = readOwner(file);
-    if (content === null ? reclaimEmpty(file) : abandoned(content, probe) && tryEvict(file, content, probe)) continue;
+    if (content !== observed) { observed = content; observedSince = Date.now(); }
+    const judge = Date.now() - observedSince >= PROBE_AFTER_MS ? probe : cheapProbe;
+    if (content === null ? reclaimEmpty(file) : abandoned(content, judge) && tryEvict(file, content, judge)) continue;
     Atomics.wait(sleepBuffer, 0, 0, 10);
   }
   if (!owned) {
@@ -215,4 +228,4 @@ export function withMemoryLock(cwd, fn) {
   }
 }
 
-export const __memoryLockTest = { tryEvict, abandoned, claimPath, ownIncarnation, newToken, startTimeOf };
+export const __memoryLockTest = { tryEvict, abandoned, claimPath, ownIncarnation, newToken, startTimeOf, startTimeProbes:() => startTimeProbes };

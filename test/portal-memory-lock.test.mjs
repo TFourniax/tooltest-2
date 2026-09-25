@@ -209,6 +209,25 @@ test('a lock owner that is a zombie (killed, not yet reaped) is recovered', { sk
   } finally { parent.kill(); cleanup(cwd); }
 });
 
+test('a lock that changes hands is never probed for its owner start time, a settled one is', async () => {
+  const cwd = fixture();
+  try {
+    // A live owner (this process, in the start-time form used outside Linux) releases after 200 ms.
+    const file = plant(cwd, `${process.pid} W${__memoryLockTest.startTimeOf(process.pid)} ${'2'.repeat(32)}\n`, 0);
+    const releaser = spawn(process.execPath, ['-e', `setTimeout(() => require('node:fs').rmSync(${JSON.stringify(file)}, { recursive:true, force:true }), 200)`]);
+    const before = __memoryLockTest.startTimeProbes();
+    assert.equal(withMemoryLock(cwd, () => 'acquired'), 'acquired');
+    assert.equal(__memoryLockTest.startTimeProbes() - before, 0, 'no start-time lookup while the lock is simply busy');
+    await new Promise((resolve) => releaser.once('close', resolve));
+    // A lock left under a recycled PID never changes; once settled it is probed and recovered.
+    const startedAt = __memoryLockTest.startTimeOf(process.pid);
+    plant(cwd, `${process.pid} W${startedAt - 1000} ${'1'.repeat(32)}\n`, 0);
+    const t0 = Date.now();
+    assert.equal(withMemoryLock(cwd, () => 'recovered'), 'recovered');
+    assert.ok(Date.now() - t0 >= 450, 'probed only after the lock settled');
+  } finally { cleanup(cwd); }
+});
+
 test('many processes recovering the same dead lock never overlap their critical sections', async () => {
   const cwd = fixture();
   try {
