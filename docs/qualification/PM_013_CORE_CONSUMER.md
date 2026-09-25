@@ -232,3 +232,10 @@ subject or summary anchor, whether in the learning card, the IDE question or the
 Hand-built or legacy signals without `structureCoverage` keep their previous behaviour, because every
 signal produced by extraction declares it. The earlier fixture additions are therefore reverted.
 Regressions fail on `f6667179` and pass after the fix.
+
+Codex review of `bcecbc8` (P2): TortureBench counted every correct `signals.symbol` as a live symbol,
+including the 36 text-matched candidates from Swift and C++, which have no provider. The unchanged
+`>= 210/234` threshold, which predates canonical providers and measures correct live-symbol selection,
+is kept. A stricter requirement is added and reported separately: every supported-language fixture
+must yield its live symbol from the canonical extraction. Local result with Core: 234/234 live, of
+which 198/198 are canonical on supported languages, plus 36 text-matched candidates.

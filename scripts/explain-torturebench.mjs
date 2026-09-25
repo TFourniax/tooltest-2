@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { extractTaskSignals } from '../src/context.mjs';
+import { supportsStructurePath } from '../src/structure-provider.mjs';
 import { buildPlainExplanation } from '../src/explain.mjs';
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'idleproof-explain-torture-'));
@@ -59,6 +60,11 @@ function comment(ext, kind, text) {
 let cases = 0;
 let exactPaths = 0;
 let exactSymbols = 0;
+// Languages with a canonical provider must yield their live symbol from the canonical extraction;
+// text-matched candidates (languages without a provider) are counted and reported separately.
+let supportedCases = 0;
+let canonicalSymbols = 0;
+let candidateSymbols = 0;
 try {
   for (let index = 0; index < 234; index += 1) {
     const language = languages[index % languages.length];
@@ -95,7 +101,10 @@ try {
       assert.equal(signals.symbol, symbol, `${file}: wrong live symbol selected`);
       assert.ok(explanation.doing.includes(symbol), `${file}: live symbol omitted`);
       exactSymbols += 1;
+      if (signals.structureCoverage?.canonical === true) canonicalSymbols += 1;
+      else candidateSymbols += 1;
     }
+    if (supportsStructurePath(file)) supportedCases += 1;
     exactPaths += 1;
     cases += 1;
   }
@@ -142,7 +151,8 @@ try {
   assert.ok(cases >= 238);
   assert.equal(exactPaths, 234);
   assert.ok(exactSymbols >= 210, `too many language fixtures lost their live symbol: ${exactSymbols}/234`);
-  console.log(`Explain TortureBench PASS · ${cases} adversarial project forms · exact paths ${exactPaths}/234 · live symbols ${exactSymbols}/234`);
+  assert.equal(canonicalSymbols, supportedCases, `supported-language fixtures without a canonical live symbol: ${canonicalSymbols}/${supportedCases}`);
+  console.log(`Explain TortureBench PASS · ${cases} adversarial project forms · exact paths ${exactPaths}/234 · live symbols ${exactSymbols}/234 (canonical ${canonicalSymbols}/${supportedCases} supported, text-matched candidates ${candidateSymbols})`);
 } finally {
   fs.rmSync(root, { recursive:true, force:true });
 }
