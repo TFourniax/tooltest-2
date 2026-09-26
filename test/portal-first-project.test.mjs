@@ -591,7 +591,7 @@ test('a later turn that changes nothing keeps the task of the turn that produced
   } finally { cleanup(cwd); }
 });
 
-test('a completed change saved by an earlier release keeps its task when the next turn begins', async () => {
+test('a completed change saved by an earlier release keeps its task when the session resumes and the next turn begins', async () => {
   const { processHookEvent } = await import('../src/hook.mjs');
   const cwd = tmp();
   try {
@@ -608,6 +608,10 @@ test('a completed change saved by an earlier release keeps its task when the nex
     delete saved.sessions[sessionId].completedChanges;
     fs.writeFileSync(file, JSON.stringify(saved));
     const old = saved.sessions[sessionId];
+    // The upgraded IDE resumes through SessionStart, from another source, before the next prompt.
+    processHookEvent({ cwd, session_id:sessionId, hook_event_name:'SessionStart', source:'resumed-ide' });
+    const [frozen] = loadState(cwd).sessions[sessionId].completedChanges;
+    assert.deepEqual([frozen.changeId, frozen.status, frozen.source, frozen.promptSha256], [old.proof.changeId, old.status, old.source, old.promptSha256]);
     processHookEvent({ cwd, session_id:sessionId, hook_event_name:'UserPromptSubmit', prompt:'New task after the upgrade' });
     const during = JSON.stringify(buildAssurancePortalSnapshot(cwd, envelopeFor(old.proof.changeId, 5)));
     assert.ok(during.includes(`sha256:${old.promptSha256}`));

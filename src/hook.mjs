@@ -165,6 +165,9 @@ export function processHookLifecycle(event = {}) {
 
   const state = mutateState(cwd, (state) => {
     const session = ensureSession(state, event);
+    // A session saved by an earlier release can hold a completed change without its record; it is
+    // frozen before this event changes any field of the turn that produced it.
+    freezeCompletedChange(session);
     session.source = event.source || session.source || 'agent';
     session.lastEventAt = now();
     recordEvent(session, event, policyDecision, provenanceRecord, provenanceError);
@@ -176,9 +179,6 @@ export function processHookLifecycle(event = {}) {
     }
 
     if (eventName === 'UserPromptSubmit') {
-      // A session saved by an earlier release can hold a completed change without its record; it is
-      // frozen before this new turn replaces the prompt and task that produced it.
-      freezeCompletedChange(session);
       if (!session.baselineIdentity) session.baselineIdentity = captureBaselineIdentity(cwd);
       const rawPrompt = String(event.prompt || '');
       session.status = 'active';
