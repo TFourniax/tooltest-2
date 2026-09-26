@@ -144,6 +144,7 @@ export async function runPortalCli(args, { cwd = process.cwd() } = {}) {
     if (!quiet) {
       if (json) print(result,true);
       else if (!result.configured) console.log(`✓ Assurance verified for ${result.changeId}; Portal is not configured, so nothing was uploaded.`);
+      else if (result.errorCode === 'IDLEPROOF_ASSURANCE_NOT_RETAINED') console.log(`Portal assurance not sent · ${result.changeId} · ${result.message}`);
       else if (result.ok) console.log(`✓ Portal assurance synced · ${result.changeId} · ${result.delivered} delivered · ${result.pending} pending`);
       else console.log(`Portal assurance deferred · ${result.errorCode || result.httpStatus || 'delivery failed'} · ${result.pending} snapshot(s) remain safely queued.`);
     }

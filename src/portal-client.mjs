@@ -310,6 +310,7 @@ function rememberSnapshotTime(cwd, snapshot) {
 const HELD_SCHEMA = 'idleproof.portal-held.v1';
 const MAX_HELD = 1024;
 const destinationKey = (config) => createHash('sha256').update(`${config?.endpoint || ''}\n${config?.token || ''}`).digest('hex').slice(0, 32);
+export const portalDestinationKey = destinationKey;
 
 function readHeld(cwd) {
   try {

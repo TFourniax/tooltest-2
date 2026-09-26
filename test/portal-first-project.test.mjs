@@ -557,6 +557,12 @@ test('an earlier change of a reused IDE session keeps its debt after a later tur
     assert.deepEqual(earlier.assurance.softwareDebt, { points:8, obligations:2, budgetPassed:true });
     assert.equal(buildAssurancePortalSnapshot(cwd, envelopeFor(second, 3)).change.changeId, second);
     assert.throws(() => buildAssurancePortalSnapshot(cwd, envelopeFor(`dwchg_${'9'.repeat(24)}`, 1)), /matches no change completed by IdleProof/);
+    // A third turn starts: the live session now carries its prompt while proof still names change 2.
+    const secondPrompt = loadState(cwd).sessions[sessionId].promptSha256;
+    processHookEvent({ cwd, session_id:sessionId, hook_event_name:'UserPromptSubmit', prompt:'Third task, still running' });
+    const during = JSON.stringify(buildAssurancePortalSnapshot(cwd, envelopeFor(second, 3)));
+    assert.ok(during.includes(`sha256:${secondPrompt}`));
+    assert.ok(!during.includes(`sha256:${loadState(cwd).sessions[sessionId].promptSha256}`));
   } finally { cleanup(cwd); }
 });
 
@@ -602,6 +608,11 @@ test('a measurement whose receipt body was evicted is never sent again as a seco
     const again = await syncPortalAssurance(cwd, envelopeFor(change, 1), { fetchImpl:portal.fetchImpl });
     assert.equal(again.queueReason, 'already-sent');
     assert.equal(again.snapshotId, first.snapshotId);
+    assert.equal(portal.bodies.length, posts);
+    // A newly enrolled destination never got it: an explicit refusal, not a silent success.
+    writePortalConfig(cwd, { endpoint:'http://127.0.0.1:8787/api/v1/snapshots', token:`ipd_${'n'.repeat(32)}` });
+    const elsewhere = await syncPortalAssurance(cwd, envelopeFor(change, 1), { fetchImpl:portal.fetchImpl });
+    assert.deepEqual([elsewhere.ok, elsewhere.errorCode, elsewhere.queueReason], [false, 'IDLEPROOF_ASSURANCE_NOT_RETAINED', 'not-retained']);
     assert.equal(portal.bodies.length, posts);
   } finally { cleanup(cwd); }
 });
