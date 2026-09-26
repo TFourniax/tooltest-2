@@ -859,6 +859,32 @@ test('a receipt queued but not yet confirmed when interrupted is confirmed by th
   } finally { fs.renameSync = realRename; cleanup(cwd); }
 });
 
+test('an assurance refused as not configured is never reported synced when Portal is enrolled meanwhile', async () => {
+  const { syncPortalAssurance } = await import('../src/portal-assurance.mjs');
+  const cwd = twoChanges();
+  const realRename = fs.renameSync;
+  try {
+    const change = `dwchg_${'1'.repeat(24)}`;
+    let records = 0;
+    // Another process enrolls Portal right after this attempt was refused as not configured.
+    fs.renameSync = (from, to, ...args) => {
+      const result = realRename(from, to, ...args);
+      if (to === projectPaths(cwd).portalAssuranceSent && ++records === 2) writePortalConfig(cwd, { endpoint:'http://127.0.0.1:8787/api/v1/snapshots', token:`ipd_${'x'.repeat(32)}` });
+      return result;
+    };
+    const portal = portalEmulator();
+    const refused = await syncPortalAssurance(cwd, envelopeFor(change, 3), { fetchImpl:portal.fetchImpl });
+    fs.renameSync = realRename;
+    assert.equal(refused.configured, false);
+    assert.equal(refused.queueReason, 'not-configured');
+    assert.equal(portal.bodies.length, 0);
+    const sent = await syncPortalAssurance(cwd, envelopeFor(change, 3), { fetchImpl:portal.fetchImpl });
+    assert.equal(sent.ok, true);
+    assert.equal(sent.configured, true);
+    assert.equal(portal.stored.size, 1);
+  } finally { fs.renameSync = realRename; cleanup(cwd); }
+});
+
 test('an unreadable retry queue fails the resend instead of declaring an evicted receipt lost', async () => {
   const { syncPortalAssurance } = await import('../src/portal-assurance.mjs');
   const cwd = configuredProject();

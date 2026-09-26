@@ -191,7 +191,9 @@ export async function syncPortalAssurance(cwd=process.cwd(), envelope, options={
   if (notRetained) {
     return { configured:true, ok:false, errorCode:'IDLEPROOF_ASSURANCE_NOT_RETAINED', message:'This measurement was queued for Portal long ago and its receipt is no longer kept locally, so it cannot be resent or confirmed; measure the change again to send it. Nothing was sent.', snapshotId:receipt.snapshotId, changeId:receipt.change.changeId, newlyQueued:false, queueReason:'not-retained', assurance:snapshot.assurance };
   }
-  const flushed=await flushPortalQueue(cwd,options);
+  // Refused as not configured: nothing was queued, so this result stays unsent even if another process
+  // enrolls Portal before a flush could run (that flush would succeed against an empty queue).
+  const flushed=queued.reason==='not-configured' ? { configured:false, attempted:0, delivered:0, pending:null } : await flushPortalQueue(cwd,options);
   const retained=queued.reason !== 'queue-full';
   return {
     ...flushed,
