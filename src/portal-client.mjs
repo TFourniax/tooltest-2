@@ -2,7 +2,7 @@ import { normalizedProjectPath } from './project-path.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { PACKAGE_ROOT, projectPaths } from './paths.mjs';
 import { computeMetrics, excludeLocalState, freshState, loadPersistedState, loadState, mutateState } from './state.mjs';
 import { repositoryFingerprint } from './change-identity.mjs';
@@ -183,9 +183,9 @@ function recordDeliverySuccess(cwd) {
   });
 }
 
-export function writePortalConfig(cwd = process.cwd(), { endpoint, token, enabled = true } = {}) {
+export function writePortalConfig(cwd = process.cwd(), { endpoint, token, enabled = true, writeId = null } = {}) {
   const paths = projectPaths(cwd);
-  const config = { schema:CONFIG_SCHEMA, enabled:Boolean(enabled), endpoint:validateEndpoint(endpoint), token:validateToken(token), updatedAt:new Date().toISOString() };
+  const config = { schema:CONFIG_SCHEMA, enabled:Boolean(enabled), endpoint:validateEndpoint(endpoint), token:validateToken(token), updatedAt:new Date().toISOString(), ...(writeId ? { writeId } : {}) };
   // Serialized with memory cursor writes and memory page initiation (see portal-memory-lock.mjs).
   withMemoryLock(cwd, () => atomicJson(paths.portalConfig, config));
   return portalStatus(cwd);
@@ -196,20 +196,25 @@ export function writePortalConfig(cwd = process.cwd(), { endpoint, token, enable
 // enrollment without one, so both steps are repeated until a read confirms them together; if that
 // never happens the config just written is removed again and nothing is configured.
 export function configurePortal(cwd = process.cwd(), { endpoint, token } = {}) {
+  // Each write carries its own random id, so this call can tell its write from any other one,
+  // including a concurrent configure with the same credential.
+  const writes = new Set();
   for (let attempt = 0; attempt < 3; attempt += 1) {
     ensurePortalIdentity(cwd);
-    const status = writePortalConfig(cwd, { endpoint, token });
+    const writeId = randomBytes(12).toString('hex');
+    writes.add(writeId);
+    const status = writePortalConfig(cwd, { endpoint, token, writeId });
     // Confirmed from one read of the saved enrollment: another concurrent `configure` may have
     // replaced it (for example with another project's credential) since it was written.
     const saved = readPortalConfig(cwd);
-    if (status.identityPersisted && saved?.enabled && saved.endpoint === validateEndpoint(endpoint) && saved.token === validateToken(token)) return { ...status, configured:true, endpoint:saved.endpoint, tokenLast4:saved.token.slice(-4) };
+    if (status.identityPersisted && saved?.enabled && saved.writeId === writeId && saved.endpoint === validateEndpoint(endpoint) && saved.token === validateToken(token)) return { ...status, configured:true, endpoint:saved.endpoint, tokenLast4:saved.token.slice(-4) };
   }
-  // Rolled back only if the saved enrollment is still this call's own (checked and removed under
-  // the lock every config write takes), never a concurrent configure's successful one.
+  // Rolled back only if the saved enrollment is still one of this call's own writes (checked and
+  // removed under the lock every config write takes), never a concurrent configure's.
   withMemoryLock(cwd, () => {
     let saved = null;
     try { saved = readPortalConfig(cwd); } catch {}
-    if (saved && saved.endpoint === validateEndpoint(endpoint) && saved.token === validateToken(token)) fs.rmSync(projectPaths(cwd).portalConfig, { force:true });
+    if (saved?.writeId && writes.has(saved.writeId)) fs.rmSync(projectPaths(cwd).portalConfig, { force:true });
   });
   throw portalError('IDLEPROOF_PORTAL_IDENTITY_UNSTABLE', 'Portal could not be configured with a stable project identity and this credential (a concurrent reset or configure?). This call left no enrollment of its own; retry.');
 }
@@ -223,7 +228,7 @@ export function readPortalConfig(cwd = process.cwd()) {
     throw portalError('IDLEPROOF_PORTAL_CONFIG_CORRUPT', `Cannot read Portal config: ${error.message}`);
   }
   if (!parsed || parsed.schema !== CONFIG_SCHEMA || typeof parsed !== 'object' || Array.isArray(parsed)) throw portalError('IDLEPROOF_PORTAL_CONFIG_CORRUPT', 'Portal config has an unsupported schema.');
-  return { schema:CONFIG_SCHEMA, enabled:parsed.enabled !== false, endpoint:validateEndpoint(parsed.endpoint), token:validateToken(parsed.token), updatedAt:parsed.updatedAt || null };
+  return { schema:CONFIG_SCHEMA, enabled:parsed.enabled !== false, endpoint:validateEndpoint(parsed.endpoint), token:validateToken(parsed.token), updatedAt:parsed.updatedAt || null, writeId:typeof parsed.writeId === 'string' ? parsed.writeId : null };
 }
 
 export function disconnectPortal(cwd = process.cwd()) {
@@ -251,6 +256,12 @@ export function buildCurrentPortalSnapshot(cwd = process.cwd()) {
   });
   assertPortalSnapshotSafe(snapshot);
   return snapshot;
+}
+
+// A snapshot still retained in the retry queue, by id (read under the queue lock), or null.
+export function queuedPortalSnapshot(cwd, snapshotId) {
+  try { return withQueueLock(cwd, () => readQueue(cwd).find((item) => item.snapshotId === snapshotId) || null); }
+  catch { return null; }
 }
 
 function readQueue(cwd) {

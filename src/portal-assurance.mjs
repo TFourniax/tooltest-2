@@ -3,7 +3,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { computeMetrics, loadState } from './state.mjs';
 import { assuranceFromChangeEnvelope, assertPortalSnapshotSafe, buildPortalSnapshot } from './portal-snapshot.mjs';
-import { buildPortalProjectModel, flushPortalQueue, isPortalTimestamp, queuePortalSnapshot } from './portal-client.mjs';
+import { buildPortalProjectModel, flushPortalQueue, isPortalTimestamp, queuedPortalSnapshot, queuePortalSnapshot } from './portal-client.mjs';
 import { withOwnedLock } from './portal-memory-lock.mjs';
 import { COMPLETED_CHANGE_FIELDS } from './change-identity.mjs';
 import { projectPaths } from './paths.mjs';
@@ -82,17 +82,29 @@ const MAX_ASSURANCE_BODIES=64;
 const assuranceKey=(changeId,assurance)=>createHash('sha256').update(`${changeId}\n${JSON.stringify(assurance)}`).digest('hex').slice(0,32);
 const validBody=(snapshot)=>/^ipsnap_[a-f0-9]{24}$/.test(String(snapshot?.snapshotId)) && isPortalTimestamp(snapshot?.generatedAt);
 
+// Only a missing file is an empty history. A damaged or unreadable one stops assurance with an
+// explicit local-state error: treating it as empty could send a second receipt for a measurement.
+function assuranceStateError(detail) {
+  const error=new Error(`IdleProof assurance receipt history is unreadable (${detail}); nothing was sent. Inspect or remove ${'.idleproof/portal-assurance-sent.json'} deliberately.`);
+  error.code='IDLEPROOF_ASSURANCE_STATE_CORRUPT';
+  return error;
+}
+
 function readAssuranceSent(cwd) {
-  try {
-    const value=JSON.parse(fs.readFileSync(projectPaths(cwd).portalAssuranceSent,'utf8'));
-    if (value?.schema!==ASSURANCE_SENT_SCHEMA || !Array.isArray(value.entries)) return [];
-    return value.entries.map((item)=>{
-      if (typeof item?.key!=='string') return null;
-      const snapshot=validBody(item.snapshot) ? item.snapshot : null;
-      const snapshotId=snapshot ? snapshot.snapshotId : String(item.snapshotId || '');
-      return /^ipsnap_[a-f0-9]{24}$/.test(snapshotId) ? { key:item.key, snapshotId, snapshot } : null;
-    }).filter(Boolean);
-  } catch { return []; }
+  let value;
+  try { value=JSON.parse(fs.readFileSync(projectPaths(cwd).portalAssuranceSent,'utf8')); }
+  catch (error) {
+    if (error?.code==='ENOENT') return [];
+    throw assuranceStateError(error?.code || 'invalid JSON');
+  }
+  if (value?.schema!==ASSURANCE_SENT_SCHEMA || !Array.isArray(value.entries)) throw assuranceStateError('unsupported schema');
+  return value.entries.map((item)=>{
+    // A damaged receipt body is dropped, never uploaded; the measurement's identity is kept.
+    const snapshot=validBody(item?.snapshot) ? item.snapshot : null;
+    const snapshotId=snapshot ? snapshot.snapshotId : String(item?.snapshotId || item?.snapshot?.snapshotId || '');
+    if (typeof item?.key!=='string' || !/^[a-f0-9]{32}$/.test(item.key) || !/^ipsnap_[a-f0-9]{24}$/.test(snapshotId)) throw assuranceStateError('invalid entry');
+    return { key:item.key, snapshotId, snapshot };
+  });
 }
 
 function recordAssuranceSent(cwd, key, snapshot) {
@@ -120,7 +132,12 @@ export function queueAssuranceReceipt(cwd, snapshot) {
   // The lock is recovered only from an owner that provably no longer exists, never by age.
   fs.mkdirSync(projectPaths(cwd).dir,{ recursive:true });
   return withOwnedLock(projectPaths(cwd).portalAssuranceLock,()=>{
-    const previous=readAssuranceSent(cwd).find((item)=>item.key===key);
+    let previous=readAssuranceSent(cwd).find((item)=>item.key===key);
+    if (previous && !previous.snapshot) {
+      // Its body may still be waiting in the retry queue (for example while Portal was offline).
+      const queuedBody=queuedPortalSnapshot(cwd,previous.snapshotId);
+      if (queuedBody) previous={ ...previous, snapshot:queuedBody };
+    }
     if (previous && !previous.snapshot) {
       // Queued long ago and its body is no longer retained locally: it is never rebuilt as a second
       // receipt, and never reported delivered either, since this client cannot tell which Portal

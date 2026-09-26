@@ -663,3 +663,60 @@ test('a configure that keeps losing to a concurrent one never deletes the winner
     assert.equal(readPortalConfig(cwd).token, winner);
   } finally { fs.renameSync = realRename; cleanup(cwd); }
 });
+
+test('an assurance still waiting in the offline queue is delivered, not refused, after its cache body was evicted', async () => {
+  const { syncPortalAssurance } = await import('../src/portal-assurance.mjs');
+  const cwd = configuredProject();
+  try {
+    const change = `dwchg_${'1'.repeat(24)}`;
+    const offline = async () => { throw Object.assign(new Error('offline'), { name:'TypeError' }); };
+    const first = await syncPortalAssurance(cwd, envelopeFor(change, 1), { fetchImpl:offline });
+    for (let points = 2; points <= 70; points += 1) await syncPortalAssurance(cwd, envelopeFor(change, points), { fetchImpl:offline });
+    const entries = JSON.parse(fs.readFileSync(projectPaths(cwd).portalAssuranceSent, 'utf8')).entries;
+    assert.equal(entries[0].snapshot, undefined);
+    const portal = portalEmulator();
+    const again = await syncPortalAssurance(cwd, envelopeFor(change, 1), { fetchImpl:portal.fetchImpl });
+    assert.equal(again.ok, true);
+    assert.equal(again.snapshotId, first.snapshotId);
+    assert.ok(portal.stored.has(first.snapshotId));
+  } finally { cleanup(cwd); }
+});
+
+test('an unreadable receipt history stops assurance instead of risking a second receipt', async () => {
+  const { syncPortalAssurance } = await import('../src/portal-assurance.mjs');
+  const cwd = configuredProject();
+  try {
+    const portal = portalEmulator();
+    await syncPortalAssurance(cwd, envelopeFor(`dwchg_${'1'.repeat(24)}`, 8), { fetchImpl:portal.fetchImpl });
+    const posts = portal.bodies.length;
+    fs.writeFileSync(projectPaths(cwd).portalAssuranceSent, '{ damaged');
+    await assert.rejects(syncPortalAssurance(cwd, envelopeFor(`dwchg_${'1'.repeat(24)}`, 8), { fetchImpl:portal.fetchImpl }), (error) => error.code === 'IDLEPROOF_ASSURANCE_STATE_CORRUPT');
+    assert.equal(portal.bodies.length, posts);
+  } finally { cleanup(cwd); }
+});
+
+test('a failed configure never deletes a concurrent configure with the same credential', async () => {
+  const { configurePortal, readPortalConfig } = await import('../src/portal-client.mjs');
+  const cwd = tmp();
+  const realRename = fs.renameSync;
+  const endpoint = 'http://127.0.0.1:8787/api/v1/snapshots';
+  const token = `ipd_${'s'.repeat(32)}`;
+  let writes = 0;
+  try {
+    // Each of our writes loses its identity to a reset; after our last one, a concurrent configure
+    // with the same credential succeeds and writes its own enrollment.
+    fs.renameSync = (from, to, ...args) => {
+      const result = realRename(from, to, ...args);
+      if (to === projectPaths(cwd).portalConfig) {
+        writes += 1;
+        fs.rmSync(projectPaths(cwd).state, { force:true });
+        fs.rmSync(projectPaths(cwd).stateBackup, { force:true });
+        if (writes === 3) fs.writeFileSync(to, JSON.stringify({ schema:'idleproof.portal-config.v1', enabled:true, endpoint, token, updatedAt:new Date().toISOString(), writeId:'winner-write' }));
+      }
+      return result;
+    };
+    assert.throws(() => configurePortal(cwd, { endpoint, token }), (error) => error.code === 'IDLEPROOF_PORTAL_IDENTITY_UNSTABLE');
+    fs.renameSync = realRename;
+    assert.equal(readPortalConfig(cwd)?.writeId, 'winner-write');
+  } finally { fs.renameSync = realRename; cleanup(cwd); }
+});
