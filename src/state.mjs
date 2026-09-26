@@ -165,6 +165,12 @@ function recoverStateFromBackup(cwd, primaryError) {
 }
 
 export function loadState(cwd = process.cwd()) {
+  return loadPersistedState(cwd) || freshState(cwd);
+}
+
+// The persisted state, or null when neither the state nor its backup exists: a caller can tell a
+// state read from disk from an ephemeral fresh one in a single read.
+export function loadPersistedState(cwd = process.cwd()) {
   const paths = projectPaths(cwd);
   try {
     return readStateFile(paths.state, cwd);
@@ -173,7 +179,7 @@ export function loadState(cwd = process.cwd()) {
       try {
         return readStateFile(paths.stateBackup, cwd);
       } catch (backupError) {
-        if (backupError.code === 'ENOENT') return freshState(cwd);
+        if (backupError.code === 'ENOENT') return null;
         throw backupError;
       }
     }

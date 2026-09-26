@@ -71,26 +71,34 @@ test('status reports an uninitialized identity instead of a value that would cha
 
 test('status never pairs a persisted flag with an ID from a state it did not read', async () => {
   const { projectLocalId } = await import('../src/portal-snapshot.mjs');
-  const cwd = tmp();
-  const realExists = fs.existsSync;
-  let persisted = null;
-  try {
-    // Another process persists its own state exactly while this status call runs.
-    fs.existsSync = (file) => {
-      if (persisted === null && file === projectPaths(cwd).state) {
-        persisted = false;
-        const other = { ...freshState(cwd), createdAt:'2026-01-01T00:00:00.000Z' };
-        saveState(cwd, other);
-        persisted = loadState(cwd);
-      }
-      return realExists(file);
+  const realRead = fs.readFileSync;
+  const race = (cwd, onFirstStateRead) => {
+    let fired = false;
+    fs.readFileSync = (file, ...args) => {
+      if (!fired && file === projectPaths(cwd).state) { fired = true; onFirstStateRead(); }
+      return realRead(file, ...args);
     };
-    const status = portalStatus(cwd);
-    fs.existsSync = realExists;
-    const expected = projectLocalId(persisted.project, persisted.createdAt);
-    assert.ok(status.projectLocalId === null || status.projectLocalId === expected);
+    try { return portalStatus(cwd); } finally { fs.readFileSync = realRead; }
+  };
+  // A concurrent `reset` removes the persisted state exactly while status reads it.
+  const resetCwd = tmp();
+  try {
+    saveState(resetCwd, freshState(resetCwd));
+    const status = race(resetCwd, () => fs.rmSync(projectPaths(resetCwd).dir, { recursive:true, force:true }));
+    assert.deepEqual([status.identityPersisted, status.projectLocalId], [false, null]);
+  } finally { cleanup(resetCwd); }
+  // Another process persists its own state exactly while status reads it.
+  const createCwd = tmp();
+  try {
+    fs.mkdirSync(projectPaths(createCwd).dir, { recursive:true });
+    let persisted = null;
+    const status = race(createCwd, () => {
+      saveState(createCwd, { ...freshState(createCwd), createdAt:'2026-01-01T00:00:00.000Z' });
+      persisted = JSON.parse(realRead(projectPaths(createCwd).state, 'utf8'));
+    });
     assert.equal(status.identityPersisted, status.projectLocalId !== null);
-  } finally { fs.existsSync = realExists; cleanup(cwd); }
+    if (status.projectLocalId !== null) assert.equal(status.projectLocalId, projectLocalId(persisted.project, persisted.createdAt));
+  } finally { cleanup(createCwd); }
 });
 
 function twoChanges() {

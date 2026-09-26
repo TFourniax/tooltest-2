@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { PACKAGE_ROOT, projectPaths } from './paths.mjs';
-import { computeMetrics, excludeLocalState, loadState, mutateState } from './state.mjs';
+import { computeMetrics, excludeLocalState, freshState, loadPersistedState, loadState, mutateState } from './state.mjs';
 import { repositoryFingerprint } from './change-identity.mjs';
 import { validatePortalIngestAck } from './portal-ingest-ack.mjs';
 import { assertPortalSnapshotSafe, buildPortalSnapshot, projectLocalId } from './portal-snapshot.mjs';
@@ -497,12 +497,12 @@ export function ensurePortalIdentity(cwd = process.cwd()) {
 }
 
 export function portalStatus(cwd = process.cwd()) {
-  const paths = projectPaths(cwd);
-  // Persistence is checked before loading: a state another process persists in between is then
-  // read as persisted, never an ephemeral state reported as if it were. Before the state is
-  // persisted the ID would change on every read, so none is reported until then.
-  const identityPersisted = fs.existsSync(paths.state) || fs.existsSync(paths.stateBackup);
-  const state = loadState(cwd);
+  // Persistence and the ID come from one read of the persisted state: a state created, reset or
+  // removed concurrently can never pair a persisted flag with an ephemeral state's ID. Before the
+  // state is persisted the ID would change on every read, so none is reported until then.
+  const persisted = loadPersistedState(cwd);
+  const identityPersisted = Boolean(persisted);
+  const state = persisted || freshState(cwd);
   const localId = identityPersisted ? projectLocalId(state.project, state.createdAt) : null;
   let config = null;
   try { config = readPortalConfig(cwd); }
