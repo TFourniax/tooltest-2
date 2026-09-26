@@ -3,7 +3,8 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { computeMetrics, loadState } from './state.mjs';
 import { assuranceFromChangeEnvelope, assertPortalSnapshotSafe, buildPortalSnapshot } from './portal-snapshot.mjs';
-import { buildPortalProjectModel, flushPortalQueue, isPortalTimestamp, queuePortalSnapshot, withPortalFileLock } from './portal-client.mjs';
+import { buildPortalProjectModel, flushPortalQueue, isPortalTimestamp, queuePortalSnapshot } from './portal-client.mjs';
+import { withOwnedLock } from './portal-memory-lock.mjs';
 import { projectPaths } from './paths.mjs';
 
 // Assurance belongs to one exact change. It is attached to the IdleProof session whose completed
@@ -84,14 +85,16 @@ export function queueAssuranceReceipt(cwd, snapshot) {
   const key=assuranceKey(snapshot.change.changeId,snapshot.assurance);
   // Lookup, queueing and recording form one step per project, so concurrent hook and CLI
   // processes neither lose each other's receipts nor queue two receipts for one measurement.
-  return withPortalFileLock(cwd,projectPaths(cwd).portalAssuranceLock,()=>{
+  // The lock is recovered only from an owner that provably no longer exists, never by age.
+  fs.mkdirSync(projectPaths(cwd).dir,{ recursive:true });
+  return withOwnedLock(projectPaths(cwd).portalAssuranceLock,()=>{
     const previous=readAssuranceSent(cwd).find((item)=>item.key===key);
     const receipt=previous ? previous.snapshot : snapshot;
     assertPortalSnapshotSafe(receipt);
     const queued=queuePortalSnapshot(cwd,receipt);
     if (!previous && (queued.queued || queued.reason==='duplicate')) recordAssuranceSent(cwd,key,receipt);
     return { receipt, previous:Boolean(previous), queued };
-  });
+  },'IDLEPROOF_PORTAL_ASSURANCE_BUSY','Portal assurance receipt cache');
 }
 
 export async function syncPortalAssurance(cwd=process.cwd(), envelope, options={}) {

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { freshState, loadState, saveState } from '../src/state.mjs';
 import { ensurePortalIdentity, portalStatus, writePortalConfig } from '../src/portal-client.mjs';
@@ -343,22 +343,52 @@ test('a damaged local time record is never uploaded; the snapshot keeps a valid 
   } finally { cleanup(cwd); }
 });
 
+const holdAssuranceLock = async (cwd, pid = process.pid) => {
+  const { __memoryLockTest } = await import('../src/portal-memory-lock.mjs');
+  const lock = projectPaths(cwd).portalAssuranceLock;
+  const incarnation = pid === process.pid ? __memoryLockTest.ownIncarnation() : 'U';
+  fs.mkdirSync(lock, { recursive:true });
+  fs.writeFileSync(path.join(lock, 'owner'), `${pid} ${incarnation} ${'a'.repeat(32)}\n`);
+  return lock;
+};
+const receiptChild = (cwd, points = 8) => {
+  const assuranceModule = new URL('../src/portal-assurance.mjs', import.meta.url).href;
+  const script = `const m = await import(${JSON.stringify(assuranceModule)});
+try { m.queueAssuranceReceipt(process.cwd(), m.buildAssurancePortalSnapshot(process.cwd(), ${JSON.stringify(envelopeFor(`dwchg_${'1'.repeat(24)}`, points))})); }
+catch (error) { process.stderr.write(String(error.code)); process.exit(3); }`;
+  return spawn(process.execPath, ['--input-type=module', '-e', script], { cwd, stdio:['ignore', 'ignore', 'pipe'] });
+};
+const exitOf = (proc) => new Promise((resolve) => { let stderr = ''; proc.stderr.on('data', (c) => { stderr += c; }); proc.on('exit', (code) => resolve({ code, stderr })); });
+
 test('recording a receipt waits for another process holding the receipt cache', async () => {
-  const { spawn } = await import('node:child_process');
   const cwd = configuredProject();
   try {
-    const assuranceModule = new URL('../src/portal-assurance.mjs', import.meta.url).href;
-    const lock = projectPaths(cwd).portalAssuranceLock ?? path.join(projectPaths(cwd).dir, 'portal-assurance-sent.lock');
-    fs.writeFileSync(lock, `${process.pid} ${Date.now()}\n`); // another process is updating the cache
-    const script = `const m = await import(${JSON.stringify(assuranceModule)});
-m.queueAssuranceReceipt(process.cwd(), m.buildAssurancePortalSnapshot(process.cwd(), ${JSON.stringify(envelopeFor(`dwchg_${'1'.repeat(24)}`, 8))}));`;
-    const proc = spawn(process.execPath, ['--input-type=module', '-e', script], { cwd, stdio:'ignore' });
-    const exited = new Promise((resolve) => proc.on('exit', resolve));
+    const lock = await holdAssuranceLock(cwd); // this live process is updating the cache
+    const exited = exitOf(receiptChild(cwd));
     await new Promise((resolve) => setTimeout(resolve, 1000));
     assert.equal(fs.existsSync(projectPaths(cwd).portalAssuranceSent), false);
     assert.equal(fs.existsSync(projectPaths(cwd).portalQueue), false);
-    fs.unlinkSync(lock);
-    assert.equal(await exited, 0);
+    fs.rmSync(lock, { recursive:true, force:true });
+    assert.equal((await exited).code, 0);
+    assert.equal(JSON.parse(fs.readFileSync(projectPaths(cwd).portalAssuranceSent, 'utf8')).entries.length, 1);
+  } finally { cleanup(cwd); }
+});
+
+test('an old receipt-cache lock of a live owner is never evicted; a dead owner\'s lock is recovered', async () => {
+  const cwd = configuredProject();
+  try {
+    const lock = await holdAssuranceLock(cwd);
+    const past = new Date(Date.now() - 3600_000);
+    fs.utimesSync(lock, past, past);
+    fs.utimesSync(path.join(lock, 'owner'), past, past);
+    const busy = await exitOf(receiptChild(cwd));
+    assert.deepEqual(busy, { code:3, stderr:'IDLEPROOF_PORTAL_ASSURANCE_BUSY' });
+    assert.equal(fs.existsSync(projectPaths(cwd).portalAssuranceSent), false);
+    fs.rmSync(lock, { recursive:true, force:true });
+    const gone = spawn(process.execPath, ['-e', ''], { stdio:'ignore' });
+    await new Promise((resolve) => gone.on('exit', resolve));
+    await holdAssuranceLock(cwd, gone.pid); // its owner has exited
+    assert.equal((await exitOf(receiptChild(cwd))).code, 0);
     assert.equal(JSON.parse(fs.readFileSync(projectPaths(cwd).portalAssuranceSent, 'utf8')).entries.length, 1);
   } finally { cleanup(cwd); }
 });
