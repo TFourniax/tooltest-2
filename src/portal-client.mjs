@@ -272,6 +272,15 @@ function readSnapshotTimes(cwd) {
   } catch { return []; }
 }
 
+// Records the generatedAt of a snapshot that is queued or delivered without overriding a known one,
+// so a snapshot queued before this record existed (an upgrade) is also resent with its own time.
+function rememberSnapshotTime(cwd, snapshot) {
+  const entries = readSnapshotTimes(cwd);
+  if (entries.some((item) => item.snapshotId === snapshot.snapshotId) || typeof snapshot?.generatedAt !== 'string') return;
+  entries.push({ snapshotId:snapshot.snapshotId, generatedAt:snapshot.generatedAt });
+  atomicJson(projectPaths(cwd).portalSnapshotTimes, { schema:SNAPSHOT_TIMES_SCHEMA, entries:entries.slice(-MAX_SNAPSHOT_TIMES) });
+}
+
 function withFirstGeneratedAt(cwd, snapshot) {
   const entries = readSnapshotTimes(cwd);
   const known = entries.find((item) => item.snapshotId === snapshot.snapshotId);
@@ -288,8 +297,9 @@ export function queuePortalSnapshot(cwd = process.cwd(), snapshot = null) {
   assertPortalSnapshotSafe(safeSnapshot);
   return withQueueLock(cwd, () => {
     const current = readQueue(cwd);
-    const existed = current.some((item) => item.snapshotId === safeSnapshot.snapshotId);
-    if (existed) {
+    const existing = current.find((item) => item.snapshotId === safeSnapshot.snapshotId);
+    if (existing) {
+      rememberSnapshotTime(cwd, existing);
       const health = readDeliveryHealth(cwd);
       return { queued:false, reason:'duplicate', snapshotId:safeSnapshot.snapshotId, pending:current.length, skippedSnapshots:health.skippedSnapshots };
     }
@@ -336,6 +346,7 @@ export async function flushPortalQueue(cwd = process.cwd(), { fetchImpl = global
   if (!config?.enabled) return { configured:false, attempted:0, delivered:0, pending:initialQueue.length };
   if (typeof fetchImpl !== 'function') throw portalError('IDLEPROOF_PORTAL_FETCH_UNAVAILABLE', 'This Node runtime does not provide fetch().');
   let delivered = 0;
+  let heldByPortal = 0;
   for (const snapshot of initialQueue) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), Math.max(250, Math.min(15_000, Number(timeoutMs) || 3000)));
@@ -362,6 +373,17 @@ export async function flushPortalQueue(cwd = process.cwd(), { fetchImpl = global
       recordDeliveryError(cwd, errorCode);
       return { configured:true, attempted:delivered + 1, delivered, pending:readQueue(cwd).length, ok:false, httpStatus:response.status, errorCode };
     }
+    // The snapshotId is verified by Portal as the hash of everything but generatedAt, so a conflict
+    // means Portal already holds this receipt's content under another generatedAt (for example one
+    // queued by an older client). Nothing is lost by no longer retrying it; Portal keeps refusing the
+    // differing body, and the rest of the queue is no longer blocked behind it.
+    if (response.status === 409 && body?.error?.code === 'SNAPSHOT_CONFLICT') {
+      withQueueLock(cwd, () => rememberSnapshotTime(cwd, snapshot));
+      removeQueuedSnapshot(cwd, snapshot.snapshotId);
+      delivered += 1;
+      heldByPortal += 1;
+      continue;
+    }
     if (![200, 202].includes(response.status)) {
       const errorCode = body?.error?.code || `HTTP_${response.status}`;
       recordDeliveryError(cwd, errorCode);
@@ -374,12 +396,13 @@ export async function flushPortalQueue(cwd = process.cwd(), { fetchImpl = global
       recordDeliveryError(cwd, errorCode);
       return { configured:true, attempted:delivered + 1, delivered, pending:readQueue(cwd).length, ok:false, httpStatus:response.status, errorCode };
     }
+    withQueueLock(cwd, () => rememberSnapshotTime(cwd, snapshot));
     removeQueuedSnapshot(cwd, snapshot.snapshotId);
     delivered += 1;
   }
   if (delivered || initialQueue.length === 0) recordDeliverySuccess(cwd);
   const delivery = readDeliveryHealth(cwd);
-  return { configured:true, attempted:delivered, delivered, pending:readQueue(cwd).length, ok:true, degraded:delivery.degraded, skippedSnapshots:delivery.skippedSnapshots };
+  return { configured:true, attempted:delivered, delivered, heldByPortal, pending:readQueue(cwd).length, ok:true, degraded:delivery.degraded, skippedSnapshots:delivery.skippedSnapshots };
 }
 
 export async function syncPortal(cwd = process.cwd(), options = {}) {

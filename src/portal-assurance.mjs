@@ -54,22 +54,23 @@ export function buildAssurancePortalSnapshot(cwd=process.cwd(), envelope) {
 
 // The same measurement of the same change is one receipt. The assurance snapshot also carries the
 // project's current understanding state, so rebuilding it later would yield a new snapshot identity
-// for an identical measurement; the (change, assurance) pairs already queued are remembered instead,
-// and resending one only flushes the queue. A different measurement of that change is a new receipt.
-const ASSURANCE_SENT_SCHEMA='idleproof.portal-assurance-sent.v1';
-const MAX_ASSURANCE_SENT=256;
+// for an identical measurement. The original receipt is kept instead and queued again as is, so each
+// destination deduplicates it: the same Portal project answers duplicate, a newly enrolled one
+// accepts it. A different measurement of that change is a new receipt.
+const ASSURANCE_SENT_SCHEMA='idleproof.portal-assurance-sent.v2';
+const MAX_ASSURANCE_SENT=64;
 const assuranceKey=(changeId,assurance)=>createHash('sha256').update(`${changeId}\n${JSON.stringify(assurance)}`).digest('hex').slice(0,32);
 
 function readAssuranceSent(cwd) {
   try {
     const value=JSON.parse(fs.readFileSync(projectPaths(cwd).portalAssuranceSent,'utf8'));
-    return value?.schema===ASSURANCE_SENT_SCHEMA && Array.isArray(value.entries) ? value.entries.filter((item)=>typeof item?.key==='string' && /^ipsnap_[a-f0-9]{24}$/.test(String(item?.snapshotId))) : [];
+    return value?.schema===ASSURANCE_SENT_SCHEMA && Array.isArray(value.entries) ? value.entries.filter((item)=>typeof item?.key==='string' && /^ipsnap_[a-f0-9]{24}$/.test(String(item?.snapshot?.snapshotId))) : [];
   } catch { return []; }
 }
 
-function recordAssuranceSent(cwd, key, snapshotId) {
+function recordAssuranceSent(cwd, key, snapshot) {
   const entries=readAssuranceSent(cwd).filter((item)=>item.key!==key);
-  entries.push({ key, snapshotId });
+  entries.push({ key, snapshot });
   const file=projectPaths(cwd).portalAssuranceSent;
   fs.mkdirSync(path.dirname(file),{ recursive:true });
   const staged=`${file}.${process.pid}.tmp`;
@@ -81,22 +82,20 @@ export async function syncPortalAssurance(cwd=process.cwd(), envelope, options={
   const snapshot=buildAssurancePortalSnapshot(cwd,envelope);
   const key=assuranceKey(snapshot.change.changeId,snapshot.assurance);
   const previous=readAssuranceSent(cwd).find((item)=>item.key===key);
-  if (previous) {
-    const flushed=await flushPortalQueue(cwd,options);
-    return { ...flushed, ok:flushed.configured === false ? true : Boolean(flushed.ok), snapshotId:previous.snapshotId, changeId:snapshot.change.changeId, newlyQueued:false, queueReason:'already-sent', skippedSnapshots:flushed.skippedSnapshots || 0, assurance:snapshot.assurance };
-  }
-  const queued=queuePortalSnapshot(cwd,snapshot);
-  if (queued.queued || queued.reason==='duplicate') recordAssuranceSent(cwd,key,snapshot.snapshotId);
+  const receipt=previous ? previous.snapshot : snapshot;
+  assertPortalSnapshotSafe(receipt);
+  const queued=queuePortalSnapshot(cwd,receipt);
+  if (!previous && (queued.queued || queued.reason==='duplicate')) recordAssuranceSent(cwd,key,receipt);
   const flushed=await flushPortalQueue(cwd,options);
   const retained=queued.reason !== 'queue-full';
   return {
     ...flushed,
     ok:flushed.configured === false ? true : Boolean(flushed.ok) && retained,
     errorCode:retained ? flushed.errorCode : (flushed.errorCode || 'QUEUE_FULL'),
-    snapshotId:snapshot.snapshotId,
-    changeId:snapshot.change.changeId,
+    snapshotId:receipt.snapshotId,
+    changeId:receipt.change.changeId,
     newlyQueued:queued.queued,
-    queueReason:queued.reason || null,
+    queueReason:previous ? 'already-sent' : (queued.reason || null),
     skippedSnapshots:Math.max(queued.skippedSnapshots || 0,flushed.skippedSnapshots || 0),
     assurance:snapshot.assurance
   };

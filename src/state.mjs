@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { projectPaths } from './paths.mjs';
 import { CONCEPTS } from './catalog.mjs';
@@ -206,16 +207,19 @@ function writeAtomic(file, content) {
 }
 
 // IdleProof's local state is never project code: the first time it is created in a repository,
-// `.idleproof/` is added to that repository's local `.git/info/exclude` (not a tracked .gitignore).
-// Only a plain repository directory is edited; a worktree/submodule `.git` file is left alone.
+// `.idleproof/` is added to that repository's local exclude file (not a tracked .gitignore). Git
+// resolves the file, so a project below the repository root, a worktree or a submodule are covered;
+// the unanchored pattern matches the state directory wherever the project sits in the repository.
 export function excludeLocalState(cwd) {
-  const gitDir = path.join(path.resolve(cwd), '.git');
-  const exclude = path.join(gitDir, 'info', 'exclude');
+  let exclude;
   try {
-    if (!fs.statSync(gitDir).isDirectory()) return;
+    exclude = execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-path', 'info/exclude'], { cwd, encoding:'utf8', stdio:['ignore', 'pipe', 'ignore'] }).trim();
+  } catch { return; }
+  if (!exclude) return;
+  try {
     fs.mkdirSync(path.dirname(exclude), { recursive: true });
     const existing = fs.existsSync(exclude) ? fs.readFileSync(exclude, 'utf8') : '';
-    if (existing.split(/\r?\n/).some((line) => ['.idleproof/', '.idleproof', '/.idleproof/', '/.idleproof'].includes(line.trim()))) return;
+    if (existing.split(/\r?\n/).some((line) => ['.idleproof/', '.idleproof'].includes(line.trim()))) return;
     fs.appendFileSync(exclude, `${existing && !existing.endsWith('\n') ? '\n' : ''}.idleproof/\n`);
   } catch {}
 }

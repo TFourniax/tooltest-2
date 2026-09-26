@@ -216,3 +216,77 @@ test('the first saved state excludes .idleproof/ locally, even when a task runs 
     assert.equal(execFileSync('git', ['status', '--porcelain'], { cwd, encoding:'utf8' }).trim(), '');
   } finally { cleanup(cwd); }
 });
+
+test('the local exclusion also covers a project below the repository root and a worktree', () => {
+  const root = tmp();
+  try {
+    execFileSync('git', ['init', '-q'], { cwd:root });
+    execFileSync('git', ['-c', 'user.email=t@e.invalid', '-c', 'user.name=T', 'commit', '-q', '--allow-empty', '-m', 'root'], { cwd:root });
+    const nested = path.join(root, 'services', 'api');
+    fs.mkdirSync(nested, { recursive:true });
+    saveState(nested, freshState(nested));
+    assert.equal(execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], { cwd:root, encoding:'utf8' }).trim(), '');
+    const worktree = path.join(root, '..', `${path.basename(root)}-wt`);
+    execFileSync('git', ['worktree', 'add', '-q', worktree], { cwd:root });
+    try {
+      saveState(worktree, freshState(worktree));
+      assert.equal(execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], { cwd:worktree, encoding:'utf8' }).trim(), '');
+    } finally { execFileSync('git', ['worktree', 'remove', '--force', worktree], { cwd:root }); }
+  } finally { cleanup(root); }
+});
+
+test('a snapshot queued before an upgrade keeps its own time after delivery', async () => {
+  const { syncPortal, queuePortalSnapshot, buildCurrentPortalSnapshot } = await import('../src/portal-client.mjs');
+  const cwd = configuredProject();
+  try {
+    // An older client queued the current snapshot without recording its time.
+    const old = { ...buildCurrentPortalSnapshot(cwd), generatedAt:'2026-09-01T00:00:00.000Z' };
+    fs.writeFileSync(projectPaths(cwd).portalQueue, JSON.stringify([old]));
+    const portal = portalEmulator();
+    const results = [];
+    for (let i = 0; i < 3; i += 1) results.push(await syncPortal(cwd, { fetchImpl:portal.fetchImpl }));
+    assert.deepEqual(results.map((r) => r.ok), [true, true, true]);
+    assert.equal(portal.bodies.every((body) => JSON.parse(body).generatedAt === '2026-09-01T00:00:00.000Z'), true);
+    assert.equal(portal.stored.size, 1);
+    void queuePortalSnapshot;
+  } finally { cleanup(cwd); }
+});
+
+test('a conflict means Portal already holds the receipt: it leaves the queue and does not block later ones', async () => {
+  const { syncPortal } = await import('../src/portal-client.mjs');
+  const cwd = configuredProject();
+  try {
+    const portal = portalEmulator();
+    await syncPortal(cwd, { fetchImpl:portal.fetchImpl });
+    // Simulate a pre-fix client state: the time record is lost, so the rebuilt body differs.
+    fs.rmSync(projectPaths(cwd).portalSnapshotTimes, { force:true });
+    const state = loadState(cwd);
+    state.sessions.third = { ...state.sessions.second, id:'third', lastEventAt:'2026-09-26T12:00:00.000Z', proof:{ changeId:`dwchg_${'4'.repeat(24)}`, diffSha256:'d'.repeat(64) } };
+    saveState(cwd, state);
+    const { queuePortalSnapshot } = await import('../src/portal-client.mjs');
+    const stale = JSON.parse(portal.bodies[0]);
+    fs.writeFileSync(projectPaths(cwd).portalQueue, JSON.stringify([{ ...stale, generatedAt:'2026-09-02T00:00:00.000Z' }]));
+    queuePortalSnapshot(cwd);
+    const result = await syncPortal(cwd, { fetchImpl:portal.fetchImpl });
+    assert.equal(result.ok, true);
+    assert.equal(result.pending, 0);
+    assert.equal(result.heldByPortal, 1);
+    assert.equal(portal.stored.size, 2);
+  } finally { cleanup(cwd); }
+});
+
+test('a measurement resent after enrolling another Portal project reaches that project', async () => {
+  const { syncPortalAssurance } = await import('../src/portal-assurance.mjs');
+  const cwd = configuredProject();
+  try {
+    const first = portalEmulator();
+    await syncPortalAssurance(cwd, envelopeFor(`dwchg_${'1'.repeat(24)}`, 8), { fetchImpl:first.fetchImpl });
+    writePortalConfig(cwd, { endpoint:'http://127.0.0.1:8787/api/v1/snapshots', token:`ipd_${'z'.repeat(32)}` });
+    const second = portalEmulator();
+    const again = await syncPortalAssurance(cwd, envelopeFor(`dwchg_${'1'.repeat(24)}`, 8), { fetchImpl:second.fetchImpl });
+    assert.equal(again.ok, true);
+    assert.equal(again.queueReason, 'already-sent');
+    assert.equal(second.stored.size, 1);
+    assert.equal(second.bodies[0], first.bodies[0]);
+  } finally { cleanup(cwd); }
+});
