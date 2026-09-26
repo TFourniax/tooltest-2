@@ -232,6 +232,12 @@ export function processHookLifecycle(event = {}) {
         capturedAt: now(),
         changeId: session.changeIdentity?.available ? session.changeIdentity.changeId : null
       };
+      // A reused IDE session completes several changes; each stays addressable by its exact id
+      // (for example to attach DiffWitness assurance measured later), not only the latest one.
+      if (session.proof.changeId) {
+        const record = { changeId:session.proof.changeId, proof:{ ...session.proof }, changeIdentity:session.changeIdentity, changed:{ ...session.changed }, touchedFiles:[...session.touchedFiles] };
+        session.completedChanges = [...(session.completedChanges || []).filter((item) => item?.changeId !== record.changeId), record].slice(-20);
+      }
       session.findings = analyzeDiff(snapshot.diff);
       session.status = 'complete';
       session.currentTool = null;

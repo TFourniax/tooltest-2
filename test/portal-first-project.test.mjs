@@ -435,3 +435,51 @@ test('the retained assurance receipts are private to the user', { skip:process.p
     assert.deepEqual(fs.readdirSync(path.dirname(projectPaths(cwd).portalAssuranceSent)).filter((name) => name.endsWith('.tmp')), []);
   } finally { process.umask(previous); cleanup(cwd); }
 });
+
+test('after a conflict the rejected time is never reused and the held snapshot is not resent', async () => {
+  const { syncPortal, buildCurrentPortalSnapshot } = await import('../src/portal-client.mjs');
+  const cwd = configuredProject();
+  try {
+    const portal = portalEmulator();
+    const current = buildCurrentPortalSnapshot(cwd);
+    portal.stored.set(current.snapshotId, 'body first delivered with time A');
+    // A pre-upgrade queue holds the same content with time B and no local time record exists.
+    fs.mkdirSync(projectPaths(cwd).dir, { recursive:true });
+    fs.writeFileSync(projectPaths(cwd).portalQueue, JSON.stringify([{ ...current, generatedAt:'2026-09-02T00:00:00.000Z' }]));
+    const first = await syncPortal(cwd, { fetchImpl:portal.fetchImpl });
+    assert.equal(first.ok, true);
+    assert.equal(first.heldByPortal, 1);
+    const sent = portal.bodies.length;
+    const later = [await syncPortal(cwd, { fetchImpl:portal.fetchImpl }), await syncPortal(cwd, { fetchImpl:portal.fetchImpl })];
+    assert.deepEqual(later.map((r) => [r.ok, r.queueReason, r.delivered]), [[true, 'held-by-portal', 0], [true, 'held-by-portal', 0]]);
+    assert.equal(portal.bodies.length, sent);
+    const times = fs.existsSync(projectPaths(cwd).portalSnapshotTimes) ? JSON.parse(fs.readFileSync(projectPaths(cwd).portalSnapshotTimes, 'utf8')).entries : [];
+    assert.equal(times.some((item) => item.snapshotId === current.snapshotId && item.generatedAt === '2026-09-02T00:00:00.000Z'), false);
+  } finally { cleanup(cwd); }
+});
+
+test('an earlier change of a reused IDE session keeps its debt after a later turn', async () => {
+  const { processHookEvent } = await import('../src/hook.mjs');
+  const cwd = tmp();
+  try {
+    const git = (...args) => execFileSync('git', args, { cwd, encoding:'utf8', stdio:['ignore', 'pipe', 'pipe'] }).trim();
+    git('init', '-q'); git('config', 'user.email', 'r@idleproof.local'); git('config', 'user.name', 'R');
+    fs.writeFileSync(path.join(cwd, 'app.js'), 'export const value = 1;\n'); git('add', 'app.js'); git('commit', '-qm', 'base');
+    const sessionId = 'reused-ide-session';
+    const turn = (text) => {
+      processHookEvent({ cwd, session_id:sessionId, hook_event_name:'UserPromptSubmit', prompt:'Change the value' });
+      fs.writeFileSync(path.join(cwd, 'app.js'), text);
+      processHookEvent({ cwd, session_id:sessionId, hook_event_name:'Stop' });
+      return loadState(cwd).sessions[sessionId].proof.changeId;
+    };
+    const first = turn('export const value = 2;\n');
+    const second = turn('export const value = 3;\n');
+    assert.match(first, /^dwchg_[a-f0-9]{24}$/);
+    assert.notEqual(first, second);
+    const earlier = buildAssurancePortalSnapshot(cwd, envelopeFor(first, 8));
+    assert.equal(earlier.change.changeId, first);
+    assert.deepEqual(earlier.assurance.softwareDebt, { points:8, obligations:2, budgetPassed:true });
+    assert.equal(buildAssurancePortalSnapshot(cwd, envelopeFor(second, 3)).change.changeId, second);
+    assert.throws(() => buildAssurancePortalSnapshot(cwd, envelopeFor(`dwchg_${'9'.repeat(24)}`, 1)), /matches no change completed by IdleProof/);
+  } finally { cleanup(cwd); }
+});

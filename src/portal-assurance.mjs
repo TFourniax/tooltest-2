@@ -29,12 +29,25 @@ export function readChangeEnvelope(file, cwd=process.cwd()) {
   return envelope;
 }
 
+const CHANGE_ID=/^dwchg_[a-f0-9]{24}$/;
+
+// The session as it was when it completed `changeId`: its latest change, or an earlier change of a
+// reused IDE session kept in its completed-change history.
+function sessionForChange(sessions, changeId) {
+  for (const item of sessions) {
+    if (currentChangeId(item)===changeId) return item;
+    const record=(Array.isArray(item?.completedChanges) ? item.completedChanges : []).find((entry)=>entry?.changeId===changeId && CHANGE_ID.test(String(entry.changeId)));
+    if (record) return { ...item, proof:{ ...record.proof, changeId }, changeIdentity:record.changeIdentity || item.changeIdentity, changed:record.changed || item.changed, touchedFiles:Array.isArray(record.touchedFiles) ? record.touchedFiles : item.touchedFiles };
+  }
+  return null;
+}
+
 export function buildAssurancePortalSnapshot(cwd=process.cwd(), envelope) {
   const state=loadState(cwd);
   const sessions=sessionsByRecency(state);
-  if (!sessions.some((item)=>currentChangeId(item))) throw new Error('IdleProof has no completed exact-bound change to correlate with DiffWitness assurance.');
+  if (!sessions.some((item)=>currentChangeId(item) || (item?.completedChanges || []).length)) throw new Error('IdleProof has no completed exact-bound change to correlate with DiffWitness assurance.');
   const requested=String(envelope?.change_id || '');
-  const session=sessions.find((item)=>currentChangeId(item)===requested) || null;
+  const session=CHANGE_ID.test(requested) ? sessionForChange(sessions,requested) : null;
   if (!session) throw new Error(`DiffWitness change ${/^dwchg_[a-f0-9]{24}$/.test(requested) ? requested : '(invalid id)'} matches no change completed by IdleProof in this project. Measure the exact change IdleProof observed (its base and resulting Git trees), then retry; nothing was sent.`);
   const assurance=assuranceFromChangeEnvelope(envelope,currentChangeId(session));
   const metrics=computeMetrics(state);

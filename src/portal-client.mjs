@@ -2,6 +2,7 @@ import { normalizedProjectPath } from './project-path.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { PACKAGE_ROOT, projectPaths } from './paths.mjs';
 import { computeMetrics, excludeLocalState, loadState, mutateState } from './state.mjs';
 import { repositoryFingerprint } from './change-identity.mjs';
@@ -287,6 +288,39 @@ function rememberSnapshotTime(cwd, snapshot) {
   atomicJson(projectPaths(cwd).portalSnapshotTimes, { schema:SNAPSHOT_TIMES_SCHEMA, entries:entries.slice(-MAX_SNAPSHOT_TIMES) });
 }
 
+// Snapshots a destination (endpoint and enrollment credential, stored only as a hash) already holds
+// under another first time, as its SNAPSHOT_CONFLICT answer proves: not sent there again.
+const HELD_SCHEMA = 'idleproof.portal-held.v1';
+const MAX_HELD = 1024;
+const destinationKey = (config) => createHash('sha256').update(`${config?.endpoint || ''}\n${config?.token || ''}`).digest('hex').slice(0, 32);
+
+function readHeld(cwd) {
+  try {
+    const value = JSON.parse(fs.readFileSync(projectPaths(cwd).portalHeld, 'utf8'));
+    if (value?.schema !== HELD_SCHEMA || !Array.isArray(value.entries)) return [];
+    return value.entries.filter((item) => /^[a-f0-9]{32}$/.test(String(item?.destination)) && /^ipsnap_[a-f0-9]{24}$/.test(String(item?.snapshotId)));
+  } catch { return []; }
+}
+
+function markHeldByPortal(cwd, config, snapshotId) {
+  const destination = destinationKey(config);
+  const entries = readHeld(cwd).filter((item) => !(item.destination === destination && item.snapshotId === snapshotId));
+  entries.push({ destination, snapshotId });
+  atomicJson(projectPaths(cwd).portalHeld, { schema:HELD_SCHEMA, entries:entries.slice(-MAX_HELD) });
+}
+
+function heldByDestination(cwd, config, snapshotId) {
+  const destination = destinationKey(config);
+  return readHeld(cwd).some((item) => item.destination === destination && item.snapshotId === snapshotId);
+}
+
+// Drops a recorded time that Portal has just refused for this snapshot.
+function forgetSnapshotTime(cwd, snapshot) {
+  const entries = readSnapshotTimes(cwd);
+  const kept = entries.filter((item) => !(item.snapshotId === snapshot.snapshotId && item.generatedAt === snapshot.generatedAt));
+  if (kept.length !== entries.length) atomicJson(projectPaths(cwd).portalSnapshotTimes, { schema:SNAPSHOT_TIMES_SCHEMA, entries:kept });
+}
+
 function withFirstGeneratedAt(cwd, snapshot) {
   const entries = readSnapshotTimes(cwd);
   const known = entries.find((item) => item.snapshotId === snapshot.snapshotId);
@@ -303,6 +337,10 @@ export function queuePortalSnapshot(cwd = process.cwd(), snapshot = null) {
   assertPortalSnapshotSafe(safeSnapshot);
   return withQueueLock(cwd, () => {
     const current = readQueue(cwd);
+    if (heldByDestination(cwd, config, safeSnapshot.snapshotId)) {
+      const health = readDeliveryHealth(cwd);
+      return { queued:false, reason:'held-by-portal', snapshotId:safeSnapshot.snapshotId, pending:current.length, skippedSnapshots:health.skippedSnapshots };
+    }
     const existing = current.find((item) => item.snapshotId === safeSnapshot.snapshotId);
     if (existing) {
       rememberSnapshotTime(cwd, existing);
@@ -384,7 +422,9 @@ export async function flushPortalQueue(cwd = process.cwd(), { fetchImpl = global
     // queued by an older client). Nothing is lost by no longer retrying it; Portal keeps refusing the
     // differing body, and the rest of the queue is no longer blocked behind it.
     if (response.status === 409 && body?.error?.code === 'SNAPSHOT_CONFLICT') {
-      withQueueLock(cwd, () => rememberSnapshotTime(cwd, snapshot));
+      // The rejected generatedAt is never recorded as reusable; this destination is marked as
+      // already holding the content, so later unchanged syncs send nothing for it.
+      withQueueLock(cwd, () => { markHeldByPortal(cwd, config, snapshot.snapshotId); forgetSnapshotTime(cwd, snapshot); });
       removeQueuedSnapshot(cwd, snapshot.snapshotId);
       delivered += 1;
       heldByPortal += 1;
