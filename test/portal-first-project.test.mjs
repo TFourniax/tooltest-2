@@ -146,6 +146,25 @@ test('configure never reports an enrollment saved without a persisted identity',
   } finally { fs.renameSync = realRename; cleanup(cwd); }
 });
 
+test('configure never reports an enrollment that a reset removed before it was read back', async () => {
+  const { configurePortal } = await import('../src/portal-client.mjs');
+  const cwd = tmp();
+  const realRead = fs.readFileSync;
+  let resets = 0;
+  try {
+    // The state is read as persisted, then a concurrent reset removes the enrollment before it is read.
+    fs.readFileSync = (file, ...args) => {
+      if (resets === 0 && file === projectPaths(cwd).portalConfig && fs.existsSync(file)) { resets += 1; fs.rmSync(file, { force:true }); }
+      return realRead(file, ...args);
+    };
+    const status = configurePortal(cwd, { endpoint:'http://127.0.0.1:8787/api/v1/snapshots', token:`ipd_${'x'.repeat(32)}` });
+    fs.readFileSync = realRead;
+    assert.equal(resets, 1);
+    assert.deepEqual([status.configured, status.identityPersisted, status.endpoint], [true, true, 'http://127.0.0.1:8787/api/v1/snapshots']);
+    assert.equal(portalStatus(cwd).configured, true);
+  } finally { fs.readFileSync = realRead; cleanup(cwd); }
+});
+
 function twoChanges() {
   const cwd = tmp();
   const state = freshState(cwd);
