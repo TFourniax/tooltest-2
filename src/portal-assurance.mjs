@@ -74,25 +74,36 @@ export function buildAssurancePortalSnapshot(cwd=process.cwd(), envelope) {
 // destination deduplicates it: the same Portal project answers duplicate, a newly enrolled one
 // accepts it. A different measurement of that change is a new receipt.
 const ASSURANCE_SENT_SCHEMA='idleproof.portal-assurance-sent.v2';
-const MAX_ASSURANCE_SENT=64;
+// Every measurement ever sent keeps its identity (bounded generously); only the most recent ones
+// also keep the full receipt body, which is what a new destination needs.
+const MAX_ASSURANCE_SENT=4096;
+const MAX_ASSURANCE_BODIES=64;
 const assuranceKey=(changeId,assurance)=>createHash('sha256').update(`${changeId}\n${JSON.stringify(assurance)}`).digest('hex').slice(0,32);
+const validBody=(snapshot)=>/^ipsnap_[a-f0-9]{24}$/.test(String(snapshot?.snapshotId)) && isPortalTimestamp(snapshot?.generatedAt);
 
 function readAssuranceSent(cwd) {
   try {
     const value=JSON.parse(fs.readFileSync(projectPaths(cwd).portalAssuranceSent,'utf8'));
-    return value?.schema===ASSURANCE_SENT_SCHEMA && Array.isArray(value.entries) ? value.entries.filter((item)=>typeof item?.key==='string' && /^ipsnap_[a-f0-9]{24}$/.test(String(item?.snapshot?.snapshotId)) && isPortalTimestamp(item?.snapshot?.generatedAt)) : [];
+    if (value?.schema!==ASSURANCE_SENT_SCHEMA || !Array.isArray(value.entries)) return [];
+    return value.entries.map((item)=>{
+      if (typeof item?.key!=='string') return null;
+      const snapshot=validBody(item.snapshot) ? item.snapshot : null;
+      const snapshotId=snapshot ? snapshot.snapshotId : String(item.snapshotId || '');
+      return /^ipsnap_[a-f0-9]{24}$/.test(snapshotId) ? { key:item.key, snapshotId, snapshot } : null;
+    }).filter(Boolean);
   } catch { return []; }
 }
 
 function recordAssuranceSent(cwd, key, snapshot) {
-  const entries=readAssuranceSent(cwd).filter((item)=>item.key!==key);
-  entries.push({ key, snapshot });
+  const entries=[...readAssuranceSent(cwd).filter((item)=>item.key!==key), { key, snapshotId:snapshot.snapshotId, snapshot }].slice(-MAX_ASSURANCE_SENT);
+  const firstBody=entries.length-MAX_ASSURANCE_BODIES;
+  const stored=entries.map((item,index)=>index>=firstBody && item.snapshot ? item : { key:item.key, snapshotId:item.snapshotId });
   const file=projectPaths(cwd).portalAssuranceSent;
   fs.mkdirSync(path.dirname(file),{ recursive:true });
   // Retained receipts carry project metadata: private to the user, like every other Portal state file.
   const staged=`${file}.${process.pid}.${randomBytes(6).toString('hex')}.tmp`;
   try {
-    fs.writeFileSync(staged,`${JSON.stringify({ schema:ASSURANCE_SENT_SCHEMA, entries:entries.slice(-MAX_ASSURANCE_SENT) })}\n`,{ encoding:'utf8', mode:0o600, flag:'wx' });
+    fs.writeFileSync(staged,`${JSON.stringify({ schema:ASSURANCE_SENT_SCHEMA, entries:stored })}\n`,{ encoding:'utf8', mode:0o600, flag:'wx' });
     fs.renameSync(staged,file);
   } finally {
     try { fs.rmSync(staged,{ force:true }); } catch {}
@@ -109,6 +120,10 @@ export function queueAssuranceReceipt(cwd, snapshot) {
   fs.mkdirSync(projectPaths(cwd).dir,{ recursive:true });
   return withOwnedLock(projectPaths(cwd).portalAssuranceLock,()=>{
     const previous=readAssuranceSent(cwd).find((item)=>item.key===key);
+    if (previous && !previous.snapshot) {
+      // Sent long ago and its body is no longer retained: never rebuilt as a second receipt.
+      return { receipt:{ snapshotId:previous.snapshotId, change:{ changeId:snapshot.change.changeId } }, previous:true, queued:{ queued:false, reason:'already-sent', snapshotId:previous.snapshotId, pending:null, skippedSnapshots:0 } };
+    }
     const receipt=previous ? previous.snapshot : snapshot;
     assertPortalSnapshotSafe(receipt);
     const queued=queuePortalSnapshot(cwd,receipt);

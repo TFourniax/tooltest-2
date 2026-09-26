@@ -584,3 +584,49 @@ test('a receipt Portal already holds is retained again when the local cache was 
     assert.equal(again.snapshotId, first.snapshotId);
   } finally { cleanup(cwd); }
 });
+
+test('a measurement whose receipt body was evicted is never sent again as a second receipt', async () => {
+  const { syncPortalAssurance } = await import('../src/portal-assurance.mjs');
+  const cwd = configuredProject();
+  try {
+    const portal = portalEmulator();
+    const change = `dwchg_${'1'.repeat(24)}`;
+    const first = await syncPortalAssurance(cwd, envelopeFor(change, 1), { fetchImpl:portal.fetchImpl });
+    for (let points = 2; points <= 70; points += 1) await syncPortalAssurance(cwd, envelopeFor(change, points), { fetchImpl:portal.fetchImpl });
+    const entries = JSON.parse(fs.readFileSync(projectPaths(cwd).portalAssuranceSent, 'utf8')).entries;
+    assert.equal(entries.length, 70);
+    assert.equal(entries.filter((item) => item.snapshot).length, 64);
+    assert.equal(entries[0].snapshot, undefined);
+    assert.equal(entries[0].snapshotId, first.snapshotId);
+    const posts = portal.bodies.length;
+    const again = await syncPortalAssurance(cwd, envelopeFor(change, 1), { fetchImpl:portal.fetchImpl });
+    assert.equal(again.queueReason, 'already-sent');
+    assert.equal(again.snapshotId, first.snapshotId);
+    assert.equal(portal.bodies.length, posts);
+  } finally { cleanup(cwd); }
+});
+
+test('configure never reports success when another configure replaced its credential', async () => {
+  const { configurePortal, readPortalConfig } = await import('../src/portal-client.mjs');
+  const cwd = tmp();
+  const realRename = fs.renameSync;
+  const endpoint = 'http://127.0.0.1:8787/api/v1/snapshots';
+  const mine = `ipd_${'m'.repeat(32)}`;
+  let raced = 0;
+  try {
+    // A concurrent configure for the same endpoint writes another project's credential right after ours.
+    fs.renameSync = (from, to, ...args) => {
+      const result = realRename(from, to, ...args);
+      if (raced === 0 && to === projectPaths(cwd).portalConfig) {
+        raced += 1;
+        fs.writeFileSync(to, JSON.stringify({ schema:'idleproof.portal-config.v1', enabled:true, endpoint, token:`ipd_${'o'.repeat(32)}`, updatedAt:new Date().toISOString() }));
+      }
+      return result;
+    };
+    const status = configurePortal(cwd, { endpoint, token:mine });
+    fs.renameSync = realRename;
+    assert.equal(raced, 1);
+    assert.equal(status.tokenLast4, mine.slice(-4));
+    assert.equal(readPortalConfig(cwd).token, mine);
+  } finally { fs.renameSync = realRename; cleanup(cwd); }
+});

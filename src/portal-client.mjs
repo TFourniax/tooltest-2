@@ -199,7 +199,10 @@ export function configurePortal(cwd = process.cwd(), { endpoint, token } = {}) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     ensurePortalIdentity(cwd);
     const status = writePortalConfig(cwd, { endpoint, token });
-    if (status.identityPersisted && status.configured && status.endpoint === validateEndpoint(endpoint)) return status;
+    // Confirmed from one read of the saved enrollment: another concurrent `configure` may have
+    // replaced it (for example with another project's credential) since it was written.
+    const saved = readPortalConfig(cwd);
+    if (status.identityPersisted && saved?.enabled && saved.endpoint === validateEndpoint(endpoint) && saved.token === validateToken(token)) return { ...status, configured:true, endpoint:saved.endpoint, tokenLast4:saved.token.slice(-4) };
   }
   try { fs.rmSync(projectPaths(cwd).portalConfig, { force:true }); } catch {}
   throw portalError('IDLEPROOF_PORTAL_IDENTITY_UNSTABLE', 'The IdleProof project state was removed while Portal was being configured (a concurrent reset?). Nothing was configured; retry.');
