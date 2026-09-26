@@ -3,7 +3,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { computeMetrics, loadState } from './state.mjs';
 import { assuranceFromChangeEnvelope, assertPortalSnapshotSafe, buildPortalSnapshot } from './portal-snapshot.mjs';
-import { buildPortalProjectModel, flushPortalQueue, isPortalTimestamp, portalDestinationKey, queuePortalSnapshot, readPortalConfig } from './portal-client.mjs';
+import { buildPortalProjectModel, flushPortalQueue, isPortalTimestamp, queuePortalSnapshot } from './portal-client.mjs';
 import { withOwnedLock } from './portal-memory-lock.mjs';
 import { COMPLETED_CHANGE_FIELDS } from './change-identity.mjs';
 import { projectPaths } from './paths.mjs';
@@ -90,21 +90,15 @@ function readAssuranceSent(cwd) {
       if (typeof item?.key!=='string') return null;
       const snapshot=validBody(item.snapshot) ? item.snapshot : null;
       const snapshotId=snapshot ? snapshot.snapshotId : String(item.snapshotId || '');
-      const destinations=(Array.isArray(item.destinations) ? item.destinations : []).filter((value)=>/^[a-f0-9]{32}$/.test(String(value)));
-      return /^ipsnap_[a-f0-9]{24}$/.test(snapshotId) ? { key:item.key, snapshotId, snapshot, destinations } : null;
+      return /^ipsnap_[a-f0-9]{24}$/.test(snapshotId) ? { key:item.key, snapshotId, snapshot } : null;
     }).filter(Boolean);
   } catch { return []; }
 }
 
-// Each entry also names the destinations (endpoint and credential, as a hash) the receipt was
-// queued for, so a receipt whose body is no longer retained is only "already sent" for those.
-function recordAssuranceSent(cwd, key, snapshot, destination) {
-  const all=readAssuranceSent(cwd);
-  const earlier=all.find((item)=>item.key===key);
-  const destinations=[...new Set([...(earlier?.destinations || []), destination].filter(Boolean))].slice(-16);
-  const entries=[...all.filter((item)=>item.key!==key), { key, snapshotId:snapshot.snapshotId, snapshot, destinations }].slice(-MAX_ASSURANCE_SENT);
+function recordAssuranceSent(cwd, key, snapshot) {
+  const entries=[...readAssuranceSent(cwd).filter((item)=>item.key!==key), { key, snapshotId:snapshot.snapshotId, snapshot }].slice(-MAX_ASSURANCE_SENT);
   const firstBody=entries.length-MAX_ASSURANCE_BODIES;
-  const stored=entries.map((item,index)=>index>=firstBody && item.snapshot ? item : { key:item.key, snapshotId:item.snapshotId, destinations:item.destinations });
+  const stored=entries.map((item,index)=>index>=firstBody && item.snapshot ? item : { key:item.key, snapshotId:item.snapshotId });
   const file=projectPaths(cwd).portalAssuranceSent;
   fs.mkdirSync(path.dirname(file),{ recursive:true });
   // Retained receipts carry project metadata: private to the user, like every other Portal state file.
@@ -127,18 +121,16 @@ export function queueAssuranceReceipt(cwd, snapshot) {
   fs.mkdirSync(projectPaths(cwd).dir,{ recursive:true });
   return withOwnedLock(projectPaths(cwd).portalAssuranceLock,()=>{
     const previous=readAssuranceSent(cwd).find((item)=>item.key===key);
-    const config=readPortalConfig(cwd);
-    const destination=config?.enabled ? portalDestinationKey(config) : null;
     if (previous && !previous.snapshot) {
-      // Sent long ago and its body is no longer retained: never rebuilt as a second receipt. It is
-      // already sent only for the destinations that received it; another one needs a new measurement.
-      const sentHere=Boolean(destination) && previous.destinations.includes(destination);
-      return { receipt:{ snapshotId:previous.snapshotId, change:{ changeId:snapshot.change.changeId } }, previous:true, notRetained:!sentHere && Boolean(destination), queued:{ queued:false, reason:sentHere || !destination ? 'already-sent' : 'not-retained', snapshotId:previous.snapshotId, pending:null, skippedSnapshots:0 } };
+      // Queued long ago and its body is no longer retained locally: it is never rebuilt as a second
+      // receipt, and never reported delivered either, since this client cannot tell which Portal
+      // project received it. The caller is told explicitly; sending it again needs a new measurement.
+      return { receipt:{ snapshotId:previous.snapshotId, change:{ changeId:snapshot.change.changeId } }, previous:true, notRetained:true, queued:{ queued:false, reason:'not-retained', snapshotId:previous.snapshotId, pending:null, skippedSnapshots:0 } };
     }
     const receipt=previous ? previous.snapshot : snapshot;
     assertPortalSnapshotSafe(receipt);
     const queued=queuePortalSnapshot(cwd,receipt);
-    if (queued.queued || queued.reason==='duplicate' || queued.reason==='held-by-portal') recordAssuranceSent(cwd,key,receipt,destination);
+    if (!previous && (queued.queued || queued.reason==='duplicate' || queued.reason==='held-by-portal')) recordAssuranceSent(cwd,key,receipt);
     return { receipt, previous:Boolean(previous), queued };
   },'IDLEPROOF_PORTAL_ASSURANCE_BUSY','Portal assurance receipt cache');
 }
@@ -147,7 +139,7 @@ export async function syncPortalAssurance(cwd=process.cwd(), envelope, options={
   const snapshot=buildAssurancePortalSnapshot(cwd,envelope);
   const { receipt, previous, queued, notRetained }=queueAssuranceReceipt(cwd,snapshot);
   if (notRetained) {
-    return { configured:true, ok:false, errorCode:'IDLEPROOF_ASSURANCE_NOT_RETAINED', message:'This measurement was sent to another Portal destination long ago and its receipt is no longer kept locally; measure the change again to send it here. Nothing was sent.', snapshotId:receipt.snapshotId, changeId:receipt.change.changeId, newlyQueued:false, queueReason:'not-retained', assurance:snapshot.assurance };
+    return { configured:true, ok:false, errorCode:'IDLEPROOF_ASSURANCE_NOT_RETAINED', message:'This measurement was queued for Portal long ago and its receipt is no longer kept locally, so it cannot be resent or confirmed; measure the change again to send it. Nothing was sent.', snapshotId:receipt.snapshotId, changeId:receipt.change.changeId, newlyQueued:false, queueReason:'not-retained', assurance:snapshot.assurance };
   }
   const flushed=await flushPortalQueue(cwd,options);
   const retained=queued.reason !== 'queue-full';

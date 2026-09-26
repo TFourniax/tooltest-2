@@ -605,15 +605,18 @@ test('a measurement whose receipt body was evicted is never sent again as a seco
     assert.equal(entries[0].snapshot, undefined);
     assert.equal(entries[0].snapshotId, first.snapshotId);
     const posts = portal.bodies.length;
+    // Its body is no longer kept: never rebuilt as a second receipt, never reported delivered.
     const again = await syncPortalAssurance(cwd, envelopeFor(change, 1), { fetchImpl:portal.fetchImpl });
-    assert.equal(again.queueReason, 'already-sent');
-    assert.equal(again.snapshotId, first.snapshotId);
+    assert.deepEqual([again.ok, again.errorCode, again.queueReason, again.snapshotId], [false, 'IDLEPROOF_ASSURANCE_NOT_RETAINED', 'not-retained', first.snapshotId]);
     assert.equal(portal.bodies.length, posts);
-    // A newly enrolled destination never got it: an explicit refusal, not a silent success.
+    // The same holds after enrolling another destination: an explicit refusal, not a silent success.
     writePortalConfig(cwd, { endpoint:'http://127.0.0.1:8787/api/v1/snapshots', token:`ipd_${'n'.repeat(32)}` });
     const elsewhere = await syncPortalAssurance(cwd, envelopeFor(change, 1), { fetchImpl:portal.fetchImpl });
-    assert.deepEqual([elsewhere.ok, elsewhere.errorCode, elsewhere.queueReason], [false, 'IDLEPROOF_ASSURANCE_NOT_RETAINED', 'not-retained']);
+    assert.deepEqual([elsewhere.ok, elsewhere.errorCode], [false, 'IDLEPROOF_ASSURANCE_NOT_RETAINED']);
     assert.equal(portal.bodies.length, posts);
+    // A measurement whose body is still kept is resent as is and deduplicated by Portal.
+    const recent = await syncPortalAssurance(cwd, envelopeFor(change, 70), { fetchImpl:portal.fetchImpl });
+    assert.equal(recent.queueReason, 'already-sent');
   } finally { cleanup(cwd); }
 });
 
@@ -639,5 +642,24 @@ test('configure never reports success when another configure replaced its creden
     assert.equal(raced, 1);
     assert.equal(status.tokenLast4, mine.slice(-4));
     assert.equal(readPortalConfig(cwd).token, mine);
+  } finally { fs.renameSync = realRename; cleanup(cwd); }
+});
+
+test('a configure that keeps losing to a concurrent one never deletes the winner\'s enrollment', async () => {
+  const { configurePortal, readPortalConfig } = await import('../src/portal-client.mjs');
+  const cwd = tmp();
+  const realRename = fs.renameSync;
+  const endpoint = 'http://127.0.0.1:8787/api/v1/snapshots';
+  const winner = `ipd_${'w'.repeat(32)}`;
+  try {
+    // Every write of ours is immediately replaced by a concurrent configure's own credential.
+    fs.renameSync = (from, to, ...args) => {
+      const result = realRename(from, to, ...args);
+      if (to === projectPaths(cwd).portalConfig) fs.writeFileSync(to, JSON.stringify({ schema:'idleproof.portal-config.v1', enabled:true, endpoint, token:winner, updatedAt:new Date().toISOString() }));
+      return result;
+    };
+    assert.throws(() => configurePortal(cwd, { endpoint, token:`ipd_${'l'.repeat(32)}` }), (error) => error.code === 'IDLEPROOF_PORTAL_IDENTITY_UNSTABLE');
+    fs.renameSync = realRename;
+    assert.equal(readPortalConfig(cwd).token, winner);
   } finally { fs.renameSync = realRename; cleanup(cwd); }
 });

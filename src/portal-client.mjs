@@ -204,8 +204,14 @@ export function configurePortal(cwd = process.cwd(), { endpoint, token } = {}) {
     const saved = readPortalConfig(cwd);
     if (status.identityPersisted && saved?.enabled && saved.endpoint === validateEndpoint(endpoint) && saved.token === validateToken(token)) return { ...status, configured:true, endpoint:saved.endpoint, tokenLast4:saved.token.slice(-4) };
   }
-  try { fs.rmSync(projectPaths(cwd).portalConfig, { force:true }); } catch {}
-  throw portalError('IDLEPROOF_PORTAL_IDENTITY_UNSTABLE', 'The IdleProof project state was removed while Portal was being configured (a concurrent reset?). Nothing was configured; retry.');
+  // Rolled back only if the saved enrollment is still this call's own (checked and removed under
+  // the lock every config write takes), never a concurrent configure's successful one.
+  withMemoryLock(cwd, () => {
+    let saved = null;
+    try { saved = readPortalConfig(cwd); } catch {}
+    if (saved && saved.endpoint === validateEndpoint(endpoint) && saved.token === validateToken(token)) fs.rmSync(projectPaths(cwd).portalConfig, { force:true });
+  });
+  throw portalError('IDLEPROOF_PORTAL_IDENTITY_UNSTABLE', 'Portal could not be configured with a stable project identity and this credential (a concurrent reset or configure?). This call left no enrollment of its own; retry.');
 }
 
 export function readPortalConfig(cwd = process.cwd()) {
@@ -310,7 +316,6 @@ function rememberSnapshotTime(cwd, snapshot) {
 const HELD_SCHEMA = 'idleproof.portal-held.v1';
 const MAX_HELD = 1024;
 const destinationKey = (config) => createHash('sha256').update(`${config?.endpoint || ''}\n${config?.token || ''}`).digest('hex').slice(0, 32);
-export const portalDestinationKey = destinationKey;
 
 function readHeld(cwd) {
   try {
