@@ -342,3 +342,23 @@ test('a damaged local time record is never uploaded; the snapshot keeps a valid 
     assert.equal(portal.stored.size, 1);
   } finally { cleanup(cwd); }
 });
+
+test('recording a receipt waits for another process holding the receipt cache', async () => {
+  const { spawn } = await import('node:child_process');
+  const cwd = configuredProject();
+  try {
+    const assuranceModule = new URL('../src/portal-assurance.mjs', import.meta.url).href;
+    const lock = projectPaths(cwd).portalAssuranceLock ?? path.join(projectPaths(cwd).dir, 'portal-assurance-sent.lock');
+    fs.writeFileSync(lock, `${process.pid} ${Date.now()}\n`); // another process is updating the cache
+    const script = `const m = await import(${JSON.stringify(assuranceModule)});
+m.queueAssuranceReceipt(process.cwd(), m.buildAssurancePortalSnapshot(process.cwd(), ${JSON.stringify(envelopeFor(`dwchg_${'1'.repeat(24)}`, 8))}));`;
+    const proc = spawn(process.execPath, ['--input-type=module', '-e', script], { cwd, stdio:'ignore' });
+    const exited = new Promise((resolve) => proc.on('exit', resolve));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    assert.equal(fs.existsSync(projectPaths(cwd).portalAssuranceSent), false);
+    assert.equal(fs.existsSync(projectPaths(cwd).portalQueue), false);
+    fs.unlinkSync(lock);
+    assert.equal(await exited, 0);
+    assert.equal(JSON.parse(fs.readFileSync(projectPaths(cwd).portalAssuranceSent, 'utf8')).entries.length, 1);
+  } finally { cleanup(cwd); }
+});

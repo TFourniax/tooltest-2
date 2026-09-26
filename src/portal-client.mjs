@@ -48,34 +48,40 @@ function isLockContention(error, file) {
   try { return fs.statSync(file).isFile(); } catch { return false; }
 }
 
-function withQueueLock(cwd, fn) {
+// One process at a time per project for a local delivery record (the retry queue, the assurance
+// receipt cache): a read-modify-write under this lock never discards another process's update.
+export function withPortalFileLock(cwd, lockFile, fn) {
   const paths = projectPaths(cwd);
   fs.mkdirSync(paths.dir, { recursive:true });
   const started = Date.now();
   let fd = null;
   while (Date.now() - started < QUEUE_LOCK_TIMEOUT_MS) {
     try {
-      fd = fs.openSync(paths.portalQueueLock, 'wx', 0o600);
+      fd = fs.openSync(lockFile, 'wx', 0o600);
       fs.writeFileSync(fd, `${process.pid} ${Date.now()}\n`);
       break;
     } catch (error) {
-      if (!isLockContention(error, paths.portalQueueLock)) throw error;
+      if (!isLockContention(error, lockFile)) throw error;
       try {
-        const stat = fs.statSync(paths.portalQueueLock);
+        const stat = fs.statSync(lockFile);
         if (Date.now() - stat.mtimeMs > QUEUE_LOCK_STALE_MS) {
-          try { fs.unlinkSync(paths.portalQueueLock); } catch {}
+          try { fs.unlinkSync(lockFile); } catch {}
           continue;
         }
       } catch {}
       sleep(QUEUE_LOCK_WAIT_MS);
     }
   }
-  if (fd == null) throw portalError('IDLEPROOF_PORTAL_QUEUE_BUSY', 'Portal retry queue stayed busy for 3s; refusing to overwrite concurrent delivery state.');
+  if (fd == null) throw portalError('IDLEPROOF_PORTAL_QUEUE_BUSY', 'Portal delivery state stayed busy for 3s; refusing to overwrite concurrent delivery state.');
   try { return fn(); }
   finally {
     try { fs.closeSync(fd); } catch {}
-    try { fs.unlinkSync(paths.portalQueueLock); } catch {}
+    try { fs.unlinkSync(lockFile); } catch {}
   }
+}
+
+function withQueueLock(cwd, fn) {
+  return withPortalFileLock(cwd, projectPaths(cwd).portalQueueLock, fn);
 }
 
 function validateEndpoint(raw) {
