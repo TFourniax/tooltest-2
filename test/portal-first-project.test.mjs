@@ -591,6 +591,33 @@ test('a later turn that changes nothing keeps the task of the turn that produced
   } finally { cleanup(cwd); }
 });
 
+test('a completed change saved by an earlier release keeps its task when the next turn begins', async () => {
+  const { processHookEvent } = await import('../src/hook.mjs');
+  const cwd = tmp();
+  try {
+    const git = (...args) => execFileSync('git', args, { cwd, encoding:'utf8', stdio:['ignore', 'pipe', 'pipe'] }).trim();
+    git('init', '-q'); git('config', 'user.email', 'r@idleproof.local'); git('config', 'user.name', 'R');
+    fs.writeFileSync(path.join(cwd, 'app.js'), 'export const value = 1;\n'); git('add', 'app.js'); git('commit', '-qm', 'base');
+    const sessionId = 'upgraded-ide-session';
+    processHookEvent({ cwd, session_id:sessionId, hook_event_name:'UserPromptSubmit', prompt:'Old task: set the value to two' });
+    fs.writeFileSync(path.join(cwd, 'app.js'), 'export const value = 2;\n');
+    processHookEvent({ cwd, session_id:sessionId, hook_event_name:'Stop' });
+    // As the previous release saved it: a completed proof, no frozen record.
+    const file = projectPaths(cwd).state;
+    const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+    delete saved.sessions[sessionId].completedChanges;
+    fs.writeFileSync(file, JSON.stringify(saved));
+    const old = saved.sessions[sessionId];
+    processHookEvent({ cwd, session_id:sessionId, hook_event_name:'UserPromptSubmit', prompt:'New task after the upgrade' });
+    const during = JSON.stringify(buildAssurancePortalSnapshot(cwd, envelopeFor(old.proof.changeId, 5)));
+    assert.ok(during.includes(`sha256:${old.promptSha256}`));
+    fs.writeFileSync(path.join(cwd, 'app.js'), 'export const value = 3;\n');
+    processHookEvent({ cwd, session_id:sessionId, hook_event_name:'Stop' });
+    const after = JSON.stringify(buildAssurancePortalSnapshot(cwd, envelopeFor(old.proof.changeId, 5)));
+    assert.ok(after.includes(`sha256:${old.promptSha256}`));
+  } finally { cleanup(cwd); }
+});
+
 test('a receipt Portal already holds is retained again when the local cache was lost', async () => {
   const { syncPortalAssurance } = await import('../src/portal-assurance.mjs');
   const { createHash } = await import('node:crypto');
