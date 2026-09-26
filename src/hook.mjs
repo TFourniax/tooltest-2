@@ -270,7 +270,10 @@ export function processHookLifecycle(event = {}) {
     if ((eventName === 'Stop' || eventName === 'SessionEnd' || eventName === 'generic-stop') && session.proof?.changeId) {
       const record = { changeId:session.proof.changeId };
       for (const field of COMPLETED_CHANGE_FIELDS) record[field] = session[field] === undefined ? null : structuredClone(session[field]);
-      session.completedChanges = [...(session.completedChanges || []).filter((item) => item?.changeId !== record.changeId), record].slice(-20);
+      // A later turn that leaves the meaningful tree unchanged yields the same change id again; the
+      // record of the turn that produced the change is kept, never replaced by the no-op turn.
+      const completed = session.completedChanges || [];
+      if (!completed.some((item) => item?.changeId === record.changeId)) session.completedChanges = [...completed, record].slice(-20);
     }
 
     trimSessions(state);

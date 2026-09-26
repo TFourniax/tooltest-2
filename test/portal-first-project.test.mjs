@@ -566,6 +566,31 @@ test('an earlier change of a reused IDE session keeps its debt after a later tur
   } finally { cleanup(cwd); }
 });
 
+test('a later turn that changes nothing keeps the task of the turn that produced the change', async () => {
+  const { processHookEvent } = await import('../src/hook.mjs');
+  const cwd = tmp();
+  try {
+    const git = (...args) => execFileSync('git', args, { cwd, encoding:'utf8', stdio:['ignore', 'pipe', 'pipe'] }).trim();
+    git('init', '-q'); git('config', 'user.email', 'r@idleproof.local'); git('config', 'user.name', 'R');
+    fs.writeFileSync(path.join(cwd, 'app.js'), 'export const value = 1;\n'); git('add', 'app.js'); git('commit', '-qm', 'base');
+    const sessionId = 'reused-ide-session';
+    const turn = (prompt) => {
+      processHookEvent({ cwd, session_id:sessionId, hook_event_name:'UserPromptSubmit', prompt });
+      fs.writeFileSync(path.join(cwd, 'app.js'), 'export const value = 2;\n');
+      processHookEvent({ cwd, session_id:sessionId, hook_event_name:'Stop' });
+      return loadState(cwd).sessions[sessionId];
+    };
+    const first = turn('First task: set the value to two');
+    const firstPrompt = first.promptSha256;
+    const later = turn('Later question that changes nothing');
+    assert.equal(later.proof.changeId, first.proof.changeId);
+    assert.notEqual(later.promptSha256, firstPrompt);
+    const receipt = JSON.stringify(buildAssurancePortalSnapshot(cwd, envelopeFor(first.proof.changeId, 5)));
+    assert.ok(receipt.includes(`sha256:${firstPrompt}`));
+    assert.ok(!receipt.includes(`sha256:${later.promptSha256}`));
+  } finally { cleanup(cwd); }
+});
+
 test('a receipt Portal already holds is retained again when the local cache was lost', async () => {
   const { syncPortalAssurance } = await import('../src/portal-assurance.mjs');
   const { createHash } = await import('node:crypto');
@@ -699,6 +724,26 @@ test('a receipt recovered from the offline queue stays resendable after that que
     assert.equal(again.ok, true);
     assert.equal(again.snapshotId, first.snapshotId);
     assert.ok(destination.stored.has(first.snapshotId));
+  } finally { cleanup(cwd); }
+});
+
+test('a damaged retained receipt body is replaced by its intact copy from the retry queue', async () => {
+  const { syncPortalAssurance } = await import('../src/portal-assurance.mjs');
+  const cwd = configuredProject();
+  try {
+    const change = `dwchg_${'1'.repeat(24)}`;
+    const offline = async () => { throw Object.assign(new Error('offline'), { name:'TypeError' }); };
+    const first = await syncPortalAssurance(cwd, envelopeFor(change, 1), { fetchImpl:offline });
+    const file = projectPaths(cwd).portalAssuranceSent;
+    const sent = JSON.parse(fs.readFileSync(file, 'utf8'));
+    // Damaged in place: identity and time still look valid, the payload no longer matches them.
+    sent.entries[0].snapshot.assurance.softwareDebt.points = 999;
+    fs.writeFileSync(file, JSON.stringify(sent));
+    const portal = portalEmulator();
+    const again = await syncPortalAssurance(cwd, envelopeFor(change, 1), { fetchImpl:portal.fetchImpl });
+    assert.equal(again.ok, true);
+    assert.equal(again.snapshotId, first.snapshotId);
+    assert.equal(JSON.parse(portal.stored.get(first.snapshotId)).assurance.softwareDebt.points, 1);
   } finally { cleanup(cwd); }
 });
 

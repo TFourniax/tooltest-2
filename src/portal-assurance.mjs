@@ -80,7 +80,12 @@ const ASSURANCE_SENT_SCHEMA='idleproof.portal-assurance-sent.v2';
 const MAX_ASSURANCE_SENT=4096;
 const MAX_ASSURANCE_BODIES=64;
 const assuranceKey=(changeId,assurance)=>createHash('sha256').update(`${changeId}\n${JSON.stringify(assurance)}`).digest('hex').slice(0,32);
-const validBody=(snapshot)=>/^ipsnap_[a-f0-9]{24}$/.test(String(snapshot?.snapshotId)) && isPortalTimestamp(snapshot?.generatedAt);
+// A retained body is trusted only if it is still the exact receipt its identity names; anything
+// else is treated as absent, so a copy still in the retry queue can be used instead.
+const validBody=(snapshot)=>{
+  if (!snapshot || typeof snapshot!=='object' || !isPortalTimestamp(snapshot.generatedAt)) return false;
+  try { return assertPortalSnapshotSafe(snapshot); } catch { return false; }
+};
 
 // Only a missing file is an empty history. A damaged or unreadable one stops assurance with an
 // explicit local-state error: treating it as empty could send a second receipt for a measurement.
