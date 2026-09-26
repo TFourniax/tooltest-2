@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { PACKAGE_ROOT, projectPaths } from './paths.mjs';
-import { computeMetrics, loadState, mutateState } from './state.mjs';
+import { computeMetrics, excludeLocalState, loadState, mutateState } from './state.mjs';
 import { repositoryFingerprint } from './change-identity.mjs';
 import { validatePortalIngestAck } from './portal-ingest-ack.mjs';
 import { assertPortalSnapshotSafe, buildPortalSnapshot, projectLocalId } from './portal-snapshot.mjs';
@@ -425,19 +425,6 @@ export function ensurePortalIdentity(cwd = process.cwd()) {
   if (!fs.existsSync(paths.state) && !fs.existsSync(paths.stateBackup)) mutateState(cwd, (state) => state);
   excludeLocalState(cwd);
   return portalStatus(cwd);
-}
-
-function excludeLocalState(cwd) {
-  // Only a plain repository directory is edited; a worktree/submodule `.git` file is left alone.
-  const gitDir = path.join(path.resolve(cwd), '.git');
-  const exclude = path.join(gitDir, 'info', 'exclude');
-  try {
-    if (!fs.statSync(gitDir).isDirectory()) return;
-    fs.mkdirSync(path.dirname(exclude), { recursive: true });
-    const existing = fs.existsSync(exclude) ? fs.readFileSync(exclude, 'utf8') : '';
-    if (existing.split(/\r?\n/).some((line) => ['.idleproof/', '.idleproof', '/.idleproof/', '/.idleproof'].includes(line.trim()))) return;
-    fs.appendFileSync(exclude, `${existing && !existing.endsWith('\n') ? '\n' : ''}.idleproof/\n`);
-  } catch {}
 }
 
 export function portalStatus(cwd = process.cwd()) {

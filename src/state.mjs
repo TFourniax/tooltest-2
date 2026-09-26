@@ -205,8 +205,24 @@ function writeAtomic(file, content) {
   }
 }
 
+// IdleProof's local state is never project code: the first time it is created in a repository,
+// `.idleproof/` is added to that repository's local `.git/info/exclude` (not a tracked .gitignore).
+// Only a plain repository directory is edited; a worktree/submodule `.git` file is left alone.
+export function excludeLocalState(cwd) {
+  const gitDir = path.join(path.resolve(cwd), '.git');
+  const exclude = path.join(gitDir, 'info', 'exclude');
+  try {
+    if (!fs.statSync(gitDir).isDirectory()) return;
+    fs.mkdirSync(path.dirname(exclude), { recursive: true });
+    const existing = fs.existsSync(exclude) ? fs.readFileSync(exclude, 'utf8') : '';
+    if (existing.split(/\r?\n/).some((line) => ['.idleproof/', '.idleproof', '/.idleproof/', '/.idleproof'].includes(line.trim()))) return;
+    fs.appendFileSync(exclude, `${existing && !existing.endsWith('\n') ? '\n' : ''}.idleproof/\n`);
+  } catch {}
+}
+
 export function saveState(cwd, state) {
   const paths = projectPaths(cwd);
+  if (!fs.existsSync(paths.state)) excludeLocalState(cwd);
   fs.mkdirSync(paths.dir, { recursive: true });
   persistFeatureObservations(cwd,state);
   state.version = CURRENT_STATE_VERSION;

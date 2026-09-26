@@ -206,3 +206,13 @@ test('resending the same measurement of a change adds no receipt; a new measurem
     assert.equal(portal.stored.size, 2);
   } finally { cleanup(cwd); }
 });
+
+test('the first saved state excludes .idleproof/ locally, even when a task runs before any identity command', () => {
+  const cwd = tmp();
+  try {
+    execFileSync('git', ['init', '-q'], { cwd });
+    saveState(cwd, freshState(cwd));
+    assert.match(fs.readFileSync(path.join(cwd, '.git', 'info', 'exclude'), 'utf8'), /^\.idleproof\/$/m);
+    assert.equal(execFileSync('git', ['status', '--porcelain'], { cwd, encoding:'utf8' }).trim(), '');
+  } finally { cleanup(cwd); }
+});
