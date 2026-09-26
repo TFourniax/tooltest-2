@@ -682,6 +682,26 @@ test('an assurance still waiting in the offline queue is delivered, not refused,
   } finally { cleanup(cwd); }
 });
 
+test('a receipt recovered from the offline queue stays resendable after that queue entry is delivered', async () => {
+  const { syncPortalAssurance } = await import('../src/portal-assurance.mjs');
+  const cwd = configuredProject();
+  try {
+    const change = `dwchg_${'1'.repeat(24)}`;
+    const offline = async () => { throw Object.assign(new Error('offline'), { name:'TypeError' }); };
+    const first = await syncPortalAssurance(cwd, envelopeFor(change, 1), { fetchImpl:offline });
+    for (let points = 2; points <= 70; points += 1) await syncPortalAssurance(cwd, envelopeFor(change, points), { fetchImpl:offline });
+    const delivered = await syncPortalAssurance(cwd, envelopeFor(change, 1), { fetchImpl:portalEmulator().fetchImpl });
+    assert.equal(delivered.ok, true);
+    const queueFile = projectPaths(cwd).portalQueue;
+    assert.ok(!fs.existsSync(queueFile) || !fs.readFileSync(queueFile, 'utf8').includes(first.snapshotId));
+    const destination = portalEmulator();
+    const again = await syncPortalAssurance(cwd, envelopeFor(change, 1), { fetchImpl:destination.fetchImpl });
+    assert.equal(again.ok, true);
+    assert.equal(again.snapshotId, first.snapshotId);
+    assert.ok(destination.stored.has(first.snapshotId));
+  } finally { cleanup(cwd); }
+});
+
 test('an unreadable retry queue fails the resend instead of declaring an evicted receipt lost', async () => {
   const { syncPortalAssurance } = await import('../src/portal-assurance.mjs');
   const cwd = configuredProject();

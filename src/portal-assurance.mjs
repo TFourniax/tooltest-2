@@ -133,10 +133,11 @@ export function queueAssuranceReceipt(cwd, snapshot) {
   fs.mkdirSync(projectPaths(cwd).dir,{ recursive:true });
   return withOwnedLock(projectPaths(cwd).portalAssuranceLock,()=>{
     let previous=readAssuranceSent(cwd).find((item)=>item.key===key);
+    let recovered=false;
     if (previous && !previous.snapshot) {
       // Its body may still be waiting in the retry queue (for example while Portal was offline).
       const queuedBody=queuedPortalSnapshot(cwd,previous.snapshotId);
-      if (queuedBody) previous={ ...previous, snapshot:queuedBody };
+      if (queuedBody) { previous={ ...previous, snapshot:queuedBody }; recovered=true; }
     }
     if (previous && !previous.snapshot) {
       // Queued long ago and its body is no longer retained locally: it is never rebuilt as a second
@@ -148,6 +149,8 @@ export function queueAssuranceReceipt(cwd, snapshot) {
     assertPortalSnapshotSafe(receipt);
     const queued=queuePortalSnapshot(cwd,receipt);
     if (!previous && (queued.queued || queued.reason==='duplicate' || queued.reason==='held-by-portal')) recordAssuranceSent(cwd,key,receipt);
+    // A body recovered from the queue is retained again before a delivery can drop its last copy.
+    if (recovered) recordAssuranceSent(cwd,key,receipt);
     return { receipt, previous:Boolean(previous), queued };
   },'IDLEPROOF_PORTAL_ASSURANCE_BUSY','Portal assurance receipt cache');
 }
