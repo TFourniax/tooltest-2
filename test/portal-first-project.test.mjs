@@ -818,6 +818,47 @@ test('a measurement keeps its receipt identity however many measurements follow 
   } finally { cleanup(cwd); }
 });
 
+test('measurements refused before Portal is configured are sent once it is, however many there were', async () => {
+  const { syncPortalAssurance } = await import('../src/portal-assurance.mjs');
+  const cwd = twoChanges();
+  try {
+    const change = `dwchg_${'1'.repeat(24)}`;
+    for (let points = 1; points <= 70; points += 1) await syncPortalAssurance(cwd, envelopeFor(change, points));
+    writePortalConfig(cwd, { endpoint:'http://127.0.0.1:8787/api/v1/snapshots', token:`ipd_${'x'.repeat(32)}` });
+    const portal = portalEmulator();
+    const first = await syncPortalAssurance(cwd, envelopeFor(change, 1), { fetchImpl:portal.fetchImpl });
+    assert.equal(first.ok, true);
+    assert.ok(portal.stored.has(first.snapshotId));
+    assert.equal(portal.stored.size, 1);
+  } finally { cleanup(cwd); }
+});
+
+test('a receipt queued but not yet confirmed when interrupted is confirmed by the retry, never duplicated', async () => {
+  const { syncPortalAssurance } = await import('../src/portal-assurance.mjs');
+  const cwd = configuredProject();
+  const realRename = fs.renameSync;
+  try {
+    const change = `dwchg_${'1'.repeat(24)}`;
+    let records = 0;
+    fs.renameSync = (from, to, ...args) => {
+      if (to === projectPaths(cwd).portalAssuranceSent && ++records === 2) throw Object.assign(new Error('interrupted'), { code:'EIO' });
+      return realRename(from, to, ...args);
+    };
+    const offline = async () => { throw Object.assign(new Error('offline'), { name:'TypeError' }); };
+    await assert.rejects(syncPortalAssurance(cwd, envelopeFor(change, 4), { fetchImpl:offline }), /interrupted/);
+    fs.renameSync = realRename;
+    const [entry] = JSON.parse(fs.readFileSync(projectPaths(cwd).portalAssuranceSent, 'utf8')).entries;
+    assert.equal(entry.pending, true);
+    const portal = portalEmulator();
+    const again = await syncPortalAssurance(cwd, envelopeFor(change, 4), { fetchImpl:portal.fetchImpl });
+    assert.equal(again.ok, true);
+    assert.equal(again.snapshotId, entry.snapshotId);
+    assert.equal(portal.stored.size, 1);
+    const [confirmed] = JSON.parse(fs.readFileSync(projectPaths(cwd).portalAssuranceSent, 'utf8')).entries;
+    assert.equal(confirmed.pending, undefined);
+  } finally { fs.renameSync = realRename; cleanup(cwd); }
+});
+
 test('an unreadable retry queue fails the resend instead of declaring an evicted receipt lost', async () => {
   const { syncPortalAssurance } = await import('../src/portal-assurance.mjs');
   const cwd = configuredProject();

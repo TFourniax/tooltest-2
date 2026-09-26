@@ -111,14 +111,28 @@ function readAssuranceSent(cwd) {
     const snapshotId=String(item?.snapshotId || '');
     const snapshot=validBody(item?.snapshot) && boundTo(item.snapshot,item?.key) && item.snapshot.snapshotId===snapshotId ? item.snapshot : null;
     if (typeof item?.key!=='string' || !/^[a-f0-9]{32}$/.test(item.key) || !/^ipsnap_[a-f0-9]{24}$/.test(snapshotId)) throw assuranceStateError('invalid entry');
-    return { key:item.key, snapshotId, snapshot };
+    return { key:item.key, snapshotId, snapshot, pending:item?.pending===true };
   });
 }
 
-function recordAssuranceSent(cwd, key, snapshot) {
-  const entries=[...readAssuranceSent(cwd).filter((item)=>item.key!==key), { key, snapshotId:snapshot.snapshotId, snapshot }];
-  const firstBody=entries.length-MAX_ASSURANCE_BODIES;
-  const stored=entries.map((item,index)=>index>=firstBody && item.snapshot ? item : { key:item.key, snapshotId:item.snapshotId });
+// A receipt is recorded as pending before it is queued and confirmed once the queue accepted it. A
+// pending receipt keeps its body outside the bounded set: it has not entered the queue yet, so its
+// body is its only copy. The bounded set counts confirmed receipts only.
+function recordAssuranceSent(cwd, key, snapshot, { pending=false }={}) {
+  writeAssuranceSent(cwd,[...readAssuranceSent(cwd).filter((item)=>item.key!==key), { key, snapshotId:snapshot.snapshotId, snapshot, pending }]);
+}
+
+function forgetAssuranceSent(cwd, key) {
+  writeAssuranceSent(cwd,readAssuranceSent(cwd).filter((item)=>item.key!==key));
+}
+
+function writeAssuranceSent(cwd, entries) {
+  let confirmedAfter=entries.filter((item)=>!item.pending).length;
+  const stored=entries.map((item)=>{
+    if (item.pending && item.snapshot) return { key:item.key, snapshotId:item.snapshotId, snapshot:item.snapshot, pending:true };
+    if (!item.pending) confirmedAfter-=1;
+    return !item.pending && confirmedAfter<MAX_ASSURANCE_BODIES && item.snapshot ? { key:item.key, snapshotId:item.snapshotId, snapshot:item.snapshot } : { key:item.key, snapshotId:item.snapshotId };
+  });
   const file=projectPaths(cwd).portalAssuranceSent;
   fs.mkdirSync(path.dirname(file),{ recursive:true });
   // Retained receipts carry project metadata: private to the user, like every other Portal state file.
@@ -155,13 +169,19 @@ export function queueAssuranceReceipt(cwd, snapshot) {
     }
     const receipt=previous ? previous.snapshot : snapshot;
     assertPortalSnapshotSafe(receipt);
-    // The receipt is recorded before it is queued: an interruption between the two writes leaves a
-    // recorded receipt that a retry resends as is, never a queued body that a retry would duplicate
-    // under a new snapshot id. A body recovered from the queue is retained again the same way,
-    // before a delivery can drop its last copy.
-    if (!previous || recovered) recordAssuranceSent(cwd,key,receipt);
+    // The receipt is recorded, as pending, before it is queued: an interruption between the two writes
+    // leaves a recorded receipt that a retry resends as is, never a queued body that a retry would
+    // duplicate under a new snapshot id. A body recovered from the queue is retained again before a
+    // delivery can drop its last copy.
+    if (!previous) recordAssuranceSent(cwd,key,receipt,{ pending:true });
+    else if (recovered) recordAssuranceSent(cwd,key,receipt);
     const queued=queuePortalSnapshot(cwd,receipt);
-    return { receipt, previous:Boolean(previous), queued };
+    const accepted=queued.queued || queued.reason==='duplicate' || queued.reason==='held-by-portal';
+    if (accepted && (!previous || previous.pending)) recordAssuranceSent(cwd,key,receipt);
+    // Refused before entering the queue (Portal not configured, queue full): nothing was sent, so the
+    // measurement is not recorded and a later attempt sends it normally.
+    else if (!accepted && !previous) forgetAssuranceSent(cwd,key);
+    return { receipt, previous:Boolean(previous) && !previous.pending, queued };
   },'IDLEPROOF_PORTAL_ASSURANCE_BUSY','Portal assurance receipt cache');
 }
 
