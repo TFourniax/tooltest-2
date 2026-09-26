@@ -69,6 +69,30 @@ test('status reports an uninitialized identity instead of a value that would cha
   } finally { cleanup(cwd); }
 });
 
+test('status never pairs a persisted flag with an ID from a state it did not read', async () => {
+  const { projectLocalId } = await import('../src/portal-snapshot.mjs');
+  const cwd = tmp();
+  const realExists = fs.existsSync;
+  let persisted = null;
+  try {
+    // Another process persists its own state exactly while this status call runs.
+    fs.existsSync = (file) => {
+      if (persisted === null && file === projectPaths(cwd).state) {
+        persisted = false;
+        const other = { ...freshState(cwd), createdAt:'2026-01-01T00:00:00.000Z' };
+        saveState(cwd, other);
+        persisted = loadState(cwd);
+      }
+      return realExists(file);
+    };
+    const status = portalStatus(cwd);
+    fs.existsSync = realExists;
+    const expected = projectLocalId(persisted.project, persisted.createdAt);
+    assert.ok(status.projectLocalId === null || status.projectLocalId === expected);
+    assert.equal(status.identityPersisted, status.projectLocalId !== null);
+  } finally { fs.existsSync = realExists; cleanup(cwd); }
+});
+
 function twoChanges() {
   const cwd = tmp();
   const state = freshState(cwd);

@@ -457,10 +457,12 @@ export function ensurePortalIdentity(cwd = process.cwd()) {
 }
 
 export function portalStatus(cwd = process.cwd()) {
-  const state = loadState(cwd);
   const paths = projectPaths(cwd);
+  // Persistence is checked before loading: a state another process persists in between is then
+  // read as persisted, never an ephemeral state reported as if it were. Before the state is
+  // persisted the ID would change on every read, so none is reported until then.
   const identityPersisted = fs.existsSync(paths.state) || fs.existsSync(paths.stateBackup);
-  // Before the state is persisted the ID would change on every read: none is reported until then.
+  const state = loadState(cwd);
   const localId = identityPersisted ? projectLocalId(state.project, state.createdAt) : null;
   let config = null;
   try { config = readPortalConfig(cwd); }
