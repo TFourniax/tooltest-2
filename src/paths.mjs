@@ -31,6 +31,7 @@ export function projectPaths(cwd = process.cwd()) {
     portalQueueLock: path.join(dir, 'portal-queue.lock'),
     portalDeliveryHealth: path.join(dir, 'portal-delivery.json'),
     portalSnapshotTimes: path.join(dir, 'portal-snapshot-times.json'),
+    portalAssuranceSent: path.join(dir, 'portal-assurance-sent.json'),
     portalMemoryState: path.join(dir, 'portal-memory.json'),
     portalMemoryLock: path.join(dir, 'portal-memory.lock'),
     diffwitnessConfig: path.join(dir, 'diffwitness.json'),

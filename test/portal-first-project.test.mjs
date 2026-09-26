@@ -184,3 +184,25 @@ test('new content is a new receipt; a rotated credential or a new project gets t
     assert.equal(other.bodies[0], portal.bodies.at(-1));
   } finally { cleanup(cwd); }
 });
+
+test('resending the same measurement of a change adds no receipt; a new measurement does', async () => {
+  const { syncPortalAssurance } = await import('../src/portal-assurance.mjs');
+  const cwd = configuredProject();
+  try {
+    const portal = portalEmulator();
+    const first = await syncPortalAssurance(cwd, envelopeFor(`dwchg_${'1'.repeat(24)}`, 8), { fetchImpl:portal.fetchImpl });
+    assert.equal(first.ok, true);
+    // Project state evolves (a newer task), then the same measurement is sent again.
+    const state = loadState(cwd);
+    state.sessions.third = { ...state.sessions.second, id:'third', lastEventAt:'2026-09-26T12:00:00.000Z', proof:{ changeId:`dwchg_${'4'.repeat(24)}`, diffSha256:'d'.repeat(64) } };
+    saveState(cwd, state);
+    const again = await syncPortalAssurance(cwd, envelopeFor(`dwchg_${'1'.repeat(24)}`, 8), { fetchImpl:portal.fetchImpl });
+    assert.equal(again.ok, true);
+    assert.equal(again.queueReason, 'already-sent');
+    assert.equal(again.snapshotId, first.snapshotId);
+    assert.equal(portal.stored.size, 1);
+    const remeasured = await syncPortalAssurance(cwd, envelopeFor(`dwchg_${'1'.repeat(24)}`, 5), { fetchImpl:portal.fetchImpl });
+    assert.equal(remeasured.ok, true);
+    assert.equal(portal.stored.size, 2);
+  } finally { cleanup(cwd); }
+});

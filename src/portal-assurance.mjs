@@ -1,8 +1,10 @@
 import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { computeMetrics, loadState } from './state.mjs';
 import { assuranceFromChangeEnvelope, assertPortalSnapshotSafe, buildPortalSnapshot } from './portal-snapshot.mjs';
 import { buildPortalProjectModel, flushPortalQueue, queuePortalSnapshot } from './portal-client.mjs';
+import { projectPaths } from './paths.mjs';
 
 // Assurance belongs to one exact change. It is attached to the IdleProof session whose completed
 // change carries the same dwchg_ identity, never to "the latest session": measuring an earlier
@@ -50,9 +52,41 @@ export function buildAssurancePortalSnapshot(cwd=process.cwd(), envelope) {
   return snapshot;
 }
 
+// The same measurement of the same change is one receipt. The assurance snapshot also carries the
+// project's current understanding state, so rebuilding it later would yield a new snapshot identity
+// for an identical measurement; the (change, assurance) pairs already queued are remembered instead,
+// and resending one only flushes the queue. A different measurement of that change is a new receipt.
+const ASSURANCE_SENT_SCHEMA='idleproof.portal-assurance-sent.v1';
+const MAX_ASSURANCE_SENT=256;
+const assuranceKey=(changeId,assurance)=>createHash('sha256').update(`${changeId}\n${JSON.stringify(assurance)}`).digest('hex').slice(0,32);
+
+function readAssuranceSent(cwd) {
+  try {
+    const value=JSON.parse(fs.readFileSync(projectPaths(cwd).portalAssuranceSent,'utf8'));
+    return value?.schema===ASSURANCE_SENT_SCHEMA && Array.isArray(value.entries) ? value.entries.filter((item)=>typeof item?.key==='string' && /^ipsnap_[a-f0-9]{24}$/.test(String(item?.snapshotId))) : [];
+  } catch { return []; }
+}
+
+function recordAssuranceSent(cwd, key, snapshotId) {
+  const entries=readAssuranceSent(cwd).filter((item)=>item.key!==key);
+  entries.push({ key, snapshotId });
+  const file=projectPaths(cwd).portalAssuranceSent;
+  fs.mkdirSync(path.dirname(file),{ recursive:true });
+  const staged=`${file}.${process.pid}.tmp`;
+  fs.writeFileSync(staged,`${JSON.stringify({ schema:ASSURANCE_SENT_SCHEMA, entries:entries.slice(-MAX_ASSURANCE_SENT) })}\n`);
+  fs.renameSync(staged,file);
+}
+
 export async function syncPortalAssurance(cwd=process.cwd(), envelope, options={}) {
   const snapshot=buildAssurancePortalSnapshot(cwd,envelope);
+  const key=assuranceKey(snapshot.change.changeId,snapshot.assurance);
+  const previous=readAssuranceSent(cwd).find((item)=>item.key===key);
+  if (previous) {
+    const flushed=await flushPortalQueue(cwd,options);
+    return { ...flushed, ok:flushed.configured === false ? true : Boolean(flushed.ok), snapshotId:previous.snapshotId, changeId:snapshot.change.changeId, newlyQueued:false, queueReason:'already-sent', skippedSnapshots:flushed.skippedSnapshots || 0, assurance:snapshot.assurance };
+  }
   const queued=queuePortalSnapshot(cwd,snapshot);
+  if (queued.queued || queued.reason==='duplicate') recordAssuranceSent(cwd,key,snapshot.snapshotId);
   const flushed=await flushPortalQueue(cwd,options);
   const retained=queued.reason !== 'queue-full';
   return {
