@@ -259,9 +259,10 @@ export function buildCurrentPortalSnapshot(cwd = process.cwd()) {
 }
 
 // A snapshot still retained in the retry queue, by id (read under the queue lock), or null.
+// null only when the queue was read and holds no such snapshot; a busy or unreadable queue throws,
+// so a receipt that may still be queued is never reported as lost.
 export function queuedPortalSnapshot(cwd, snapshotId) {
-  try { return withQueueLock(cwd, () => readQueue(cwd).find((item) => item.snapshotId === snapshotId) || null); }
-  catch { return null; }
+  return withQueueLock(cwd, () => readQueue(cwd).find((item) => item.snapshotId === snapshotId) || null);
 }
 
 function readQueue(cwd) {
