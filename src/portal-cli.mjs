@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { buildCurrentPortalSnapshot, disconnectPortal, flushPortalQueue, portalStatus, syncPortal, writePortalConfig } from './portal-client.mjs';
+import { buildCurrentPortalSnapshot, configurePortal, disconnectPortal, ensurePortalIdentity, flushPortalQueue, portalStatus, syncPortal } from './portal-client.mjs';
 import { readChangeEnvelope, syncPortalAssurance } from './portal-assurance.mjs';
 import { portalMemoryStatus, resyncPortalMemory, syncPortalMemory } from './portal-memory-sync.mjs';
 
@@ -11,7 +11,7 @@ function argValue(args, name) {
 export function portalCliHelp() {
   return [
     'Portal:',
-    '  idleproof portal identity [--json]',
+    '  idleproof portal identity [--json]      # creates the stable local project identity on first use',
     '  idleproof portal configure --endpoint URL --token-stdin',
     '  idleproof portal configure --endpoint URL --token-env ENV_NAME',
     '  idleproof portal status [--json]',
@@ -52,7 +52,7 @@ export async function runPortalCli(args, { cwd = process.cwd() } = {}) {
     return true;
   }
   if (cmd === 'identity') {
-    const status = portalStatus(cwd);
+    const status = ensurePortalIdentity(cwd);
     print(json ? { schema:'idleproof.portal-identity.v1', projectLocalId:status.projectLocalId } : status.projectLocalId, json);
     return true;
   }
@@ -60,7 +60,7 @@ export async function runPortalCli(args, { cwd = process.cwd() } = {}) {
     const endpoint = argValue(args, '--endpoint');
     if (!endpoint) throw new Error('Usage: idleproof portal configure --endpoint URL --token-stdin');
     const token = readToken(args);
-    const status = writePortalConfig(cwd, { endpoint, token });
+    const status = configurePortal(cwd, { endpoint, token });
     if (json) print(status, true);
     else {
       console.log('✓ IdleProof Portal enrollment saved locally.');
@@ -74,12 +74,14 @@ export async function runPortalCli(args, { cwd = process.cwd() } = {}) {
   if (cmd === 'status') {
     const status = portalStatus(cwd);
     if (json) print(status, true);
-    else if (!status.configured) {
+    else if (!status.configured && !status.identityPersisted) {
+      console.log('IdleProof Portal: not configured · project identity not initialized yet. Run `idleproof portal identity` once to create and show it.');
+    } else if (!status.configured) {
       console.log(`IdleProof Portal: not configured · project ${status.projectLocalId}`);
     } else {
       console.log(`IdleProof Portal: ${status.healthy ? 'healthy' : status.degraded ? 'DEGRADED' : 'needs attention'}`);
       console.log(`  Endpoint: ${status.endpoint}`);
-      console.log(`  Project ID: ${status.projectLocalId}`);
+      console.log(`  Project ID: ${status.projectLocalId ?? 'not initialized yet (run `idleproof portal identity`)'}`);
       console.log(`  Credential: ••••${status.tokenLast4}`);
       console.log(`  Pending snapshots: ${status.pending ?? 'unknown'}`);
       console.log(`  Unretained snapshots: ${status.skippedSnapshots ?? 'unknown'}`);
@@ -142,6 +144,7 @@ export async function runPortalCli(args, { cwd = process.cwd() } = {}) {
     if (!quiet) {
       if (json) print(result,true);
       else if (!result.configured) console.log(`✓ Assurance verified for ${result.changeId}; Portal is not configured, so nothing was uploaded.`);
+      else if (result.errorCode === 'IDLEPROOF_ASSURANCE_NOT_RETAINED') console.log(`Portal assurance not sent · ${result.changeId} · ${result.message}`);
       else if (result.ok) console.log(`✓ Portal assurance synced · ${result.changeId} · ${result.delivered} delivered · ${result.pending} pending`);
       else console.log(`Portal assurance deferred · ${result.errorCode || result.httpStatus || 'delivery failed'} · ${result.pending} snapshot(s) remain safely queued.`);
     }

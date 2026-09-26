@@ -2,8 +2,9 @@ import { normalizedProjectPath } from './project-path.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { createHash, randomBytes } from 'node:crypto';
 import { PACKAGE_ROOT, projectPaths } from './paths.mjs';
-import { computeMetrics, loadState } from './state.mjs';
+import { computeMetrics, excludeLocalState, freshState, loadPersistedState, loadState, mutateState } from './state.mjs';
 import { repositoryFingerprint } from './change-identity.mjs';
 import { validatePortalIngestAck } from './portal-ingest-ack.mjs';
 import { assertPortalSnapshotSafe, buildPortalSnapshot, projectLocalId } from './portal-snapshot.mjs';
@@ -182,12 +183,40 @@ function recordDeliverySuccess(cwd) {
   });
 }
 
-export function writePortalConfig(cwd = process.cwd(), { endpoint, token, enabled = true } = {}) {
+export function writePortalConfig(cwd = process.cwd(), { endpoint, token, enabled = true, writeId = null } = {}) {
   const paths = projectPaths(cwd);
-  const config = { schema:CONFIG_SCHEMA, enabled:Boolean(enabled), endpoint:validateEndpoint(endpoint), token:validateToken(token), updatedAt:new Date().toISOString() };
+  const config = { schema:CONFIG_SCHEMA, enabled:Boolean(enabled), endpoint:validateEndpoint(endpoint), token:validateToken(token), updatedAt:new Date().toISOString(), ...(writeId ? { writeId } : {}) };
   // Serialized with memory cursor writes and memory page initiation (see portal-memory-lock.mjs).
   withMemoryLock(cwd, () => atomicJson(paths.portalConfig, config));
   return portalStatus(cwd);
+}
+
+// `portal configure`: the enrollment is only reported saved alongside a persisted identity. A
+// concurrent `idleproof reset` between creating the identity and writing the config would leave an
+// enrollment without one, so both steps are repeated until a read confirms them together; if that
+// never happens the config just written is removed again and nothing is configured.
+export function configurePortal(cwd = process.cwd(), { endpoint, token } = {}) {
+  // Each write carries its own random id, so this call can tell its write from any other one,
+  // including a concurrent configure with the same credential.
+  const writes = new Set();
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    ensurePortalIdentity(cwd);
+    const writeId = randomBytes(12).toString('hex');
+    writes.add(writeId);
+    const status = writePortalConfig(cwd, { endpoint, token, writeId });
+    // Confirmed from one read of the saved enrollment: another concurrent `configure` may have
+    // replaced it (for example with another project's credential) since it was written.
+    const saved = readPortalConfig(cwd);
+    if (status.identityPersisted && saved?.enabled && saved.writeId === writeId && saved.endpoint === validateEndpoint(endpoint) && saved.token === validateToken(token)) return { ...status, configured:true, endpoint:saved.endpoint, tokenLast4:saved.token.slice(-4) };
+  }
+  // Rolled back only if the saved enrollment is still one of this call's own writes (checked and
+  // removed under the lock every config write takes), never a concurrent configure's.
+  withMemoryLock(cwd, () => {
+    let saved = null;
+    try { saved = readPortalConfig(cwd); } catch {}
+    if (saved?.writeId && writes.has(saved.writeId)) fs.rmSync(projectPaths(cwd).portalConfig, { force:true });
+  });
+  throw portalError('IDLEPROOF_PORTAL_IDENTITY_UNSTABLE', 'Portal could not be configured with a stable project identity and this credential (a concurrent reset or configure?). This call left no enrollment of its own; retry.');
 }
 
 export function readPortalConfig(cwd = process.cwd()) {
@@ -199,7 +228,7 @@ export function readPortalConfig(cwd = process.cwd()) {
     throw portalError('IDLEPROOF_PORTAL_CONFIG_CORRUPT', `Cannot read Portal config: ${error.message}`);
   }
   if (!parsed || parsed.schema !== CONFIG_SCHEMA || typeof parsed !== 'object' || Array.isArray(parsed)) throw portalError('IDLEPROOF_PORTAL_CONFIG_CORRUPT', 'Portal config has an unsupported schema.');
-  return { schema:CONFIG_SCHEMA, enabled:parsed.enabled !== false, endpoint:validateEndpoint(parsed.endpoint), token:validateToken(parsed.token), updatedAt:parsed.updatedAt || null };
+  return { schema:CONFIG_SCHEMA, enabled:parsed.enabled !== false, endpoint:validateEndpoint(parsed.endpoint), token:validateToken(parsed.token), updatedAt:parsed.updatedAt || null, writeId:typeof parsed.writeId === 'string' ? parsed.writeId : null };
 }
 
 export function disconnectPortal(cwd = process.cwd()) {
@@ -229,6 +258,13 @@ export function buildCurrentPortalSnapshot(cwd = process.cwd()) {
   return snapshot;
 }
 
+// A snapshot still retained in the retry queue, by id (read under the queue lock), or null.
+// null only when the queue was read and holds no such snapshot; a busy or unreadable queue throws,
+// so a receipt that may still be queued is never reported as lost.
+export function queuedPortalSnapshot(cwd, snapshotId) {
+  return withQueueLock(cwd, () => readQueue(cwd).find((item) => item.snapshotId === snapshotId) || null);
+}
+
 function readQueue(cwd) {
   const file = projectPaths(cwd).portalQueue;
   try {
@@ -256,6 +292,79 @@ function writeQueue(cwd, queue) {
   atomicJson(file, queue);
 }
 
+// Snapshot identity excludes generatedAt, but Portal compares the complete body of a retransmission:
+// the same snapshotId with another generatedAt is refused as SNAPSHOT_CONFLICT. A snapshot rebuilt
+// with unchanged content (a repeated sync, a retry after a lost acknowledgement, a new credential or
+// endpoint) therefore reuses the generatedAt it was first built with, so it is resent byte-for-byte:
+// Portal answers duplicate when it already holds it and accepts it otherwise. Bounded, local only.
+const SNAPSHOT_TIMES_SCHEMA = 'idleproof.portal-snapshot-times.v1';
+const MAX_SNAPSHOT_TIMES = 1024;
+
+// A reused generatedAt must be the UTC instant this client writes (Date#toISOString), never
+// whatever a damaged local file holds: it is uploaded as is and the snapshot id does not cover it.
+export function isPortalTimestamp(value) {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value) && new Date(value).toISOString() === value;
+}
+
+function readSnapshotTimes(cwd) {
+  try {
+    const value = JSON.parse(fs.readFileSync(projectPaths(cwd).portalSnapshotTimes, 'utf8'));
+    if (value?.schema !== SNAPSHOT_TIMES_SCHEMA || !Array.isArray(value.entries)) return [];
+    return value.entries.filter((item) => /^ipsnap_[a-f0-9]{24}$/.test(String(item?.snapshotId)) && isPortalTimestamp(item?.generatedAt));
+  } catch { return []; }
+}
+
+// Records the generatedAt of a snapshot that is queued or delivered without overriding a known one,
+// so a snapshot queued before this record existed (an upgrade) is also resent with its own time.
+function rememberSnapshotTime(cwd, snapshot) {
+  const entries = readSnapshotTimes(cwd);
+  if (entries.some((item) => item.snapshotId === snapshot.snapshotId) || !isPortalTimestamp(snapshot?.generatedAt)) return;
+  entries.push({ snapshotId:snapshot.snapshotId, generatedAt:snapshot.generatedAt });
+  atomicJson(projectPaths(cwd).portalSnapshotTimes, { schema:SNAPSHOT_TIMES_SCHEMA, entries:entries.slice(-MAX_SNAPSHOT_TIMES) });
+}
+
+// Snapshots a destination (endpoint and enrollment credential, stored only as a hash) already holds
+// under another first time, as its SNAPSHOT_CONFLICT answer proves: not sent there again.
+const HELD_SCHEMA = 'idleproof.portal-held.v1';
+const MAX_HELD = 1024;
+const destinationKey = (config) => createHash('sha256').update(`${config?.endpoint || ''}\n${config?.token || ''}`).digest('hex').slice(0, 32);
+
+function readHeld(cwd) {
+  try {
+    const value = JSON.parse(fs.readFileSync(projectPaths(cwd).portalHeld, 'utf8'));
+    if (value?.schema !== HELD_SCHEMA || !Array.isArray(value.entries)) return [];
+    return value.entries.filter((item) => /^[a-f0-9]{32}$/.test(String(item?.destination)) && /^ipsnap_[a-f0-9]{24}$/.test(String(item?.snapshotId)));
+  } catch { return []; }
+}
+
+function markHeldByPortal(cwd, config, snapshotId) {
+  const destination = destinationKey(config);
+  const entries = readHeld(cwd).filter((item) => !(item.destination === destination && item.snapshotId === snapshotId));
+  entries.push({ destination, snapshotId });
+  atomicJson(projectPaths(cwd).portalHeld, { schema:HELD_SCHEMA, entries:entries.slice(-MAX_HELD) });
+}
+
+function heldByDestination(cwd, config, snapshotId) {
+  const destination = destinationKey(config);
+  return readHeld(cwd).some((item) => item.destination === destination && item.snapshotId === snapshotId);
+}
+
+// Drops a recorded time that Portal has just refused for this snapshot.
+function forgetSnapshotTime(cwd, snapshot) {
+  const entries = readSnapshotTimes(cwd);
+  const kept = entries.filter((item) => !(item.snapshotId === snapshot.snapshotId && item.generatedAt === snapshot.generatedAt));
+  if (kept.length !== entries.length) atomicJson(projectPaths(cwd).portalSnapshotTimes, { schema:SNAPSHOT_TIMES_SCHEMA, entries:kept });
+}
+
+function withFirstGeneratedAt(cwd, snapshot) {
+  const entries = readSnapshotTimes(cwd);
+  const known = entries.find((item) => item.snapshotId === snapshot.snapshotId);
+  if (known) return known.generatedAt === snapshot.generatedAt ? snapshot : { ...snapshot, generatedAt:known.generatedAt };
+  entries.push({ snapshotId:snapshot.snapshotId, generatedAt:snapshot.generatedAt });
+  atomicJson(projectPaths(cwd).portalSnapshotTimes, { schema:SNAPSHOT_TIMES_SCHEMA, entries:entries.slice(-MAX_SNAPSHOT_TIMES) });
+  return snapshot;
+}
+
 export function queuePortalSnapshot(cwd = process.cwd(), snapshot = null) {
   const config = readPortalConfig(cwd);
   if (!config?.enabled) return { queued:false, reason:'not-configured', snapshotId:null, pending:0, skippedSnapshots:0 };
@@ -263,8 +372,13 @@ export function queuePortalSnapshot(cwd = process.cwd(), snapshot = null) {
   assertPortalSnapshotSafe(safeSnapshot);
   return withQueueLock(cwd, () => {
     const current = readQueue(cwd);
-    const existed = current.some((item) => item.snapshotId === safeSnapshot.snapshotId);
-    if (existed) {
+    if (heldByDestination(cwd, config, safeSnapshot.snapshotId)) {
+      const health = readDeliveryHealth(cwd);
+      return { queued:false, reason:'held-by-portal', snapshotId:safeSnapshot.snapshotId, pending:current.length, skippedSnapshots:health.skippedSnapshots };
+    }
+    const existing = current.find((item) => item.snapshotId === safeSnapshot.snapshotId);
+    if (existing) {
+      rememberSnapshotTime(cwd, existing);
       const health = readDeliveryHealth(cwd);
       return { queued:false, reason:'duplicate', snapshotId:safeSnapshot.snapshotId, pending:current.length, skippedSnapshots:health.skippedSnapshots };
     }
@@ -282,7 +396,7 @@ export function queuePortalSnapshot(cwd = process.cwd(), snapshot = null) {
       writeDeliveryHealth(cwd, nextHealth);
       return { queued:false, reason:'queue-full', snapshotId:safeSnapshot.snapshotId, pending:current.length, skippedSnapshots:nextHealth.skippedSnapshots };
     }
-    const next = [...current, safeSnapshot];
+    const next = [...current, withFirstGeneratedAt(cwd, safeSnapshot)];
     writeQueue(cwd, next);
     const health = readDeliveryHealth(cwd);
     return { queued:true, snapshotId:safeSnapshot.snapshotId, pending:next.length, skippedSnapshots:health.skippedSnapshots };
@@ -311,6 +425,7 @@ export async function flushPortalQueue(cwd = process.cwd(), { fetchImpl = global
   if (!config?.enabled) return { configured:false, attempted:0, delivered:0, pending:initialQueue.length };
   if (typeof fetchImpl !== 'function') throw portalError('IDLEPROOF_PORTAL_FETCH_UNAVAILABLE', 'This Node runtime does not provide fetch().');
   let delivered = 0;
+  let heldByPortal = 0;
   for (const snapshot of initialQueue) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), Math.max(250, Math.min(15_000, Number(timeoutMs) || 3000)));
@@ -337,6 +452,19 @@ export async function flushPortalQueue(cwd = process.cwd(), { fetchImpl = global
       recordDeliveryError(cwd, errorCode);
       return { configured:true, attempted:delivered + 1, delivered, pending:readQueue(cwd).length, ok:false, httpStatus:response.status, errorCode };
     }
+    // The snapshotId is verified by Portal as the hash of everything but generatedAt, so a conflict
+    // means Portal already holds this receipt's content under another generatedAt (for example one
+    // queued by an older client). Nothing is lost by no longer retrying it; Portal keeps refusing the
+    // differing body, and the rest of the queue is no longer blocked behind it.
+    if (response.status === 409 && body?.error?.code === 'SNAPSHOT_CONFLICT') {
+      // The rejected generatedAt is never recorded as reusable; this destination is marked as
+      // already holding the content, so later unchanged syncs send nothing for it.
+      withQueueLock(cwd, () => { markHeldByPortal(cwd, config, snapshot.snapshotId); forgetSnapshotTime(cwd, snapshot); });
+      removeQueuedSnapshot(cwd, snapshot.snapshotId);
+      delivered += 1;
+      heldByPortal += 1;
+      continue;
+    }
     if (![200, 202].includes(response.status)) {
       const errorCode = body?.error?.code || `HTTP_${response.status}`;
       recordDeliveryError(cwd, errorCode);
@@ -349,12 +477,13 @@ export async function flushPortalQueue(cwd = process.cwd(), { fetchImpl = global
       recordDeliveryError(cwd, errorCode);
       return { configured:true, attempted:delivered + 1, delivered, pending:readQueue(cwd).length, ok:false, httpStatus:response.status, errorCode };
     }
+    withQueueLock(cwd, () => rememberSnapshotTime(cwd, snapshot));
     removeQueuedSnapshot(cwd, snapshot.snapshotId);
     delivered += 1;
   }
   if (delivered || initialQueue.length === 0) recordDeliverySuccess(cwd);
   const delivery = readDeliveryHealth(cwd);
-  return { configured:true, attempted:delivered, delivered, pending:readQueue(cwd).length, ok:true, degraded:delivery.degraded, skippedSnapshots:delivery.skippedSnapshots };
+  return { configured:true, attempted:delivered, delivered, heldByPortal, pending:readQueue(cwd).length, ok:true, degraded:delivery.degraded, skippedSnapshots:delivery.skippedSnapshots };
 }
 
 export async function syncPortal(cwd = process.cwd(), options = {}) {
@@ -391,18 +520,40 @@ export function schedulePortalSync(cwd = process.cwd()) {
   }
 }
 
+// The enrollment identity is derived from the project state's creation time, so it is only stable
+// once that state is persisted. Reading or configuring the identity persists it (under the state
+// lock, reusing any state another process wrote first); no task or event is created. The local
+// state directory is also excluded from Git locally, so it never becomes tracked code.
+export function ensurePortalIdentity(cwd = process.cwd()) {
+  // A concurrent `idleproof reset` can remove the state between creating it and reading it back,
+  // so creation is repeated until one read of the persisted state confirms the identity.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (!loadPersistedState(cwd)) mutateState(cwd, (state) => state);
+    excludeLocalState(cwd);
+    const status = portalStatus(cwd);
+    if (status.identityPersisted) return status;
+  }
+  throw portalError('IDLEPROOF_PORTAL_IDENTITY_UNSTABLE', 'The IdleProof project state was removed while its identity was being created (a concurrent reset?). Nothing was configured; retry.');
+}
+
 export function portalStatus(cwd = process.cwd()) {
-  const state = loadState(cwd);
+  // Persistence and the ID come from one read of the persisted state: a state created, reset or
+  // removed concurrently can never pair a persisted flag with an ephemeral state's ID. Before the
+  // state is persisted the ID would change on every read, so none is reported until then.
+  const persisted = loadPersistedState(cwd);
+  const identityPersisted = Boolean(persisted);
+  const state = persisted || freshState(cwd);
+  const localId = identityPersisted ? projectLocalId(state.project, state.createdAt) : null;
   let config = null;
   try { config = readPortalConfig(cwd); }
-  catch (error) { return { schema:'idleproof.portal-status.v1', configured:false, healthy:false, degraded:true, errorCode:error.code, projectLocalId:projectLocalId(state.project, state.createdAt), pending:null, skippedSnapshots:null }; }
+  catch (error) { return { schema:'idleproof.portal-status.v1', configured:false, healthy:false, degraded:true, errorCode:error.code, projectLocalId:localId, identityPersisted, pending:null, skippedSnapshots:null }; }
   let pending = null;
   let delivery;
   try {
     pending = readQueue(cwd).length;
     delivery = readDeliveryHealth(cwd);
   } catch (error) {
-    return { schema:'idleproof.portal-status.v1', configured:Boolean(config), healthy:false, degraded:true, enabled:Boolean(config?.enabled), endpoint:config?.endpoint || null, tokenLast4:config?.token?.slice(-4) || null, errorCode:error?.code || 'PORTAL_LOCAL_STATE_INVALID', projectLocalId:projectLocalId(state.project, state.createdAt), pending:null, skippedSnapshots:null };
+    return { schema:'idleproof.portal-status.v1', configured:Boolean(config), healthy:false, degraded:true, enabled:Boolean(config?.enabled), endpoint:config?.endpoint || null, tokenLast4:config?.token?.slice(-4) || null, errorCode:error?.code || 'PORTAL_LOCAL_STATE_INVALID', projectLocalId:localId, identityPersisted, pending:null, skippedSnapshots:null };
   }
   return {
     schema:'idleproof.portal-status.v1',
@@ -412,7 +563,8 @@ export function portalStatus(cwd = process.cwd()) {
     enabled:Boolean(config?.enabled),
     endpoint:config?.endpoint || null,
     tokenLast4:config?.token?.slice(-4) || null,
-    projectLocalId:projectLocalId(state.project, state.createdAt),
+    projectLocalId:localId,
+    identityPersisted,
     pending,
     skippedSnapshots:delivery.skippedSnapshots,
     lastErrorCode:delivery.lastErrorCode,

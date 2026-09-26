@@ -15,7 +15,7 @@ import { appendProvenanceEvent, buildAgentBom, sha256, verifyProvenanceChain } f
 import { createAttestation } from './attest.mjs';
 import { cachedFeatureModel, rememberFeature } from './feature-memory.mjs';
 import { buildHookDelivery } from './delivery.mjs';
-import { captureBaselineIdentity, finalizeChangeIdentity } from './change-identity.mjs';
+import { captureBaselineIdentity, finalizeChangeIdentity, COMPLETED_CHANGE_FIELDS } from './change-identity.mjs';
 import { schedulePortalSync } from './portal-client.mjs';
 import { taskContinuityQuery, taskDisplayText, taskMetadata, updateSessionTask } from './task.mjs';
 import { validContextIdentity } from './continuity-contract.mjs';
@@ -165,6 +165,9 @@ export function processHookLifecycle(event = {}) {
 
   const state = mutateState(cwd, (state) => {
     const session = ensureSession(state, event);
+    // A session saved by an earlier release can hold a completed change without its record; it is
+    // frozen before this event changes any field of the turn that produced it.
+    freezeCompletedChange(session);
     session.source = event.source || session.source || 'agent';
     session.lastEventAt = now();
     recordEvent(session, event, policyDecision, provenanceRecord, provenanceError);
@@ -264,6 +267,9 @@ export function processHookLifecycle(event = {}) {
       surfacedExplanation = delivery.message;
     }
 
+    // Recorded once the turn's feature model and signals are known.
+    if (eventName === 'Stop' || eventName === 'SessionEnd' || eventName === 'generic-stop') freezeCompletedChange(session);
+
     trimSessions(state);
     return state;
   });
@@ -298,6 +304,19 @@ export function processHookLifecycle(event = {}) {
     portalSync,
     hookOutput
   };
+}
+
+// A reused IDE session completes several changes; each stays addressable by its exact id (for
+// example to attach DiffWitness assurance measured later) with the task it came from. A later turn
+// that leaves the meaningful tree unchanged yields the same change id again; the record of the turn
+// that produced the change is kept, never replaced by the no-op turn.
+function freezeCompletedChange(session) {
+  if (!session.proof?.changeId) return;
+  const completed = session.completedChanges || [];
+  if (completed.some((item) => item?.changeId === session.proof.changeId)) return;
+  const record = { changeId:session.proof.changeId };
+  for (const field of COMPLETED_CHANGE_FIELDS) record[field] = session[field] === undefined ? null : structuredClone(session[field]);
+  session.completedChanges = [...completed, record].slice(-20);
 }
 
 export function processHookEvent(event = {}) {

@@ -207,7 +207,11 @@ function tryEvict(file, content, probe = defaultProbe) {
 }
 
 export function withMemoryLock(cwd, fn) {
-  const file = projectPaths(cwd).portalMemoryLock;
+  return withOwnedLock(projectPaths(cwd).portalMemoryLock, fn, 'IDLEPROOF_PORTAL_MEMORY_BUSY', 'Portal memory cursor');
+}
+
+// The same owner-verified lock for another local record (for example the assurance receipt cache).
+export function withOwnedLock(file, fn, busyCode = 'IDLEPROOF_PORTAL_MEMORY_BUSY', label = 'Portal memory cursor') {
   fs.mkdirSync(path.dirname(file), { recursive:true });
   const token = newToken();
   const started = Date.now();
@@ -224,8 +228,8 @@ export function withMemoryLock(cwd, fn) {
     Atomics.wait(sleepBuffer, 0, 0, 10);
   }
   if (!owned) {
-    const error = new Error(`Portal memory cursor stayed busy for 3s (lock ${file}).`);
-    error.code = 'IDLEPROOF_PORTAL_MEMORY_BUSY';
+    const error = new Error(`${label} stayed busy for 3s (lock ${file}).`);
+    error.code = busyCode;
     throw error;
   }
   try { return fn(); }

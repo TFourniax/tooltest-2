@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { projectPaths } from './paths.mjs';
 import { CONCEPTS } from './catalog.mjs';
@@ -164,6 +165,12 @@ function recoverStateFromBackup(cwd, primaryError) {
 }
 
 export function loadState(cwd = process.cwd()) {
+  return loadPersistedState(cwd) || freshState(cwd);
+}
+
+// The persisted state, or null when neither the state nor its backup exists: a caller can tell a
+// state read from disk from an ephemeral fresh one in a single read.
+export function loadPersistedState(cwd = process.cwd()) {
   const paths = projectPaths(cwd);
   try {
     return readStateFile(paths.state, cwd);
@@ -172,7 +179,7 @@ export function loadState(cwd = process.cwd()) {
       try {
         return readStateFile(paths.stateBackup, cwd);
       } catch (backupError) {
-        if (backupError.code === 'ENOENT') return freshState(cwd);
+        if (backupError.code === 'ENOENT') return null;
         throw backupError;
       }
     }
@@ -205,8 +212,27 @@ function writeAtomic(file, content) {
   }
 }
 
+// IdleProof's local state is never project code: the first time it is created in a repository,
+// `.idleproof/` is added to that repository's local exclude file (not a tracked .gitignore). Git
+// resolves the file, so a project below the repository root, a worktree or a submodule are covered;
+// the unanchored pattern matches the state directory wherever the project sits in the repository.
+export function excludeLocalState(cwd) {
+  let exclude;
+  try {
+    exclude = execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-path', 'info/exclude'], { cwd, encoding:'utf8', stdio:['ignore', 'pipe', 'ignore'] }).trim();
+  } catch { return; }
+  if (!exclude) return;
+  try {
+    fs.mkdirSync(path.dirname(exclude), { recursive: true });
+    const existing = fs.existsSync(exclude) ? fs.readFileSync(exclude, 'utf8') : '';
+    if (existing.split(/\r?\n/).some((line) => ['.idleproof/', '.idleproof'].includes(line.trim()))) return;
+    fs.appendFileSync(exclude, `${existing && !existing.endsWith('\n') ? '\n' : ''}.idleproof/\n`);
+  } catch {}
+}
+
 export function saveState(cwd, state) {
   const paths = projectPaths(cwd);
+  if (!fs.existsSync(paths.state)) excludeLocalState(cwd);
   fs.mkdirSync(paths.dir, { recursive: true });
   persistFeatureObservations(cwd,state);
   state.version = CURRENT_STATE_VERSION;
