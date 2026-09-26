@@ -4,8 +4,12 @@ import { computeMetrics, loadState } from './state.mjs';
 import { assuranceFromChangeEnvelope, assertPortalSnapshotSafe, buildPortalSnapshot } from './portal-snapshot.mjs';
 import { buildPortalProjectModel, flushPortalQueue, queuePortalSnapshot } from './portal-client.mjs';
 
-function latestSession(state) {
-  return Object.values(state?.sessions || {}).sort((a,b)=>String(b.lastEventAt || '').localeCompare(String(a.lastEventAt || '')))[0] || null;
+// Assurance belongs to one exact change. It is attached to the IdleProof session whose completed
+// change carries the same dwchg_ identity, never to "the latest session": measuring an earlier
+// change after a newer task must still reach that earlier change, and a measurement of another
+// change must be refused rather than attached to whatever ran last.
+function sessionsByRecency(state) {
+  return Object.values(state?.sessions || {}).sort((a,b)=>String(b.lastEventAt || '').localeCompare(String(a.lastEventAt || '')));
 }
 
 function currentChangeId(session) {
@@ -24,10 +28,12 @@ export function readChangeEnvelope(file, cwd=process.cwd()) {
 
 export function buildAssurancePortalSnapshot(cwd=process.cwd(), envelope) {
   const state=loadState(cwd);
-  const session=latestSession(state);
-  const expectedChangeId=currentChangeId(session);
-  if (!expectedChangeId) throw new Error('IdleProof has no completed exact-bound change to correlate with DiffWitness assurance.');
-  const assurance=assuranceFromChangeEnvelope(envelope,expectedChangeId);
+  const sessions=sessionsByRecency(state);
+  if (!sessions.some((item)=>currentChangeId(item))) throw new Error('IdleProof has no completed exact-bound change to correlate with DiffWitness assurance.');
+  const requested=String(envelope?.change_id || '');
+  const session=sessions.find((item)=>currentChangeId(item)===requested) || null;
+  if (!session) throw new Error(`DiffWitness change ${/^dwchg_[a-f0-9]{24}$/.test(requested) ? requested : '(invalid id)'} matches no change completed by IdleProof in this project. Measure the exact change IdleProof observed (its base and resulting Git trees), then retry; nothing was sent.`);
+  const assurance=assuranceFromChangeEnvelope(envelope,currentChangeId(session));
   const metrics=computeMetrics(state);
   const featureModel=session?.featureModel || null;
   const projectModel=buildPortalProjectModel(cwd,state,session,featureModel);

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { PACKAGE_ROOT, projectPaths } from './paths.mjs';
-import { computeMetrics, loadState } from './state.mjs';
+import { computeMetrics, loadState, mutateState } from './state.mjs';
 import { repositoryFingerprint } from './change-identity.mjs';
 import { validatePortalIngestAck } from './portal-ingest-ack.mjs';
 import { assertPortalSnapshotSafe, buildPortalSnapshot, projectLocalId } from './portal-snapshot.mjs';
@@ -256,6 +256,31 @@ function writeQueue(cwd, queue) {
   atomicJson(file, queue);
 }
 
+// Snapshot identity excludes generatedAt, but Portal compares the complete body of a retransmission:
+// the same snapshotId with another generatedAt is refused as SNAPSHOT_CONFLICT. A snapshot rebuilt
+// with unchanged content (a repeated sync, a retry after a lost acknowledgement, a new credential or
+// endpoint) therefore reuses the generatedAt it was first built with, so it is resent byte-for-byte:
+// Portal answers duplicate when it already holds it and accepts it otherwise. Bounded, local only.
+const SNAPSHOT_TIMES_SCHEMA = 'idleproof.portal-snapshot-times.v1';
+const MAX_SNAPSHOT_TIMES = 1024;
+
+function readSnapshotTimes(cwd) {
+  try {
+    const value = JSON.parse(fs.readFileSync(projectPaths(cwd).portalSnapshotTimes, 'utf8'));
+    if (value?.schema !== SNAPSHOT_TIMES_SCHEMA || !Array.isArray(value.entries)) return [];
+    return value.entries.filter((item) => /^ipsnap_[a-f0-9]{24}$/.test(String(item?.snapshotId)) && typeof item?.generatedAt === 'string');
+  } catch { return []; }
+}
+
+function withFirstGeneratedAt(cwd, snapshot) {
+  const entries = readSnapshotTimes(cwd);
+  const known = entries.find((item) => item.snapshotId === snapshot.snapshotId);
+  if (known) return known.generatedAt === snapshot.generatedAt ? snapshot : { ...snapshot, generatedAt:known.generatedAt };
+  entries.push({ snapshotId:snapshot.snapshotId, generatedAt:snapshot.generatedAt });
+  atomicJson(projectPaths(cwd).portalSnapshotTimes, { schema:SNAPSHOT_TIMES_SCHEMA, entries:entries.slice(-MAX_SNAPSHOT_TIMES) });
+  return snapshot;
+}
+
 export function queuePortalSnapshot(cwd = process.cwd(), snapshot = null) {
   const config = readPortalConfig(cwd);
   if (!config?.enabled) return { queued:false, reason:'not-configured', snapshotId:null, pending:0, skippedSnapshots:0 };
@@ -282,7 +307,7 @@ export function queuePortalSnapshot(cwd = process.cwd(), snapshot = null) {
       writeDeliveryHealth(cwd, nextHealth);
       return { queued:false, reason:'queue-full', snapshotId:safeSnapshot.snapshotId, pending:current.length, skippedSnapshots:nextHealth.skippedSnapshots };
     }
-    const next = [...current, safeSnapshot];
+    const next = [...current, withFirstGeneratedAt(cwd, safeSnapshot)];
     writeQueue(cwd, next);
     const health = readDeliveryHealth(cwd);
     return { queued:true, snapshotId:safeSnapshot.snapshotId, pending:next.length, skippedSnapshots:health.skippedSnapshots };
@@ -391,18 +416,44 @@ export function schedulePortalSync(cwd = process.cwd()) {
   }
 }
 
+// The enrollment identity is derived from the project state's creation time, so it is only stable
+// once that state is persisted. Reading or configuring the identity persists it (under the state
+// lock, reusing any state another process wrote first); no task or event is created. The local
+// state directory is also excluded from Git locally, so it never becomes tracked code.
+export function ensurePortalIdentity(cwd = process.cwd()) {
+  const paths = projectPaths(cwd);
+  if (!fs.existsSync(paths.state) && !fs.existsSync(paths.stateBackup)) mutateState(cwd, (state) => state);
+  excludeLocalState(cwd);
+  return portalStatus(cwd);
+}
+
+function excludeLocalState(cwd) {
+  // Only a plain repository directory is edited; a worktree/submodule `.git` file is left alone.
+  const gitDir = path.join(path.resolve(cwd), '.git');
+  const exclude = path.join(gitDir, 'info', 'exclude');
+  try {
+    if (!fs.statSync(gitDir).isDirectory()) return;
+    fs.mkdirSync(path.dirname(exclude), { recursive: true });
+    const existing = fs.existsSync(exclude) ? fs.readFileSync(exclude, 'utf8') : '';
+    if (existing.split(/\r?\n/).some((line) => ['.idleproof/', '.idleproof', '/.idleproof/', '/.idleproof'].includes(line.trim()))) return;
+    fs.appendFileSync(exclude, `${existing && !existing.endsWith('\n') ? '\n' : ''}.idleproof/\n`);
+  } catch {}
+}
+
 export function portalStatus(cwd = process.cwd()) {
   const state = loadState(cwd);
+  const paths = projectPaths(cwd);
+  const identityPersisted = fs.existsSync(paths.state) || fs.existsSync(paths.stateBackup);
   let config = null;
   try { config = readPortalConfig(cwd); }
-  catch (error) { return { schema:'idleproof.portal-status.v1', configured:false, healthy:false, degraded:true, errorCode:error.code, projectLocalId:projectLocalId(state.project, state.createdAt), pending:null, skippedSnapshots:null }; }
+  catch (error) { return { schema:'idleproof.portal-status.v1', configured:false, healthy:false, degraded:true, errorCode:error.code, projectLocalId:projectLocalId(state.project, state.createdAt), identityPersisted, pending:null, skippedSnapshots:null }; }
   let pending = null;
   let delivery;
   try {
     pending = readQueue(cwd).length;
     delivery = readDeliveryHealth(cwd);
   } catch (error) {
-    return { schema:'idleproof.portal-status.v1', configured:Boolean(config), healthy:false, degraded:true, enabled:Boolean(config?.enabled), endpoint:config?.endpoint || null, tokenLast4:config?.token?.slice(-4) || null, errorCode:error?.code || 'PORTAL_LOCAL_STATE_INVALID', projectLocalId:projectLocalId(state.project, state.createdAt), pending:null, skippedSnapshots:null };
+    return { schema:'idleproof.portal-status.v1', configured:Boolean(config), healthy:false, degraded:true, enabled:Boolean(config?.enabled), endpoint:config?.endpoint || null, tokenLast4:config?.token?.slice(-4) || null, errorCode:error?.code || 'PORTAL_LOCAL_STATE_INVALID', projectLocalId:projectLocalId(state.project, state.createdAt), identityPersisted, pending:null, skippedSnapshots:null };
   }
   return {
     schema:'idleproof.portal-status.v1',
@@ -413,6 +464,7 @@ export function portalStatus(cwd = process.cwd()) {
     endpoint:config?.endpoint || null,
     tokenLast4:config?.token?.slice(-4) || null,
     projectLocalId:projectLocalId(state.project, state.createdAt),
+    identityPersisted,
     pending,
     skippedSnapshots:delivery.skippedSnapshots,
     lastErrorCode:delivery.lastErrorCode,
