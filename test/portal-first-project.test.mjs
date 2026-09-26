@@ -747,6 +747,51 @@ test('a damaged retained receipt body is replaced by its intact copy from the re
   } finally { cleanup(cwd); }
 });
 
+test('an interruption before the receipt is recorded never leaves a queued body a retry would duplicate', async () => {
+  const { syncPortalAssurance } = await import('../src/portal-assurance.mjs');
+  const cwd = configuredProject();
+  const realRename = fs.renameSync;
+  try {
+    const change = `dwchg_${'1'.repeat(24)}`;
+    let failed = false;
+    fs.renameSync = (from, to, ...args) => {
+      if (!failed && to === projectPaths(cwd).portalAssuranceSent) { failed = true; throw Object.assign(new Error('interrupted'), { code:'EIO' }); }
+      return realRename(from, to, ...args);
+    };
+    const portal = portalEmulator();
+    await assert.rejects(syncPortalAssurance(cwd, envelopeFor(change, 4), { fetchImpl:portal.fetchImpl }), /interrupted/);
+    fs.renameSync = realRename;
+    const queueFile = projectPaths(cwd).portalQueue;
+    assert.ok(!fs.existsSync(queueFile) || !fs.readFileSync(queueFile, 'utf8').includes('ipsnap_'));
+    assert.equal(portal.bodies.length, 0);
+    const again = await syncPortalAssurance(cwd, envelopeFor(change, 4), { fetchImpl:portal.fetchImpl });
+    assert.equal(again.ok, true);
+    assert.equal(portal.stored.size, 1);
+  } finally { fs.renameSync = realRename; cleanup(cwd); }
+});
+
+test('a retained body that does not belong to its entry is never sent for that measurement', async () => {
+  const { syncPortalAssurance } = await import('../src/portal-assurance.mjs');
+  const cwd = configuredProject();
+  try {
+    const change = `dwchg_${'1'.repeat(24)}`;
+    const offline = async () => { throw Object.assign(new Error('offline'), { name:'TypeError' }); };
+    const first = await syncPortalAssurance(cwd, envelopeFor(change, 1), { fetchImpl:offline });
+    const second = await syncPortalAssurance(cwd, envelopeFor(change, 2), { fetchImpl:offline });
+    const file = projectPaths(cwd).portalAssuranceSent;
+    const sent = JSON.parse(fs.readFileSync(file, 'utf8'));
+    // Each body stays internally consistent; only their assignment to entries is swapped.
+    [sent.entries[0].snapshot, sent.entries[1].snapshot] = [sent.entries[1].snapshot, sent.entries[0].snapshot];
+    fs.writeFileSync(file, JSON.stringify(sent));
+    const portal = portalEmulator();
+    const again = await syncPortalAssurance(cwd, envelopeFor(change, 1), { fetchImpl:portal.fetchImpl });
+    assert.equal(again.ok, true);
+    assert.equal(again.snapshotId, first.snapshotId);
+    assert.notEqual(again.snapshotId, second.snapshotId);
+    assert.equal(JSON.parse(portal.stored.get(first.snapshotId)).assurance.softwareDebt.points, 1);
+  } finally { cleanup(cwd); }
+});
+
 test('an unreadable retry queue fails the resend instead of declaring an evicted receipt lost', async () => {
   const { syncPortalAssurance } = await import('../src/portal-assurance.mjs');
   const cwd = configuredProject();

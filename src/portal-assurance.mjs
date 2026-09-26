@@ -82,6 +82,7 @@ const MAX_ASSURANCE_BODIES=64;
 const assuranceKey=(changeId,assurance)=>createHash('sha256').update(`${changeId}\n${JSON.stringify(assurance)}`).digest('hex').slice(0,32);
 // A retained body is trusted only if it is still the exact receipt its identity names; anything
 // else is treated as absent, so a copy still in the retry queue can be used instead.
+const boundTo=(snapshot,key)=>assuranceKey(snapshot?.change?.changeId,snapshot?.assurance)===key;
 const validBody=(snapshot)=>{
   if (!snapshot || typeof snapshot!=='object' || !isPortalTimestamp(snapshot.generatedAt)) return false;
   try { return assertPortalSnapshotSafe(snapshot); } catch { return false; }
@@ -104,9 +105,11 @@ function readAssuranceSent(cwd) {
   }
   if (value?.schema!==ASSURANCE_SENT_SCHEMA || !Array.isArray(value.entries)) throw assuranceStateError('unsupported schema');
   return value.entries.map((item)=>{
-    // A damaged receipt body is dropped, never uploaded; the measurement's identity is kept.
-    const snapshot=validBody(item?.snapshot) ? item.snapshot : null;
-    const snapshotId=snapshot ? snapshot.snapshotId : String(item?.snapshotId || item?.snapshot?.snapshotId || '');
+    // A damaged receipt body is dropped, never uploaded; the measurement's identity is kept. A body
+    // is kept only if it is the receipt of this very entry: its change and measurement recompute to
+    // the entry's key and it carries the entry's snapshot id.
+    const snapshotId=String(item?.snapshotId || '');
+    const snapshot=validBody(item?.snapshot) && boundTo(item.snapshot,item?.key) && item.snapshot.snapshotId===snapshotId ? item.snapshot : null;
     if (typeof item?.key!=='string' || !/^[a-f0-9]{32}$/.test(item.key) || !/^ipsnap_[a-f0-9]{24}$/.test(snapshotId)) throw assuranceStateError('invalid entry');
     return { key:item.key, snapshotId, snapshot };
   });
@@ -142,7 +145,7 @@ export function queueAssuranceReceipt(cwd, snapshot) {
     if (previous && !previous.snapshot) {
       // Its body may still be waiting in the retry queue (for example while Portal was offline).
       const queuedBody=queuedPortalSnapshot(cwd,previous.snapshotId);
-      if (queuedBody) { previous={ ...previous, snapshot:queuedBody }; recovered=true; }
+      if (queuedBody && boundTo(queuedBody,key)) { previous={ ...previous, snapshot:queuedBody }; recovered=true; }
     }
     if (previous && !previous.snapshot) {
       // Queued long ago and its body is no longer retained locally: it is never rebuilt as a second
@@ -152,10 +155,12 @@ export function queueAssuranceReceipt(cwd, snapshot) {
     }
     const receipt=previous ? previous.snapshot : snapshot;
     assertPortalSnapshotSafe(receipt);
+    // The receipt is recorded before it is queued: an interruption between the two writes leaves a
+    // recorded receipt that a retry resends as is, never a queued body that a retry would duplicate
+    // under a new snapshot id. A body recovered from the queue is retained again the same way,
+    // before a delivery can drop its last copy.
+    if (!previous || recovered) recordAssuranceSent(cwd,key,receipt);
     const queued=queuePortalSnapshot(cwd,receipt);
-    if (!previous && (queued.queued || queued.reason==='duplicate' || queued.reason==='held-by-portal')) recordAssuranceSent(cwd,key,receipt);
-    // A body recovered from the queue is retained again before a delivery can drop its last copy.
-    if (recovered) recordAssuranceSent(cwd,key,receipt);
     return { receipt, previous:Boolean(previous), queued };
   },'IDLEPROOF_PORTAL_ASSURANCE_BUSY','Portal assurance receipt cache');
 }
