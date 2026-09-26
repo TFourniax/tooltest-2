@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { buildCurrentPortalSnapshot, disconnectPortal, ensurePortalIdentity, flushPortalQueue, portalStatus, syncPortal, writePortalConfig } from './portal-client.mjs';
+import { buildCurrentPortalSnapshot, configurePortal, disconnectPortal, ensurePortalIdentity, flushPortalQueue, portalStatus, syncPortal } from './portal-client.mjs';
 import { readChangeEnvelope, syncPortalAssurance } from './portal-assurance.mjs';
 import { portalMemoryStatus, resyncPortalMemory, syncPortalMemory } from './portal-memory-sync.mjs';
 
@@ -60,8 +60,7 @@ export async function runPortalCli(args, { cwd = process.cwd() } = {}) {
     const endpoint = argValue(args, '--endpoint');
     if (!endpoint) throw new Error('Usage: idleproof portal configure --endpoint URL --token-stdin');
     const token = readToken(args);
-    ensurePortalIdentity(cwd);
-    const status = writePortalConfig(cwd, { endpoint, token });
+    const status = configurePortal(cwd, { endpoint, token });
     if (json) print(status, true);
     else {
       console.log('✓ IdleProof Portal enrollment saved locally.');

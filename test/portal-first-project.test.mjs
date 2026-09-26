@@ -120,6 +120,32 @@ test('identity creation survives a reset that removes the state it just created'
   } finally { fs.readFileSync = realRead; cleanup(cwd); }
 });
 
+test('configure never reports an enrollment saved without a persisted identity', async () => {
+  const { configurePortal } = await import('../src/portal-client.mjs');
+  const cwd = tmp();
+  const realRename = fs.renameSync;
+  let resets = 0;
+  try {
+    // A concurrent reset removes the state right after the first enrollment is written.
+    fs.renameSync = (from, to, ...args) => {
+      const result = realRename(from, to, ...args);
+      if (resets === 0 && to === projectPaths(cwd).portalConfig) {
+        resets += 1;
+        fs.rmSync(projectPaths(cwd).state, { force:true });
+        fs.rmSync(projectPaths(cwd).stateBackup, { force:true });
+      }
+      return result;
+    };
+    const status = configurePortal(cwd, { endpoint:'http://127.0.0.1:8787/api/v1/snapshots', token:`ipd_${'x'.repeat(32)}` });
+    fs.renameSync = realRename;
+    assert.equal(resets, 1);
+    assert.equal(status.configured, true);
+    assert.equal(status.identityPersisted, true);
+    assert.match(status.projectLocalId, /^[a-f0-9]{24}$/);
+    assert.equal(portalStatus(cwd).projectLocalId, status.projectLocalId);
+  } finally { fs.renameSync = realRename; cleanup(cwd); }
+});
+
 function twoChanges() {
   const cwd = tmp();
   const state = freshState(cwd);
