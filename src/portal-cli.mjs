@@ -82,7 +82,7 @@ export async function runPortalCli(args, { cwd = process.cwd() } = {}) {
     } else {
       console.log(`IdleProof Portal: ${status.healthy ? 'healthy' : status.degraded ? 'DEGRADED' : 'needs attention'}`);
       console.log(`  Endpoint: ${status.endpoint}`);
-      console.log(`  Project ID: ${status.projectLocalId}`);
+      console.log(`  Project ID: ${status.projectLocalId ?? 'not initialized yet (run `idleproof portal identity`)'}`);
       console.log(`  Credential: ••••${status.tokenLast4}`);
       console.log(`  Pending snapshots: ${status.pending ?? 'unknown'}`);
       console.log(`  Unretained snapshots: ${status.skippedSnapshots ?? 'unknown'}`);

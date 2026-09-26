@@ -460,16 +460,18 @@ export function portalStatus(cwd = process.cwd()) {
   const state = loadState(cwd);
   const paths = projectPaths(cwd);
   const identityPersisted = fs.existsSync(paths.state) || fs.existsSync(paths.stateBackup);
+  // Before the state is persisted the ID would change on every read: none is reported until then.
+  const localId = identityPersisted ? projectLocalId(state.project, state.createdAt) : null;
   let config = null;
   try { config = readPortalConfig(cwd); }
-  catch (error) { return { schema:'idleproof.portal-status.v1', configured:false, healthy:false, degraded:true, errorCode:error.code, projectLocalId:projectLocalId(state.project, state.createdAt), identityPersisted, pending:null, skippedSnapshots:null }; }
+  catch (error) { return { schema:'idleproof.portal-status.v1', configured:false, healthy:false, degraded:true, errorCode:error.code, projectLocalId:localId, identityPersisted, pending:null, skippedSnapshots:null }; }
   let pending = null;
   let delivery;
   try {
     pending = readQueue(cwd).length;
     delivery = readDeliveryHealth(cwd);
   } catch (error) {
-    return { schema:'idleproof.portal-status.v1', configured:Boolean(config), healthy:false, degraded:true, enabled:Boolean(config?.enabled), endpoint:config?.endpoint || null, tokenLast4:config?.token?.slice(-4) || null, errorCode:error?.code || 'PORTAL_LOCAL_STATE_INVALID', projectLocalId:projectLocalId(state.project, state.createdAt), identityPersisted, pending:null, skippedSnapshots:null };
+    return { schema:'idleproof.portal-status.v1', configured:Boolean(config), healthy:false, degraded:true, enabled:Boolean(config?.enabled), endpoint:config?.endpoint || null, tokenLast4:config?.token?.slice(-4) || null, errorCode:error?.code || 'PORTAL_LOCAL_STATE_INVALID', projectLocalId:localId, identityPersisted, pending:null, skippedSnapshots:null };
   }
   return {
     schema:'idleproof.portal-status.v1',
@@ -479,7 +481,7 @@ export function portalStatus(cwd = process.cwd()) {
     enabled:Boolean(config?.enabled),
     endpoint:config?.endpoint || null,
     tokenLast4:config?.token?.slice(-4) || null,
-    projectLocalId:projectLocalId(state.project, state.createdAt),
+    projectLocalId:localId,
     identityPersisted,
     pending,
     skippedSnapshots:delivery.skippedSnapshots,

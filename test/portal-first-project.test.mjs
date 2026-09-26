@@ -57,7 +57,14 @@ test('status reports an uninitialized identity instead of a value that would cha
   try {
     const status = portalStatus(cwd);
     assert.equal(status.identityPersisted, false);
+    assert.equal(status.projectLocalId, null);
     assert.match(cli(cwd, 'portal', 'status'), /identity not initialized yet/);
+    const json = [JSON.parse(cli(cwd, 'portal', 'status', '--json')), JSON.parse(cli(cwd, 'portal', 'status', '--json'))];
+    assert.deepEqual(json.map((value) => value.projectLocalId), [null, null]);
+    fs.mkdirSync(projectPaths(cwd).dir, { recursive:true });
+    fs.writeFileSync(projectPaths(cwd).portalConfig, '{ damaged'); // error branch
+    assert.equal(portalStatus(cwd).projectLocalId, null);
+    fs.rmSync(projectPaths(cwd).portalConfig);
     assert.equal(fs.existsSync(projectPaths(cwd).state), false);
   } finally { cleanup(cwd); }
 });
