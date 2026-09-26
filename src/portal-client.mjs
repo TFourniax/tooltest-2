@@ -490,10 +490,15 @@ export function schedulePortalSync(cwd = process.cwd()) {
 // lock, reusing any state another process wrote first); no task or event is created. The local
 // state directory is also excluded from Git locally, so it never becomes tracked code.
 export function ensurePortalIdentity(cwd = process.cwd()) {
-  const paths = projectPaths(cwd);
-  if (!fs.existsSync(paths.state) && !fs.existsSync(paths.stateBackup)) mutateState(cwd, (state) => state);
-  excludeLocalState(cwd);
-  return portalStatus(cwd);
+  // A concurrent `idleproof reset` can remove the state between creating it and reading it back,
+  // so creation is repeated until one read of the persisted state confirms the identity.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (!loadPersistedState(cwd)) mutateState(cwd, (state) => state);
+    excludeLocalState(cwd);
+    const status = portalStatus(cwd);
+    if (status.identityPersisted) return status;
+  }
+  throw portalError('IDLEPROOF_PORTAL_IDENTITY_UNSTABLE', 'The IdleProof project state was removed while its identity was being created (a concurrent reset?). Nothing was configured; retry.');
 }
 
 export function portalStatus(cwd = process.cwd()) {

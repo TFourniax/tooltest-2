@@ -101,6 +101,25 @@ test('status never pairs a persisted flag with an ID from a state it did not rea
   } finally { cleanup(createCwd); }
 });
 
+test('identity creation survives a reset that removes the state it just created', () => {
+  const cwd = tmp();
+  const realRead = fs.readFileSync;
+  let resets = 0;
+  try {
+    // The first time the created state is read back, a concurrent reset removes it.
+    fs.readFileSync = (file, ...args) => {
+      if (resets === 0 && file === projectPaths(cwd).state && fs.existsSync(file)) { resets += 1; fs.rmSync(projectPaths(cwd).dir, { recursive:true, force:true }); }
+      return realRead(file, ...args);
+    };
+    const status = ensurePortalIdentity(cwd);
+    fs.readFileSync = realRead;
+    assert.equal(resets, 1);
+    assert.equal(status.identityPersisted, true);
+    assert.match(status.projectLocalId, /^[a-f0-9]{24}$/);
+    assert.equal(portalStatus(cwd).projectLocalId, status.projectLocalId);
+  } finally { fs.readFileSync = realRead; cleanup(cwd); }
+});
+
 function twoChanges() {
   const cwd = tmp();
   const state = freshState(cwd);
