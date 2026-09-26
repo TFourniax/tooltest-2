@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { computeMetrics, loadState } from './state.mjs';
 import { assuranceFromChangeEnvelope, assertPortalSnapshotSafe, buildPortalSnapshot } from './portal-snapshot.mjs';
-import { buildPortalProjectModel, flushPortalQueue, queuePortalSnapshot } from './portal-client.mjs';
+import { buildPortalProjectModel, flushPortalQueue, isPortalTimestamp, queuePortalSnapshot } from './portal-client.mjs';
 import { projectPaths } from './paths.mjs';
 
 // Assurance belongs to one exact change. It is attached to the IdleProof session whose completed
@@ -64,7 +64,7 @@ const assuranceKey=(changeId,assurance)=>createHash('sha256').update(`${changeId
 function readAssuranceSent(cwd) {
   try {
     const value=JSON.parse(fs.readFileSync(projectPaths(cwd).portalAssuranceSent,'utf8'));
-    return value?.schema===ASSURANCE_SENT_SCHEMA && Array.isArray(value.entries) ? value.entries.filter((item)=>typeof item?.key==='string' && /^ipsnap_[a-f0-9]{24}$/.test(String(item?.snapshot?.snapshotId))) : [];
+    return value?.schema===ASSURANCE_SENT_SCHEMA && Array.isArray(value.entries) ? value.entries.filter((item)=>typeof item?.key==='string' && /^ipsnap_[a-f0-9]{24}$/.test(String(item?.snapshot?.snapshotId)) && isPortalTimestamp(item?.snapshot?.generatedAt)) : [];
   } catch { return []; }
 }
 
@@ -78,14 +78,21 @@ function recordAssuranceSent(cwd, key, snapshot) {
   fs.renameSync(staged,file);
 }
 
-export async function syncPortalAssurance(cwd=process.cwd(), envelope, options={}) {
-  const snapshot=buildAssurancePortalSnapshot(cwd,envelope);
+// Every delivery route (this command and the IDE hook) queues an assurance through here, so one
+// measurement of one change stays one receipt whichever route sent it first.
+export function queueAssuranceReceipt(cwd, snapshot) {
   const key=assuranceKey(snapshot.change.changeId,snapshot.assurance);
   const previous=readAssuranceSent(cwd).find((item)=>item.key===key);
   const receipt=previous ? previous.snapshot : snapshot;
   assertPortalSnapshotSafe(receipt);
   const queued=queuePortalSnapshot(cwd,receipt);
   if (!previous && (queued.queued || queued.reason==='duplicate')) recordAssuranceSent(cwd,key,receipt);
+  return { receipt, previous:Boolean(previous), queued };
+}
+
+export async function syncPortalAssurance(cwd=process.cwd(), envelope, options={}) {
+  const snapshot=buildAssurancePortalSnapshot(cwd,envelope);
+  const { receipt, previous, queued }=queueAssuranceReceipt(cwd,snapshot);
   const flushed=await flushPortalQueue(cwd,options);
   const retained=queued.reason !== 'queue-full';
   return {

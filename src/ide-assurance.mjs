@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { buildAssurancePortalSnapshot } from './portal-assurance.mjs';
-import { queuePortalSnapshot, schedulePortalSync } from './portal-client.mjs';
+import { buildAssurancePortalSnapshot, queueAssuranceReceipt } from './portal-assurance.mjs';
+import { schedulePortalSync } from './portal-client.mjs';
 
 function envelopePath(cwd) {
   return path.join(cwd, '.git', 'diffwitness', 'change-envelope.json');
@@ -27,7 +27,8 @@ export function queueMatchingDiffWitnessAssurance(cwd = process.cwd()) {
   }
 
   try {
-    const queued = queuePortalSnapshot(cwd, snapshot);
+    const { receipt, queued } = queueAssuranceReceipt(cwd, snapshot);
+    snapshot = receipt;
     if (queued.reason === 'not-configured') {
       return { matched:true, queued:false, configured:false, snapshotId:snapshot.snapshotId, changeId:snapshot.change.changeId };
     }

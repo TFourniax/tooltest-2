@@ -290,3 +290,55 @@ test('a measurement resent after enrolling another Portal project reaches that p
     assert.equal(second.bodies[0], first.bodies[0]);
   } finally { cleanup(cwd); }
 });
+
+test('a measurement delivered by the IDE hook and resent by the command stays one receipt', async () => {
+  const { syncPortalAssurance } = await import('../src/portal-assurance.mjs');
+  const { queueMatchingDiffWitnessAssurance } = await import('../src/ide-assurance.mjs');
+  const { flushPortalQueue } = await import('../src/portal-client.mjs');
+  const cwd = configuredProject();
+  try {
+    const portal = portalEmulator();
+    const envelope = envelopeFor(`dwchg_${'1'.repeat(24)}`, 8);
+    const file = path.join(cwd, '.git', 'diffwitness', 'change-envelope.json');
+    fs.mkdirSync(path.dirname(file), { recursive:true });
+    fs.writeFileSync(file, JSON.stringify(envelope));
+    // The hook also schedules a detached background flush; an invalid NODE_OPTIONS makes that
+    // child exit at startup so only the emulator below delivers.
+    const nodeOptions = process.env.NODE_OPTIONS;
+    process.env.NODE_OPTIONS = '--idleproof-test-no-background-flush';
+    let hooked;
+    try { hooked = queueMatchingDiffWitnessAssurance(cwd); }
+    finally { if (nodeOptions === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = nodeOptions; }
+    assert.equal(hooked.matched, true);
+    assert.equal((await flushPortalQueue(cwd, { fetchImpl:portal.fetchImpl })).ok, true);
+    // Project state evolves (a newer task), then the user sends the same measurement by command.
+    const state = loadState(cwd);
+    state.sessions.third = { ...state.sessions.second, id:'third', lastEventAt:'2026-09-26T12:00:00.000Z', proof:{ changeId:`dwchg_${'4'.repeat(24)}`, diffSha256:'d'.repeat(64) } };
+    saveState(cwd, state);
+    const again = await syncPortalAssurance(cwd, envelope, { fetchImpl:portal.fetchImpl });
+    assert.equal(again.ok, true);
+    assert.equal(again.queueReason, 'already-sent');
+    assert.equal(again.snapshotId, hooked.snapshotId);
+    // Portal also holds the hook's ordinary task receipt; the measurement itself is one receipt.
+    const receipts = [...portal.stored.values()].map((body) => JSON.parse(body)).filter((snapshot) => snapshot.assurance);
+    assert.equal(receipts.length, 1);
+  } finally { cleanup(cwd); }
+});
+
+test('a damaged local time record is never uploaded; the snapshot keeps a valid time', async () => {
+  const { syncPortal, buildCurrentPortalSnapshot } = await import('../src/portal-client.mjs');
+  const cwd = configuredProject();
+  try {
+    const snapshotId = buildCurrentPortalSnapshot(cwd).snapshotId;
+    fs.mkdirSync(path.dirname(projectPaths(cwd).portalSnapshotTimes), { recursive:true });
+    fs.writeFileSync(projectPaths(cwd).portalSnapshotTimes, JSON.stringify({ schema:'idleproof.portal-snapshot-times.v1', entries:[{ snapshotId, generatedAt:'not a time' }] }));
+    const portal = portalEmulator();
+    const results = [];
+    for (let i = 0; i < 2; i += 1) results.push(await syncPortal(cwd, { fetchImpl:portal.fetchImpl }));
+    assert.deepEqual(results.map((r) => r.ok), [true, true]);
+    const times = portal.bodies.map((body) => JSON.parse(body).generatedAt);
+    assert.equal(times.every((value) => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)), true);
+    assert.equal(new Set(times).size, 1);
+    assert.equal(portal.stored.size, 1);
+  } finally { cleanup(cwd); }
+});

@@ -264,11 +264,17 @@ function writeQueue(cwd, queue) {
 const SNAPSHOT_TIMES_SCHEMA = 'idleproof.portal-snapshot-times.v1';
 const MAX_SNAPSHOT_TIMES = 1024;
 
+// A reused generatedAt must be the UTC instant this client writes (Date#toISOString), never
+// whatever a damaged local file holds: it is uploaded as is and the snapshot id does not cover it.
+export function isPortalTimestamp(value) {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value) && new Date(value).toISOString() === value;
+}
+
 function readSnapshotTimes(cwd) {
   try {
     const value = JSON.parse(fs.readFileSync(projectPaths(cwd).portalSnapshotTimes, 'utf8'));
     if (value?.schema !== SNAPSHOT_TIMES_SCHEMA || !Array.isArray(value.entries)) return [];
-    return value.entries.filter((item) => /^ipsnap_[a-f0-9]{24}$/.test(String(item?.snapshotId)) && typeof item?.generatedAt === 'string');
+    return value.entries.filter((item) => /^ipsnap_[a-f0-9]{24}$/.test(String(item?.snapshotId)) && isPortalTimestamp(item?.generatedAt));
   } catch { return []; }
 }
 
@@ -276,7 +282,7 @@ function readSnapshotTimes(cwd) {
 // so a snapshot queued before this record existed (an upgrade) is also resent with its own time.
 function rememberSnapshotTime(cwd, snapshot) {
   const entries = readSnapshotTimes(cwd);
-  if (entries.some((item) => item.snapshotId === snapshot.snapshotId) || typeof snapshot?.generatedAt !== 'string') return;
+  if (entries.some((item) => item.snapshotId === snapshot.snapshotId) || !isPortalTimestamp(snapshot?.generatedAt)) return;
   entries.push({ snapshotId:snapshot.snapshotId, generatedAt:snapshot.generatedAt });
   atomicJson(projectPaths(cwd).portalSnapshotTimes, { schema:SNAPSHOT_TIMES_SCHEMA, entries:entries.slice(-MAX_SNAPSHOT_TIMES) });
 }
