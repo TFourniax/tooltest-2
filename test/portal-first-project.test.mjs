@@ -466,18 +466,22 @@ test('an earlier change of a reused IDE session keeps its debt after a later tur
     git('init', '-q'); git('config', 'user.email', 'r@idleproof.local'); git('config', 'user.name', 'R');
     fs.writeFileSync(path.join(cwd, 'app.js'), 'export const value = 1;\n'); git('add', 'app.js'); git('commit', '-qm', 'base');
     const sessionId = 'reused-ide-session';
-    const turn = (text) => {
-      processHookEvent({ cwd, session_id:sessionId, hook_event_name:'UserPromptSubmit', prompt:'Change the value' });
+    const turn = (text, prompt = 'Change the value') => {
+      processHookEvent({ cwd, session_id:sessionId, hook_event_name:'UserPromptSubmit', prompt });
       fs.writeFileSync(path.join(cwd, 'app.js'), text);
       processHookEvent({ cwd, session_id:sessionId, hook_event_name:'Stop' });
       return loadState(cwd).sessions[sessionId].proof.changeId;
     };
-    const first = turn('export const value = 2;\n');
-    const second = turn('export const value = 3;\n');
+    const first = turn('export const value = 2;\n', 'First task: set the value to two');
+    const firstPrompt = loadState(cwd).sessions[sessionId].promptSha256;
+    const second = turn('export const value = 3;\n', 'Second task: set the value to three');
     assert.match(first, /^dwchg_[a-f0-9]{24}$/);
     assert.notEqual(first, second);
     const earlier = buildAssurancePortalSnapshot(cwd, envelopeFor(first, 8));
     assert.equal(earlier.change.changeId, first);
+    // The receipt describes the first task, not the later turn of the same session.
+    assert.ok(JSON.stringify(earlier).includes(`sha256:${firstPrompt}`));
+    assert.ok(!JSON.stringify(earlier).includes(`sha256:${loadState(cwd).sessions[sessionId].promptSha256}`));
     assert.deepEqual(earlier.assurance.softwareDebt, { points:8, obligations:2, budgetPassed:true });
     assert.equal(buildAssurancePortalSnapshot(cwd, envelopeFor(second, 3)).change.changeId, second);
     assert.throws(() => buildAssurancePortalSnapshot(cwd, envelopeFor(`dwchg_${'9'.repeat(24)}`, 1)), /matches no change completed by IdleProof/);

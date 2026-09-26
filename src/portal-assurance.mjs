@@ -5,6 +5,7 @@ import { computeMetrics, loadState } from './state.mjs';
 import { assuranceFromChangeEnvelope, assertPortalSnapshotSafe, buildPortalSnapshot } from './portal-snapshot.mjs';
 import { buildPortalProjectModel, flushPortalQueue, isPortalTimestamp, queuePortalSnapshot } from './portal-client.mjs';
 import { withOwnedLock } from './portal-memory-lock.mjs';
+import { COMPLETED_CHANGE_FIELDS } from './change-identity.mjs';
 import { projectPaths } from './paths.mjs';
 
 // Assurance belongs to one exact change. It is attached to the IdleProof session whose completed
@@ -37,7 +38,8 @@ function sessionForChange(sessions, changeId) {
   for (const item of sessions) {
     if (currentChangeId(item)===changeId) return item;
     const record=(Array.isArray(item?.completedChanges) ? item.completedChanges : []).find((entry)=>entry?.changeId===changeId && CHANGE_ID.test(String(entry.changeId)));
-    if (record) return { ...item, proof:{ ...record.proof, changeId }, changeIdentity:record.changeIdentity || item.changeIdentity, changed:record.changed || item.changed, touchedFiles:Array.isArray(record.touchedFiles) ? record.touchedFiles : item.touchedFiles };
+    // Rebuilt entirely from that change's record, never mixed with the session's later turns.
+    if (record) return { ...item, ...Object.fromEntries(COMPLETED_CHANGE_FIELDS.map((field)=>[field, record[field] ?? null])), proof:{ ...record.proof, changeId } };
   }
   return null;
 }

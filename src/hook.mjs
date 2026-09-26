@@ -15,7 +15,7 @@ import { appendProvenanceEvent, buildAgentBom, sha256, verifyProvenanceChain } f
 import { createAttestation } from './attest.mjs';
 import { cachedFeatureModel, rememberFeature } from './feature-memory.mjs';
 import { buildHookDelivery } from './delivery.mjs';
-import { captureBaselineIdentity, finalizeChangeIdentity } from './change-identity.mjs';
+import { captureBaselineIdentity, finalizeChangeIdentity, COMPLETED_CHANGE_FIELDS } from './change-identity.mjs';
 import { schedulePortalSync } from './portal-client.mjs';
 import { taskContinuityQuery, taskDisplayText, taskMetadata, updateSessionTask } from './task.mjs';
 import { validContextIdentity } from './continuity-contract.mjs';
@@ -232,12 +232,6 @@ export function processHookLifecycle(event = {}) {
         capturedAt: now(),
         changeId: session.changeIdentity?.available ? session.changeIdentity.changeId : null
       };
-      // A reused IDE session completes several changes; each stays addressable by its exact id
-      // (for example to attach DiffWitness assurance measured later), not only the latest one.
-      if (session.proof.changeId) {
-        const record = { changeId:session.proof.changeId, proof:{ ...session.proof }, changeIdentity:session.changeIdentity, changed:{ ...session.changed }, touchedFiles:[...session.touchedFiles] };
-        session.completedChanges = [...(session.completedChanges || []).filter((item) => item?.changeId !== record.changeId), record].slice(-20);
-      }
       session.findings = analyzeDiff(snapshot.diff);
       session.status = 'complete';
       session.currentTool = null;
@@ -268,6 +262,15 @@ export function processHookLifecycle(event = {}) {
       session.lastExplanationAt = now();
       session.taskSignals = delivery.signals;
       surfacedExplanation = delivery.message;
+    }
+
+    // A reused IDE session completes several changes; each stays addressable by its exact id (for
+    // example to attach DiffWitness assurance measured later) with the task it came from, recorded
+    // once the turn's feature model and signals are known.
+    if ((eventName === 'Stop' || eventName === 'SessionEnd' || eventName === 'generic-stop') && session.proof?.changeId) {
+      const record = { changeId:session.proof.changeId };
+      for (const field of COMPLETED_CHANGE_FIELDS) record[field] = session[field] === undefined ? null : structuredClone(session[field]);
+      session.completedChanges = [...(session.completedChanges || []).filter((item) => item?.changeId !== record.changeId), record].slice(-20);
     }
 
     trimSessions(state);

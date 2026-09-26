@@ -159,3 +159,6 @@ export function finalizeChangeIdentity(cwd = process.cwd(), baseline = null) {
 }
 
 export const __test = { canonical, isTransientUntracked, repositoryFingerprint, repoRoot, snapshotTree };
+
+// Everything a Portal receipt reads from a session about the task that produced a change.
+export const COMPLETED_CHANGE_FIELDS = ['proof', 'changeIdentity', 'changed', 'touchedFiles', 'taskSignals', 'featureModel', 'currentResource', 'task', 'status', 'source', 'prompt', 'promptChars', 'promptSha256', 'completedAt'];
