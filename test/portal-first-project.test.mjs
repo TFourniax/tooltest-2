@@ -487,3 +487,28 @@ test('an earlier change of a reused IDE session keeps its debt after a later tur
     assert.throws(() => buildAssurancePortalSnapshot(cwd, envelopeFor(`dwchg_${'9'.repeat(24)}`, 1)), /matches no change completed by IdleProof/);
   } finally { cleanup(cwd); }
 });
+
+test('a receipt Portal already holds is retained again when the local cache was lost', async () => {
+  const { syncPortalAssurance } = await import('../src/portal-assurance.mjs');
+  const { createHash } = await import('node:crypto');
+  const token = `ipd_${'x'.repeat(32)}`;
+  const cwd = configuredProject(token);
+  try {
+    const portal = portalEmulator();
+    const envelope = envelopeFor(`dwchg_${'1'.repeat(24)}`, 8);
+    const first = await syncPortalAssurance(cwd, envelope, { fetchImpl:portal.fetchImpl });
+    assert.equal(first.ok, true);
+    // The receipt cache is lost while this destination is known to hold the receipt.
+    fs.rmSync(projectPaths(cwd).portalAssuranceSent);
+    const destination = createHash('sha256').update(`http://127.0.0.1:8787/api/v1/snapshots\n${token}`).digest('hex').slice(0, 32);
+    fs.writeFileSync(projectPaths(cwd).portalHeld, JSON.stringify({ schema:'idleproof.portal-held.v1', entries:[{ destination, snapshotId:first.snapshotId }] }));
+    const held = await syncPortalAssurance(cwd, envelope, { fetchImpl:portal.fetchImpl });
+    assert.equal(held.queueReason, 'held-by-portal');
+    // The receipt is retained again, so a later resend reuses it instead of rebuilding a new one.
+    const sent = JSON.parse(fs.readFileSync(projectPaths(cwd).portalAssuranceSent, 'utf8')).entries;
+    assert.deepEqual(sent.map((item) => item.snapshot.snapshotId), [first.snapshotId]);
+    const again = await syncPortalAssurance(cwd, envelope, { fetchImpl:portal.fetchImpl });
+    assert.equal(again.queueReason, 'already-sent');
+    assert.equal(again.snapshotId, first.snapshotId);
+  } finally { cleanup(cwd); }
+});

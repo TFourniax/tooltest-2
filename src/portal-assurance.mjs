@@ -112,7 +112,7 @@ export function queueAssuranceReceipt(cwd, snapshot) {
     const receipt=previous ? previous.snapshot : snapshot;
     assertPortalSnapshotSafe(receipt);
     const queued=queuePortalSnapshot(cwd,receipt);
-    if (!previous && (queued.queued || queued.reason==='duplicate')) recordAssuranceSent(cwd,key,receipt);
+    if (!previous && (queued.queued || queued.reason==='duplicate' || queued.reason==='held-by-portal')) recordAssuranceSent(cwd,key,receipt);
     return { receipt, previous:Boolean(previous), queued };
   },'IDLEPROOF_PORTAL_ASSURANCE_BUSY','Portal assurance receipt cache');
 }
