@@ -392,3 +392,15 @@ test('an old receipt-cache lock of a live owner is never evicted; a dead owner\'
     assert.equal(JSON.parse(fs.readFileSync(projectPaths(cwd).portalAssuranceSent, 'utf8')).entries.length, 1);
   } finally { cleanup(cwd); }
 });
+
+test('the retained assurance receipts are private to the user', { skip:process.platform === 'win32' }, async () => {
+  const { syncPortalAssurance } = await import('../src/portal-assurance.mjs');
+  const cwd = configuredProject();
+  const previous = process.umask(0o022);
+  try {
+    const portal = portalEmulator();
+    assert.equal((await syncPortalAssurance(cwd, envelopeFor(`dwchg_${'1'.repeat(24)}`, 8), { fetchImpl:portal.fetchImpl })).ok, true);
+    assert.equal(fs.statSync(projectPaths(cwd).portalAssuranceSent).mode & 0o777, 0o600);
+    assert.deepEqual(fs.readdirSync(path.dirname(projectPaths(cwd).portalAssuranceSent)).filter((name) => name.endsWith('.tmp')), []);
+  } finally { process.umask(previous); cleanup(cwd); }
+});

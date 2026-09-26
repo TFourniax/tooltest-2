@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { computeMetrics, loadState } from './state.mjs';
 import { assuranceFromChangeEnvelope, assertPortalSnapshotSafe, buildPortalSnapshot } from './portal-snapshot.mjs';
@@ -74,9 +74,14 @@ function recordAssuranceSent(cwd, key, snapshot) {
   entries.push({ key, snapshot });
   const file=projectPaths(cwd).portalAssuranceSent;
   fs.mkdirSync(path.dirname(file),{ recursive:true });
-  const staged=`${file}.${process.pid}.tmp`;
-  fs.writeFileSync(staged,`${JSON.stringify({ schema:ASSURANCE_SENT_SCHEMA, entries:entries.slice(-MAX_ASSURANCE_SENT) })}\n`);
-  fs.renameSync(staged,file);
+  // Retained receipts carry project metadata: private to the user, like every other Portal state file.
+  const staged=`${file}.${process.pid}.${randomBytes(6).toString('hex')}.tmp`;
+  try {
+    fs.writeFileSync(staged,`${JSON.stringify({ schema:ASSURANCE_SENT_SCHEMA, entries:entries.slice(-MAX_ASSURANCE_SENT) })}\n`,{ encoding:'utf8', mode:0o600, flag:'wx' });
+    fs.renameSync(staged,file);
+  } finally {
+    try { fs.rmSync(staged,{ force:true }); } catch {}
+  }
 }
 
 // Every delivery route (this command and the IDE hook) queues an assurance through here, so one
