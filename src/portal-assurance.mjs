@@ -75,9 +75,9 @@ export function buildAssurancePortalSnapshot(cwd=process.cwd(), envelope) {
 // destination deduplicates it: the same Portal project answers duplicate, a newly enrolled one
 // accepts it. A different measurement of that change is a new receipt.
 const ASSURANCE_SENT_SCHEMA='idleproof.portal-assurance-sent.v2';
-// Every measurement ever sent keeps its identity (bounded generously); only the most recent ones
-// also keep the full receipt body, which is what a new destination needs.
-const MAX_ASSURANCE_SENT=4096;
+// Every measurement ever sent keeps its identity, without an eviction boundary: forgetting one would
+// let a later resend build a second receipt for it. An identity is about a hundred bytes. Only the
+// most recent ones also keep the full receipt body, which is what a new destination needs.
 const MAX_ASSURANCE_BODIES=64;
 const assuranceKey=(changeId,assurance)=>createHash('sha256').update(`${changeId}\n${JSON.stringify(assurance)}`).digest('hex').slice(0,32);
 // A retained body is trusted only if it is still the exact receipt its identity names; anything
@@ -116,7 +116,7 @@ function readAssuranceSent(cwd) {
 }
 
 function recordAssuranceSent(cwd, key, snapshot) {
-  const entries=[...readAssuranceSent(cwd).filter((item)=>item.key!==key), { key, snapshotId:snapshot.snapshotId, snapshot }].slice(-MAX_ASSURANCE_SENT);
+  const entries=[...readAssuranceSent(cwd).filter((item)=>item.key!==key), { key, snapshotId:snapshot.snapshotId, snapshot }];
   const firstBody=entries.length-MAX_ASSURANCE_BODIES;
   const stored=entries.map((item,index)=>index>=firstBody && item.snapshot ? item : { key:item.key, snapshotId:item.snapshotId });
   const file=projectPaths(cwd).portalAssuranceSent;

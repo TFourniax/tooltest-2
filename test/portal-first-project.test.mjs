@@ -792,6 +792,32 @@ test('a retained body that does not belong to its entry is never sent for that m
   } finally { cleanup(cwd); }
 });
 
+test('a measurement keeps its receipt identity however many measurements follow it', async () => {
+  const { syncPortalAssurance } = await import('../src/portal-assurance.mjs');
+  const cwd = configuredProject();
+  try {
+    const change = `dwchg_${'1'.repeat(24)}`;
+    const portal = portalEmulator();
+    const first = await syncPortalAssurance(cwd, envelopeFor(change, 1), { fetchImpl:portal.fetchImpl });
+    const file = projectPaths(cwd).portalAssuranceSent;
+    const sent = JSON.parse(fs.readFileSync(file, 'utf8'));
+    // 4,096 later measurements, recorded as identities only.
+    for (let index = 0; index < 4096; index += 1) {
+      const hex = index.toString(16).padStart(24, '0');
+      sent.entries.push({ key:`${'f'.repeat(8)}${hex}`, snapshotId:`ipsnap_${hex}` });
+    }
+    fs.writeFileSync(file, JSON.stringify(sent));
+    await syncPortalAssurance(cwd, envelopeFor(change, 2), { fetchImpl:portal.fetchImpl });
+    const entries = JSON.parse(fs.readFileSync(file, 'utf8')).entries;
+    assert.equal(entries.length, 4098);
+    assert.equal(entries[0].snapshotId, first.snapshotId);
+    // Its identity is still known: never a second receipt, an explicit refusal once its body is gone.
+    const again = await syncPortalAssurance(cwd, envelopeFor(change, 1), { fetchImpl:portal.fetchImpl });
+    assert.equal(again.snapshotId, first.snapshotId);
+    assert.equal(again.errorCode, 'IDLEPROOF_ASSURANCE_NOT_RETAINED');
+  } finally { cleanup(cwd); }
+});
+
 test('an unreadable retry queue fails the resend instead of declaring an evicted receipt lost', async () => {
   const { syncPortalAssurance } = await import('../src/portal-assurance.mjs');
   const cwd = configuredProject();
