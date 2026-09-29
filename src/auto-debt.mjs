@@ -89,6 +89,7 @@ function run(command, args, options = {}) {
 
 // The Core CLI, probed where it will run: `dw debt` must exist.
 function probeCore(dw, cwd) {
+  if (!fs.existsSync(dw)) return { ok:false, code:'CORE_UNAVAILABLE', message:`${dw} does not exist.` };
   const result = run(dw, ['debt', '--help'], { cwd, timeout:20000 });
   if (result.error) return { ok:false, code:result.error.code === 'ETIMEDOUT' ? 'CORE_TIMEOUT' : 'CORE_UNAVAILABLE', message:String(result.error.message || result.error).slice(0, 300) };
   if (result.status !== 0 || !/dw debt/.test(`${result.stdout}${result.stderr}`)) return { ok:false, code:'CORE_UNSUPPORTED', message:String(result.stderr || result.stdout || `exit ${result.status}`).trim().slice(0, 300) };
@@ -218,9 +219,12 @@ function referenceCommit(root, side) {
 }
 
 // The measurement configuration: the Core CLI version and the project's Core configuration file.
+// A Core that is missing or does not answer is unavailable, not a failed measurement: on Windows a
+// missing `.cmd` launcher runs through the shell and fails with an exit status instead of ENOENT.
 function configurationKey(root, dw) {
+  if (!fs.existsSync(dw)) return { ok:false, code:'CORE_UNAVAILABLE', message:`${dw} does not exist.` };
   const version = run(dw, ['--version'], { cwd:root, timeout:20000 });
-  if (version.error) return { ok:false, code:'CORE_UNAVAILABLE', message:String(version.error.message || version.error).slice(0, 300) };
+  if (version.error || version.status !== 0) return { ok:false, code:'CORE_UNAVAILABLE', message:String(version.error?.message || version.error || tail(version.stderr || version.stdout) || `exit ${version.status}`).slice(0, 300) };
   let settings = '';
   try { settings = fs.readFileSync(path.join(root, '.diffwitness.toml'), 'utf8'); } catch {}
   return { ok:true, key:createHash('sha256').update(`${String(version.stdout).trim()}\n${settings}`).digest('hex').slice(0, 24), core:String(version.stdout).trim().slice(0, 80) };

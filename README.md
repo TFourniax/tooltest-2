@@ -85,6 +85,8 @@ Portal answers:
 
 > **What has my agent built over the last weeks or months, what has changed, what was actually proven, and what do I still understand?**
 
+Once a project is attached to Portal, `idleproof portal auto-debt enable` sends the Core debt of each change IdleProof completes, measured in a detached worker (see [docs/AUTO_DEBT.md](docs/AUTO_DEBT.md)).
+
 The public runtime defines a versioned `idleproof.portal-snapshot.v1` boundary for this future sync. The snapshot is structured metadata: the contract explicitly excludes source code, raw diffs and raw agent-event payloads and redacts common secret patterns before data can cross the boundary.
 
 ---
