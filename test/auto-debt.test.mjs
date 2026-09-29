@@ -1,0 +1,334 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import http from 'node:http';
+import os from 'node:os';
+import path from 'node:path';
+import { execFileSync, spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { processHookLifecycle } from '../src/hook.mjs';
+import { writePortalConfig } from '../src/portal-client.mjs';
+import { autoDebtStatus, disableAutoDebt, enableAutoDebt, enqueueAutoDebt, runAutoDebtWorker, scheduleAutoDebt, __autoDebtTest } from '../src/auto-debt.mjs';
+import { syncPortalAssurance, readChangeEnvelope } from '../src/portal-assurance.mjs';
+import { projectPaths } from '../src/paths.mjs';
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const CLI = path.join(HERE, '..', 'bin', 'idleproof.mjs');
+const FAKE_DW = path.join(HERE, 'support', 'fake-dw.mjs');
+const TOKEN = `ipd_${'a'.repeat(32)}`;
+const cleanup = (dir) => { try { fs.rmSync(dir, { recursive:true, force:true }); } catch {} };
+const git = (cwd, ...args) => execFileSync('git', args, { cwd, encoding:'utf8' }).trim();
+const noSpawn = { start:() => {} };
+
+// A `dw` launcher for the fake Core CLI, callable by path on every platform.
+function fakeDw(dir) {
+  fs.mkdirSync(dir, { recursive:true });
+  if (process.platform === 'win32') {
+    const file = path.join(dir, 'dw.cmd');
+    fs.writeFileSync(file, `@"${process.execPath}" "${FAKE_DW}" %*\r\n`);
+    return file;
+  }
+  const file = path.join(dir, 'dw');
+  fs.writeFileSync(file, `#!/bin/sh\nexec "${process.execPath}" "${FAKE_DW}" "$@"\n`, { mode:0o755 });
+  return file;
+}
+
+function project({ endpoint = 'http://127.0.0.1:9/api/v1/snapshots' } = {}) {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'idleproof-auto-debt-'));
+  git(cwd, 'init', '-q', '-b', 'main'); git(cwd, 'config', 'user.name', 'Auto Debt'); git(cwd, 'config', 'user.email', 'auto-debt@example.invalid');
+  fs.writeFileSync(path.join(cwd, 'app.py'), 'def total(items):\n    return sum(items)\n');
+  git(cwd, 'add', '-A'); git(cwd, 'commit', '-qm', 'initial');
+  writePortalConfig(cwd, { endpoint, token:TOKEN });
+  const dw = fakeDw(path.join(cwd, '..', `${path.basename(cwd)}-bin`));
+  return { cwd, dw, done:() => { cleanup(cwd); cleanup(path.dirname(dw)); } };
+}
+
+// In-process hooks only queue: these tests run the worker themselves (the last test uses the real
+// detached worker through the CLI).
+process.env.IDLEPROOF_AUTO_DEBT_WORKER = 'off';
+
+// One change completed through the generic IdleProof path (the events `idleproof run` emits).
+function completeChange(cwd, file, content) {
+  const session_id = `generic-test-${Math.random().toString(16).slice(2)}`;
+  processHookLifecycle({ cwd, session_id, source:'generic-wrapper', hook_event_name:'UserPromptSubmit', prompt:`write ${file}` });
+  fs.writeFileSync(path.join(cwd, file), content);
+  return processHookLifecycle({ cwd, session_id, source:'generic-wrapper', hook_event_name:'generic-stop', tool_name:'Process', tool_input:{ command:`write ${file}` } });
+}
+
+const ack = (body) => ({ schema:'idleproof.portal-ingest-ack.v1', status:'accepted', snapshotId:JSON.parse(body).snapshotId });
+function portalStub(received, { down = false } = {}) {
+  return async (url, options) => {
+    if (down) throw new TypeError('fetch failed');
+    received.push(JSON.parse(options.body));
+    return new Response(JSON.stringify(ack(options.body)), { status:202, headers:{ 'content-type':'application/json' } });
+  };
+}
+const queued = (cwd) => { try { return JSON.parse(fs.readFileSync(projectPaths(cwd).portalQueue, 'utf8')); } catch { return []; } };
+const withAssurance = (items) => items.filter((item) => item.assurance?.softwareDebt);
+
+test('automatic debt is off until enabled, and enabling requires a Portal enrollment and a Core CLI', () => {
+  const p = project();
+  try {
+    const hook = completeChange(p.cwd, 'app.py', 'def total(items):\n    # TODO: check\n    return sum(items)\n');
+    assert.equal(hook.autoDebt.reason, 'disabled');
+    assert.equal(fs.existsSync(projectPaths(p.cwd).autoDebtJobs), false);
+    fs.rmSync(projectPaths(p.cwd).portalConfig);
+    assert.throws(() => enableAutoDebt(p.cwd, { dw:p.dw }), (error) => error.code === 'IDLEPROOF_AUTO_DEBT_PORTAL_REQUIRED');
+    writePortalConfig(p.cwd, { endpoint:'http://127.0.0.1:9/api/v1/snapshots', token:TOKEN });
+    assert.throws(() => enableAutoDebt(p.cwd, { dw:path.join(p.cwd, 'no-such-dw') }), (error) => error.code === 'IDLEPROOF_AUTO_DEBT_CORE_UNAVAILABLE');
+    const status = enableAutoDebt(p.cwd, { dw:p.dw });
+    assert.equal(status.enabled, true);
+    assert.equal(status.dw, p.dw);
+    assert.equal(disableAutoDebt(p.cwd).enabled, false);
+  } finally { p.done(); }
+});
+
+test('the completing hook records the exact frozen references and measures nothing itself', () => {
+  const p = project();
+  const log = path.join(os.tmpdir(), `fake-dw-${process.pid}-${Date.now()}.log`);
+  process.env.FAKE_DW_LOG = log;
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    fs.rmSync(log, { force:true });
+    let started = 0;
+    const hook = completeChange(p.cwd, 'app.py', 'def total(items):\n    # TODO: check\n    return sum(items)\n');
+    assert.equal(hook.autoDebt.queued, true);
+    const session = Object.values(hook.state.sessions)[0];
+    const job = __autoDebtTest.readJobs(p.cwd).jobs[0];
+    assert.equal(job.changeId, session.proof.changeId);
+    assert.equal(job.base.tree, session.changeIdentity.base.tree);
+    assert.equal(job.candidate.tree, session.changeIdentity.candidate.tree);
+    assert.equal(job.state, 'pending');
+    assert.equal(fs.existsSync(log), false, 'the hook never runs the Core CLI');
+    // The candidate is an uncommitted worktree: its reference is the frozen tree, not HEAD.
+    assert.equal(job.candidate.commit, null);
+    // A repeated completion of the same change adds no second job.
+    const again = scheduleAutoDebt(p.cwd, session.changeIdentity, { start:() => { started += 1; } });
+    assert.equal(again.reason, 'already-queued');
+    assert.equal(__autoDebtTest.readJobs(p.cwd).jobs.length, 1);
+    assert.equal(started, 1, 'a worker is still started for the waiting job');
+  } finally { delete process.env.FAKE_DW_LOG; fs.rmSync(log, { force:true }); p.done(); }
+});
+
+test('two successive changes are measured by Core and sent to Portal without any debt command', async () => {
+  const p = project();
+  const received = [];
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    completeChange(p.cwd, 'app.py', 'def total(items):\n    # TODO: check\n    return sum(items)\n');
+    git(p.cwd, 'add', '-A'); git(p.cwd, 'commit', '-qm', 'change 1');
+    process.env.FAKE_DW_POINTS = '8';
+    const first = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received) });
+    completeChange(p.cwd, 'report.py', 'def report():\n    # FIXME: format\n    return 1\n');
+    process.env.FAKE_DW_POINTS = '5';
+    const second = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received) });
+    delete process.env.FAKE_DW_POINTS;
+    assert.deepEqual(first.results.map((item) => item.state), ['done']);
+    assert.deepEqual(second.results.map((item) => item.state), ['done']);
+    const sent = withAssurance(received);
+    assert.equal(sent.length, 2);
+    assert.deepEqual(sent.map((item) => item.assurance.softwareDebt.points), [8, 5]);
+    assert.deepEqual(sent.map((item) => item.change.changeId), [first.results[0].changeId, second.results[0].changeId]);
+    assert.notEqual(sent[0].change.changeId, sent[1].change.changeId);
+    const status = autoDebtStatus(p.cwd);
+    assert.deepEqual(status.changes.map((item) => [item.state, item.delivery]), [['measured', 'delivered'], ['measured', 'delivered']]);
+    assert.equal(status.core, 'available');
+  } finally { delete process.env.FAKE_DW_POINTS; p.done(); }
+});
+
+test('Portal unavailable: the measurement is kept queued, never reported delivered, and sent once Portal is back', async () => {
+  const p = project();
+  const received = [];
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    completeChange(p.cwd, 'app.py', 'def total(items):\n    # TODO: check\n    return sum(items)\n');
+    const offline = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received, { down:true }) });
+    assert.equal(offline.results[0].state, 'done');
+    assert.equal(offline.delivery.ok, false);
+    assert.equal(withAssurance(queued(p.cwd)).length, 1);
+    assert.equal(autoDebtStatus(p.cwd).changes[0].delivery, 'awaiting-delivery');
+    // Nothing to measure any more; the ordinary delivery path sends the kept receipt.
+    const { flushPortalQueue } = await import('../src/portal-client.mjs');
+    const flushed = await flushPortalQueue(p.cwd, { fetchImpl:portalStub(received) });
+    assert.equal(flushed.ok, true);
+    assert.equal(withAssurance(received).length, 1);
+    assert.equal(autoDebtStatus(p.cwd).changes[0].delivery, 'delivered');
+  } finally { p.done(); }
+});
+
+test('Core unavailable: no value is sent, the job waits with its reason and is measured once Core is back', async () => {
+  const p = project();
+  const received = [];
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    completeChange(p.cwd, 'app.py', 'def total(items):\n    # TODO: check\n    return sum(items)\n');
+    const moved = `${p.dw}.moved`;
+    fs.renameSync(p.dw, moved);
+    const down = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received) });
+    assert.equal(down.results[0].state, 'core-unavailable');
+    assert.equal(received.length, 0);
+    assert.equal(withAssurance(queued(p.cwd)).length, 0, 'no debt value, not even a zero, was queued');
+    const waiting = autoDebtStatus(p.cwd);
+    assert.equal(waiting.changes[0].state, 'retrying');
+    assert.equal(waiting.changes[0].lastError.code, 'CORE_UNAVAILABLE');
+    assert.equal(waiting.changes[0].attempts, 0, 'an unavailable Core is not counted as a failed measurement');
+    fs.renameSync(moved, p.dw);
+    const back = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received) });
+    assert.equal(back.results[0].state, 'done');
+    assert.equal(withAssurance(received).length, 1);
+  } finally { p.done(); }
+});
+
+test('a failing measurement is retried with backoff, then reported failed; never sent', async () => {
+  const p = project();
+  const received = [];
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    completeChange(p.cwd, 'app.py', 'def total(items):\n    # TODO: check\n    return sum(items)\n');
+    process.env.FAKE_DW_FAIL = 'debt';
+    for (let attempt = 1; attempt <= __autoDebtTest.MAX_ATTEMPTS; attempt += 1) {
+      const result = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received) });
+      assert.equal(result.results[0].code, 'MEASUREMENT_FAILED');
+      const jobs = __autoDebtTest.readJobs(p.cwd);
+      // The backoff is honoured; the test moves the retry time back instead of waiting.
+      if (jobs.jobs[0].retryAfter) { jobs.jobs[0].retryAfter = new Date(0).toISOString(); fs.writeFileSync(projectPaths(p.cwd).autoDebtJobs, JSON.stringify(jobs)); }
+    }
+    delete process.env.FAKE_DW_FAIL;
+    assert.equal(autoDebtStatus(p.cwd).changes[0].state, 'failed');
+    assert.equal((await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received) })).results.length, 0, 'a failed job is not retried silently');
+    assert.equal(received.length, 0);
+    const retried = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received), retryFailed:true });
+    assert.equal(retried.results[0].state, 'done');
+    assert.equal(withAssurance(received).length, 1);
+  } finally { delete process.env.FAKE_DW_FAIL; p.done(); }
+});
+
+test('an interrupted worker leaves its job for the next one, and repeated or concurrent triggers send one receipt', async () => {
+  const p = project();
+  const received = [];
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    const hook = completeChange(p.cwd, 'app.py', 'def total(items):\n    # TODO: check\n    return sum(items)\n');
+    // A worker died while measuring: its job is still marked measuring and no lock holder remains.
+    const jobs = __autoDebtTest.readJobs(p.cwd);
+    jobs.jobs[0].state = 'measuring';
+    fs.writeFileSync(projectPaths(p.cwd).autoDebtJobs, JSON.stringify(jobs));
+    // Two worker processes started together (a repeated trigger); Core is slow enough for them to overlap.
+    const log = path.join(path.dirname(p.dw), 'calls.log');
+    const worker = () => new Promise((resolve) => {
+      const child = spawn(process.execPath, [CLI, 'portal', 'auto-debt', 'run', '--json'], { cwd:p.cwd, env:{ ...process.env, FAKE_DW_SLEEP_MS:'1500', FAKE_DW_LOG:log } });
+      let out = '';
+      child.stdout.on('data', (chunk) => { out += chunk; });
+      child.on('close', () => resolve(JSON.parse(out)));
+    });
+    const [a, b] = await Promise.all([worker(), worker()]);
+    const outcomes = [...a.results, ...b.results].map((item) => item.state).filter((state) => state !== 'busy');
+    assert.deepEqual(outcomes, ['done']);
+    assert.equal(fs.readFileSync(log, 'utf8').split('\n').filter((line) => line.startsWith('debt ')).length, 1, 'Core measured the change once');
+    // The same completion triggered again, and the worker run again: nothing new.
+    const session = Object.values(hook.state.sessions)[0];
+    assert.equal(enqueueAutoDebt(p.cwd, session.changeIdentity).reason, 'already-measured');
+    assert.equal((await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received) })).results.length, 0);
+    // One receipt, still queued for delivery (the workers had no reachable Portal).
+    assert.equal(withAssurance(queued(p.cwd)).length, 1);
+    assert.equal(received.length, 0);
+  } finally { p.done(); }
+});
+
+test('the manual mode stays available and deduplicates with the automatic measurement', async () => {
+  const p = project();
+  const received = [];
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    completeChange(p.cwd, 'app.py', 'def total(items):\n    # TODO: check\n    return sum(items)\n');
+    const auto = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received) });
+    const envelope = readChangeEnvelope(path.join(projectPaths(p.cwd).autoDebtWork, auto.results[0].changeId, 'envelope.json'), p.cwd);
+    const manual = await syncPortalAssurance(p.cwd, envelope, { fetchImpl:portalStub(received) });
+    assert.equal(manual.queueReason, 'already-sent');
+    assert.equal(manual.snapshotId, auto.results[0].snapshotId);
+    assert.equal(new Set(withAssurance(received).map((item) => item.snapshotId)).size, 1);
+  } finally { p.done(); }
+});
+
+test('references that no longer match are refused, never sent under another change', async () => {
+  const p = project();
+  const received = [];
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    completeChange(p.cwd, 'app.py', 'def total(items):\n    # TODO: check\n    return sum(items)\n');
+    process.env.FAKE_DW_WRONG_CHANGE = '1';
+    const mismatch = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received) });
+    delete process.env.FAKE_DW_WRONG_CHANGE;
+    assert.equal(mismatch.results[0].code, 'REFERENCE_MISMATCH');
+    assert.equal(autoDebtStatus(p.cwd).changes[0].state, 'failed');
+    completeChange(p.cwd, 'other.py', 'x = 1\n');
+    const jobs = __autoDebtTest.readJobs(p.cwd);
+    const pending = jobs.jobs.find((job) => job.state === 'pending');
+    pending.candidate = { tree:'0'.repeat(40), commit:null };
+    fs.writeFileSync(projectPaths(p.cwd).autoDebtJobs, JSON.stringify(jobs));
+    const gone = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received) });
+    assert.equal(gone.results[0].code, 'REFERENCE_UNAVAILABLE');
+    assert.equal(received.length, 0);
+  } finally { delete process.env.FAKE_DW_WRONG_CHANGE; p.done(); }
+});
+
+test('a full queue records the change as not measured and degrades the status; a damaged queue is never replaced', () => {
+  const p = project();
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    const identity = (n) => ({ available:true, changeId:`dwchg_${String(n).padStart(24, '0')}`, repository:{ fingerprint:'dwrepo_x' }, base:{ tree:'a'.repeat(40), sha:null }, candidate:{ tree:`${String(n).padStart(40, 'b')}`, sha:null } });
+    for (let n = 1; n <= __autoDebtTest.MAX_JOBS; n += 1) assert.equal(enqueueAutoDebt(p.cwd, identity(n)).queued, true);
+    const overflow = enqueueAutoDebt(p.cwd, identity(__autoDebtTest.MAX_JOBS + 1));
+    assert.equal(overflow.reason, 'queue-full');
+    const status = autoDebtStatus(p.cwd, { probe:false });
+    assert.equal(status.degraded, true);
+    assert.equal(status.counts.skipped, 1);
+    assert.equal(status.skipped[0].changeId, identity(__autoDebtTest.MAX_JOBS + 1).changeId);
+    fs.writeFileSync(projectPaths(p.cwd).autoDebtJobs, '{ damaged');
+    assert.throws(() => enqueueAutoDebt(p.cwd, identity(999)), (error) => error.code === 'IDLEPROOF_AUTO_DEBT_STATE_CORRUPT');
+    assert.equal(fs.readFileSync(projectPaths(p.cwd).autoDebtJobs, 'utf8'), '{ damaged');
+    assert.equal(autoDebtStatus(p.cwd, { probe:false }).errorCode, 'IDLEPROOF_AUTO_DEBT_STATE_CORRUPT');
+    // The hook stays fail-open.
+    const hook = completeChange(p.cwd, 'app.py', 'x = 2\n');
+    assert.equal(hook.autoDebt.errorCode, 'IDLEPROOF_AUTO_DEBT_STATE_CORRUPT');
+  } finally { p.done(); }
+});
+
+test('end to end through `idleproof run`: the detached worker measures and delivers, and the CLI reports it', async () => {
+  const received = [];
+  const server = http.createServer((request, response) => {
+    let body = '';
+    request.on('data', (chunk) => { body += chunk; });
+    request.on('end', () => {
+      // Only snapshot deliveries are answered; anything else (a memory page) is not supported here.
+      const parsed = request.method === 'POST' ? JSON.parse(body || '{}') : null;
+      if (!/^ipsnap_/.test(String(parsed?.snapshotId || ''))) { response.writeHead(404, { 'content-type':'application/json' }); response.end('{}'); return; }
+      received.push(parsed);
+      response.writeHead(202, { 'content-type':'application/json' });
+      response.end(JSON.stringify(ack(body)));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const p = project({ endpoint:`http://127.0.0.1:${server.address().port}/api/v1/snapshots` });
+  try {
+    execFileSync(process.execPath, [CLI, 'portal', 'auto-debt', 'enable', '--dw', p.dw], { cwd:p.cwd, encoding:'utf8' });
+    const env = { ...process.env };
+    delete env.IDLEPROOF_AUTO_DEBT_WORKER;
+    // The command run by IdleProof is a script file outside the repository: no shell quoting on any platform.
+    const script = path.join(path.dirname(p.dw), 'change.cjs');
+    fs.writeFileSync(script, "require('fs').writeFileSync('app.py', 'def total(items):\\n    # TODO: check\\n    return sum(items)\\n')\n");
+    execFileSync(process.execPath, [CLI, 'run', '--', process.execPath, script], { cwd:p.cwd, encoding:'utf8', env });
+    let status;
+    for (let i = 0; i < 100; i += 1) {
+      status = JSON.parse(execFileSync(process.execPath, [CLI, 'portal', 'auto-debt', 'status', '--json'], { cwd:p.cwd, encoding:'utf8' }));
+      if (status.changes[0]?.delivery === 'delivered') break;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+    assert.equal(status.changes[0].state, 'measured');
+    assert.equal(status.changes[0].delivery, 'delivered');
+    assert.equal(withAssurance(received).length, 1);
+    const text = execFileSync(process.execPath, [CLI, 'portal', 'auto-debt', 'status'], { cwd:p.cwd, encoding:'utf8' });
+    assert.match(text, /Automatic debt: enabled/);
+    assert.match(text, /8 point\(s\) · 2 obligation\(s\) · budget PASS · delivered/);
+  } finally { server.close(); p.done(); }
+});
