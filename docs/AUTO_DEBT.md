@@ -67,7 +67,11 @@ again automatically.
   reach, for example because Core is unavailable, stays failed.
 - `IDLEPROOF_AUTO_DEBT_WORKER=off` makes hooks only queue, and measurement waits for that command.
 - The manual path is unchanged: `dw debt` → `dw envelope` → `idleproof portal assurance --envelope FILE`.
-  The same measurement of the same change is the same receipt.
+  The same measurement of the same change is the same receipt. A manual assurance that Portal records
+  settles the automatic job of that change, which is then never measured again automatically; the status
+  shows it as *measured manually*. A job a worker is measuring at that moment is left to the worker.
+- A change recorded as not measured (queue full) is no longer reported so once it is queued later or
+  measured manually.
 - The measurement files of the last 64 changes are kept in `.idleproof/auto-debt/<dwchg_…>/`.
 - `idleproof portal auto-debt disable` stops queueing new changes. It keeps the jobs and the history.
 

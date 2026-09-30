@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { processHookLifecycle } from '../src/hook.mjs';
 import { buildCurrentPortalSnapshot, writePortalConfig } from '../src/portal-client.mjs';
@@ -433,6 +433,58 @@ test('a full delivery queue is sent by the worker, then the kept measurement is 
     assert.equal(withAssurance(received).length, 1);
     assert.equal(queued(p.cwd).length, 0);
   } finally { p.done(); }
+});
+
+test('a change recorded as not measured and admitted later is no longer reported as not measured', () => {
+  const p = project();
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    const identity = (n) => ({ available:true, changeId:`dwchg_${String(n).padStart(24, '0')}`, repository:{ fingerprint:'dwrepo_x' }, base:{ tree:'a'.repeat(40), sha:null }, candidate:{ tree:`${String(n).padStart(40, 'b')}`, sha:null } });
+    for (let n = 1; n <= __autoDebtTest.MAX_JOBS; n += 1) assert.equal(enqueueAutoDebt(p.cwd, identity(n)).queued, true);
+    const late = identity(__autoDebtTest.MAX_JOBS + 1);
+    assert.equal(enqueueAutoDebt(p.cwd, late).reason, 'queue-full');
+    assert.equal(autoDebtStatus(p.cwd, { probe:false }).degraded, true);
+    // A worker frees a slot, then a later hook (SessionEnd) presents the same change again.
+    const jobs = __autoDebtTest.readJobs(p.cwd);
+    fs.writeFileSync(projectPaths(p.cwd).autoDebtJobs, JSON.stringify({ ...jobs, jobs:jobs.jobs.slice(1) }));
+    assert.equal(enqueueAutoDebt(p.cwd, late).queued, true);
+    const status = autoDebtStatus(p.cwd, { probe:false });
+    assert.equal(status.degraded, false);
+    assert.equal(status.counts.skipped, 0);
+    assert.equal(status.skipped.some((item) => item.changeId === late.changeId), false);
+  } finally { p.done(); }
+});
+
+test('a manual assurance settles the automatic job of the same change: Core is not run again', async () => {
+  const p = project();
+  const received = [];
+  const log = path.join(p.cwd, '..', `${path.basename(p.cwd)}-dw.log`);
+  const debtFile = path.join(p.cwd, '..', `${path.basename(p.cwd)}-debt.json`);
+  const envelopeFile = path.join(p.cwd, '..', `${path.basename(p.cwd)}-envelope.json`);
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    completeChange(p.cwd, 'app.py', 'def total(items):\n    # TODO: check\n    return sum(items)\n');
+    const job = __autoDebtTest.readJobs(p.cwd).jobs[0];
+    assert.equal(job.state, 'pending');
+    // The documented manual path, while the automatic job is still waiting.
+    git(p.cwd, 'add', '-A'); git(p.cwd, 'commit', '-qm', 'change');
+    execFileSync(process.execPath, [FAKE_DW, 'debt', '--repo', p.cwd, '--base', 'HEAD~1', '--candidate', 'HEAD', '--json', debtFile], { cwd:p.cwd });
+    execFileSync(process.execPath, [FAKE_DW, 'envelope', '--repo', p.cwd, '--base', 'HEAD~1', '--candidate', 'HEAD', '--debt', debtFile, '--out', envelopeFile], { cwd:p.cwd });
+    assert.equal(JSON.parse(fs.readFileSync(envelopeFile, 'utf8')).change_id, job.changeId);
+    const manual = JSON.parse(spawnSync(process.execPath, [CLI, 'portal', 'assurance', '--envelope', envelopeFile, '--json'], { cwd:p.cwd, encoding:'utf8' }).stdout);
+    assert.equal(manual.autoDebt.settled, true);
+    assert.equal(manual.autoDebt.hadJob, true);
+    process.env.FAKE_DW_LOG = log;
+    const run = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received) });
+    assert.equal(run.results.length, 0);
+    assert.equal(fs.existsSync(log), false);
+    const change = autoDebtStatus(p.cwd, { probe:false }).changes.find((item) => item.changeId === job.changeId);
+    assert.equal(change.state, 'measured');
+    assert.equal(change.source, 'manual');
+    assert.equal(change.points, 8);
+    const identity = { available:true, changeId:job.changeId, repository:{ fingerprint:'dwrepo_x' }, base:{ tree:job.base.tree, sha:null }, candidate:{ tree:job.candidate.tree, sha:null } };
+    assert.equal(enqueueAutoDebt(p.cwd, identity).reason, 'already-measured');
+  } finally { delete process.env.FAKE_DW_LOG; for (const file of [log, debtFile, envelopeFile]) cleanup(file); p.done(); }
 });
 
 test('references that no longer match are refused, never sent under another change', async () => {

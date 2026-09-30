@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import { buildCurrentPortalSnapshot, configurePortal, disconnectPortal, ensurePortalIdentity, flushPortalQueue, portalStatus, syncPortal } from './portal-client.mjs';
 import { readChangeEnvelope, syncPortalAssurance } from './portal-assurance.mjs';
 import { portalMemoryStatus, resyncPortalMemory, syncPortalMemory } from './portal-memory-sync.mjs';
-import { autoDebtStatus, disableAutoDebt, enableAutoDebt, runAutoDebtWorker } from './auto-debt.mjs';
+import { autoDebtStatus, disableAutoDebt, enableAutoDebt, runAutoDebtWorker, settleWithManualAssurance } from './auto-debt.mjs';
 
 function argValue(args, name) {
   const i = args.indexOf(name);
@@ -144,6 +144,13 @@ export async function runPortalCli(args, { cwd = process.cwd() } = {}) {
     if (!file) throw new Error('Usage: idleproof portal assurance --envelope FILE');
     const envelope=readChangeEnvelope(file,cwd);
     const result=await syncPortalAssurance(cwd,envelope);
+    // Recorded for Portal (queued now or already known): the automatic job of this change is settled.
+    const recorded=result.configured!==false && result.errorCode!=='IDLEPROOF_ASSURANCE_NOT_RETAINED'
+      && (result.newlyQueued===true || ['already-sent','duplicate','held-by-portal'].includes(result.queueReason));
+    if (recorded) {
+      try { result.autoDebt=settleWithManualAssurance(cwd,result.changeId,{ snapshotId:result.snapshotId, softwareDebt:result.assurance?.softwareDebt, queueReason:result.queueReason }); }
+      catch (error) { result.autoDebt={ settled:false, errorCode:error?.code || 'IDLEPROOF_AUTO_DEBT_SETTLE_FAILED', message:String(error?.message || error).slice(0,300) }; }
+    }
     if (!quiet) {
       if (json) print(result,true);
       else if (!result.configured) console.log(`✓ Assurance verified for ${result.changeId}; Portal is not configured, so nothing was uploaded.`);
@@ -170,7 +177,7 @@ export async function runPortalCli(args, { cwd = process.cwd() } = {}) {
       const shown = [...open, ...(room > 0 ? status.changes.filter((change) => change.state === 'measured').slice(-room) : [])];
       for (const change of shown) {
         const detail = change.state === 'measured'
-          ? `${change.points} point(s) · ${change.obligations} obligation(s) · budget ${change.budgetPassed === null ? 'n/a' : change.budgetPassed ? 'PASS' : 'EXCEEDED'} · ${change.delivery === 'awaiting-delivery' ? 'waiting for Portal delivery' : change.delivery}`
+          ? `${change.points} point(s) · ${change.obligations} obligation(s) · budget ${change.budgetPassed === null ? 'n/a' : change.budgetPassed ? 'PASS' : 'EXCEEDED'} · ${change.delivery === 'awaiting-delivery' ? 'waiting for Portal delivery' : change.delivery}${change.source === 'manual' ? ' · measured manually' : ''}`
           : `${change.state}${change.lastError ? ` · ${change.lastError.code}${change.lastError.message ? `: ${change.lastError.message}` : ''}` : ''}`;
         console.log(`  ${change.changeId} · ${detail}`);
       }
