@@ -57,8 +57,8 @@ again automatically.
 
 - **Portal down.** The measurement is kept in the delivery queue and sent by the next delivery: the next
   completed change, `idleproof portal sync`, or `idleproof portal auto-debt run` (which also sends the
-  receipts waiting in the queue when it has nothing to measure). Portal shows *Not measured* until then,
-  never zero.
+  receipts waiting in the queue when it has nothing to measure, and reports an unreadable queue as
+  `IDLEPROOF_PORTAL_QUEUE_CORRUPT`). Portal shows *Not measured* until then, never zero.
 - **Core missing or not answering.** The job waits with `CORE_UNAVAILABLE`. It is measured at the next
   trigger once Core answers. A Core that answers but runs out of time measuring the change counts as a
   failed attempt, so the job ends `failed` after five of them.
@@ -80,6 +80,9 @@ again automatically.
   measured manually.
 - The measurement files of the last 64 changes are kept in `.idleproof/auto-debt/<dwchg_…>/`.
 - `idleproof portal auto-debt disable` stops queueing new changes. It keeps the jobs and the history.
+- `idleproof reset` never moves the local state while a worker is measuring: it waits a few seconds for the
+  job to end, and otherwise stops with an explicit message and moves nothing. A worker that finds the state
+  reset stops without writing anything.
 
 ## Limits
 

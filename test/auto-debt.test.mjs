@@ -715,6 +715,53 @@ test('`auto-debt run` delivers receipts queued earlier, even when it has nothing
   } finally { p.done(); await new Promise((resolve) => server.close(resolve)); }
 });
 
+test('`auto-debt run` reports an unreadable delivery queue instead of taking it for an empty one', async () => {
+  const p = project();
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    fs.writeFileSync(projectPaths(p.cwd).portalQueue, '{ damaged');
+    const run = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub([]), deliverQueued:true });
+    assert.equal(run.results.length, 0);
+    assert.equal(run.delivery.ok, false);
+    assert.equal(run.delivery.errorCode, 'IDLEPROOF_PORTAL_QUEUE_CORRUPT');
+    assert.equal(fs.readFileSync(projectPaths(p.cwd).portalQueue, 'utf8'), '{ damaged');
+  } finally { p.done(); }
+});
+
+test('reset never moves the local state under a measurement, and a worker then leaves it alone', async () => {
+  const p = project();
+  const reset = () => spawnSync(process.execPath, [CLI, 'reset'], { cwd:p.cwd, encoding:'utf8' });
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    completeChange(p.cwd, 'app.py', 'def total(items):\n    # TODO: check\n    return sum(items)\n');
+    // A worker is measuring: Core takes a while.
+    const child = spawn(process.execPath, [CLI, 'portal', 'auto-debt', 'run', '--json'], { cwd:p.cwd, env:{ ...process.env, FAKE_DW_SLEEP_MS:'7000' } });
+    let out = '';
+    child.stdout.on('data', (chunk) => { out += chunk; });
+    const finished = new Promise((resolve) => child.on('close', resolve));
+    for (let i = 0; i < 200 && __autoDebtTest.readJobs(p.cwd).jobs[0]?.state !== 'measuring'; i += 1) await new Promise((resolve) => setTimeout(resolve, 25));
+    assert.equal(__autoDebtTest.readJobs(p.cwd).jobs[0].state, 'measuring');
+    // Reset waits for the worker's lock, then stops explicitly: nothing is moved.
+    const refused = reset();
+    assert.notEqual(refused.status, 0);
+    assert.match(refused.stderr, /measuring a change/);
+    assert.equal(fs.existsSync(projectPaths(p.cwd).autoDebtJobs), true);
+    await finished;
+    assert.equal(JSON.parse(out).results[0].state, 'done');
+    // Once the job has ended, reset archives the state with its result, and without its own lock.
+    const archived = reset();
+    assert.equal(archived.status, 0, archived.stderr);
+    assert.equal(fs.existsSync(projectPaths(p.cwd).dir), false);
+    const recovery = path.join(p.cwd, '.git', 'idleproof-recovery');
+    const [entry] = fs.readdirSync(recovery);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(recovery, entry, 'auto-debt-jobs.json'), 'utf8')).done.length, 1);
+    assert.equal(fs.existsSync(path.join(recovery, entry, 'auto-debt-worker.lock')), false);
+    // A worker that takes its lock right after a reset finds no configuration, and writes nothing.
+    assert.equal(__autoDebtTest.processNextJob(p.cwd, { enabled:true, dw:p.dw }), null);
+    assert.equal(fs.existsSync(projectPaths(p.cwd).autoDebtJobs), false);
+  } finally { p.done(); }
+});
+
 test('references that no longer match are refused, never sent under another change', async () => {
   const p = project();
   const received = [];

@@ -428,6 +428,8 @@ function boundFailed(state) {
   state.failedDropped = state.failedDroppedIds.length;
 }
 
+const stillEnabled = (cwd) => { try { return readAutoDebtConfig(cwd)?.enabled === true; } catch { return false; } };
+
 const backoff = (attempts) => new Date(Date.now() + Math.min(60 * 60 * 1000, 30 * 1000 * 2 ** Math.max(0, attempts - 1))).toISOString();
 
 // Called with the worker lock held: nobody else is measuring, so a job still marked `measuring` was
@@ -435,6 +437,8 @@ const backoff = (attempts) => new Date(Date.now() + Math.min(60 * 60 * 1000, 30 
 // `retry` holds the failed jobs an explicit `--retry-failed` may still take: only the one selected is reset,
 // so the others stay failed if this run stops early.
 function processNextJob(cwd, config, { retry = null, measureTimeoutMs = MEASURE_TIMEOUT_MS } = {}) {
+  // The lock may have been taken right after a reset moved the local state: nothing is written then.
+  if (!stillEnabled(cwd)) return null;
   const job = withJobs(cwd, (state) => {
     for (const item of state.jobs) {
       if (item.state === 'measuring') { item.state = 'pending'; item.interrupted = (item.interrupted || 0) + 1; }
@@ -491,6 +495,8 @@ export async function runAutoDebtWorker(cwd = process.cwd(), { fetchImpl = globa
   let drained = false;
   let taken = 0;
   while (taken < maxJobs) {
+    // Reset (the local state was moved away) or disabled between jobs: stop.
+    if (!stillEnabled(cwd)) break;
     let outcome;
     try {
       outcome = withOwnedLock(projectPaths(cwd).autoDebtWorkerLock, () => processNextJob(cwd, config, { retry, measureTimeoutMs }), 'IDLEPROOF_AUTO_DEBT_WORKER_BUSY', 'Automatic debt worker');
@@ -514,8 +520,10 @@ export async function runAutoDebtWorker(cwd = process.cwd(), { fetchImpl = globa
   }
   // The network is used only outside the worker lock, through the existing delivery queue. With
   // `deliverQueued` (the `auto-debt run` command), receipts queued earlier and not delivered yet (Portal was
-  // offline) are sent too, even when this run measured nothing.
-  if (results.some((item) => item.state === 'done') || (deliverQueued && pendingPortalSnapshots(cwd) > 0)) delivery = await flush();
+  // offline) are sent too, even when this run measured nothing. An unreadable queue is flushed as well, so
+  // the delivery reports why (IDLEPROOF_PORTAL_QUEUE_CORRUPT) instead of passing for an empty queue.
+  const receiptsWaiting = () => { try { return pendingPortalSnapshots(cwd) > 0; } catch { return true; } };
+  if (results.some((item) => item.state === 'done') || (deliverQueued && receiptsWaiting())) delivery = await flush();
   return { enabled:true, results, delivery };
 }
 

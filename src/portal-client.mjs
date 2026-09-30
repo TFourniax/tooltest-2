@@ -422,9 +422,9 @@ async function boundedResponse(response) {
   try { return JSON.parse(text); } catch { return {}; }
 }
 
-// Receipts waiting in the delivery queue; 0 when there are none or the queue cannot be read.
+// Receipts waiting in the delivery queue. Like the queue itself, it throws when the queue cannot be read.
 export function pendingPortalSnapshots(cwd = process.cwd()) {
-  try { return readQueue(cwd).length; } catch { return 0; }
+  return readQueue(cwd).length;
 }
 
 export async function flushPortalQueue(cwd = process.cwd(), { fetchImpl = globalThis.fetch, timeoutMs = 3000 } = {}) {
