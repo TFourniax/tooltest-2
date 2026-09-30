@@ -34,13 +34,14 @@ measurement repeatable. Recording lineages stays a manual `dw debt`.
 |---|---|
 | `waiting` | Queued, not measured yet. |
 | `measuring` | A worker is measuring it. After a crash, the next worker measures it again. |
-| `retrying` | The last attempt did not measure it. The reason is shown: `CORE_UNAVAILABLE` (not counted as an attempt), `MEASUREMENT_FAILED`, … |
+| `retrying` | The last attempt did not measure it. The reason is shown: `CORE_UNAVAILABLE` (not counted as an attempt), `MEASUREMENT_FAILED`, `MEASUREMENT_TIMEOUT` or `ENVELOPE_TIMEOUT` (a Core command ran out of its ten minutes), … |
 | `failed` | One of three causes, each shown with its reason: five failed measurements; references that cannot be measured (`REFERENCE_UNAVAILABLE`, `REFERENCE_MISMATCH`, `NOT_CORRELATED`); or the same measurement queued for Portal long ago whose receipt is no longer kept locally (`IDLEPROOF_ASSURANCE_NOT_RETAINED`), so it can be neither resent nor confirmed. Nothing was sent. |
 | `measured` | Sent to the delivery queue. The status then shows **waiting for Portal delivery** or **delivered**. |
 
 **Not measured (queue full).** When 100 jobs are already waiting or retrying, a newly completed change
 is recorded as not measured and the status is marked degraded. It is never dropped silently. Measure
-such changes manually. Failed jobs do not count toward this limit. The latest 100 failed jobs stay
+such changes manually. Each one stays counted until it is queued later or measured manually; the latest
+200 are listed with their references in `auto-debt status --json`. Failed jobs do not count toward this limit. The latest 100 failed jobs stay
 listed with their reason, and older ones are counted in the status as no longer listed. A damaged queue
 file stops the feature with an explicit error; it is never replaced by an empty one.
 
@@ -57,7 +58,8 @@ again automatically.
   completed change, `idleproof portal sync`, or `idleproof portal auto-debt run`. Portal shows *Not
   measured* until then, never zero.
 - **Core missing or not answering.** The job waits with `CORE_UNAVAILABLE`. It is measured at the next
-  trigger once Core answers.
+  trigger once Core answers. A Core that answers but runs out of time measuring the change counts as a
+  failed attempt, so the job ends `failed` after five of them.
 - **Neither case blocks development.** The hook only writes a small file.
 
 ## Manual mode, diagnosis, recalculation

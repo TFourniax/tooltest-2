@@ -462,6 +462,60 @@ test('a change recorded as not measured and admitted later is no longer reported
   } finally { p.done(); }
 });
 
+test('every change recorded as not measured stays counted until it is admitted, beyond the listed ones', () => {
+  const p = project();
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    const identity = (n) => ({ available:true, changeId:`dwchg_${String(n).padStart(24, '0')}`, repository:{ fingerprint:'dwrepo_x' }, base:{ tree:'a'.repeat(40), sha:null }, candidate:{ tree:`${String(n).padStart(40, 'b')}`, sha:null } });
+    for (let n = 1; n <= __autoDebtTest.MAX_JOBS; n += 1) assert.equal(enqueueAutoDebt(p.cwd, identity(n)).queued, true);
+    // As many changes as the list holds were already refused while the queue stayed full.
+    const refused = (n) => identity(1000 + n);
+    const record = (n) => ({ changeId:refused(n).changeId, at:new Date(0).toISOString(), base:{ tree:'a'.repeat(40), commit:null }, candidate:{ tree:refused(n).candidate.tree, commit:null } });
+    const jobs = __autoDebtTest.readJobs(p.cwd);
+    const listed = Array.from({ length:__autoDebtTest.MAX_SKIPPED }, (_, n) => record(n));
+    fs.writeFileSync(projectPaths(p.cwd).autoDebtJobs, JSON.stringify({ ...jobs, skipped:listed, skippedIds:listed.map((item) => item.changeId), skippedTotal:listed.length, degraded:true }));
+    // One more: the oldest leaves the listed details but is still counted.
+    assert.equal(enqueueAutoDebt(p.cwd, refused(__autoDebtTest.MAX_SKIPPED)).reason, 'queue-full');
+    assert.equal(autoDebtStatus(p.cwd, { probe:false }).counts.skipped, __autoDebtTest.MAX_SKIPPED + 1);
+    assert.equal(__autoDebtTest.readJobs(p.cwd).skipped.some((item) => item.changeId === refused(0).changeId), false);
+    // Presented again while the queue is still full, it is not counted twice.
+    assert.equal(enqueueAutoDebt(p.cwd, refused(0)).reason, 'queue-full');
+    assert.equal(autoDebtStatus(p.cwd, { probe:false }).counts.skipped, __autoDebtTest.MAX_SKIPPED + 1);
+    // A slot frees up and a change no longer listed (refused(1)) is admitted: it is no longer counted.
+    assert.equal(__autoDebtTest.readJobs(p.cwd).skipped.some((item) => item.changeId === refused(1).changeId), false);
+    const full = __autoDebtTest.readJobs(p.cwd);
+    fs.writeFileSync(projectPaths(p.cwd).autoDebtJobs, JSON.stringify({ ...full, jobs:full.jobs.slice(1) }));
+    assert.equal(enqueueAutoDebt(p.cwd, refused(1)).queued, true);
+    const status = autoDebtStatus(p.cwd, { probe:false });
+    assert.equal(status.counts.skipped, __autoDebtTest.MAX_SKIPPED);
+    assert.equal(status.degraded, true);
+    assert.equal(__autoDebtTest.readJobs(p.cwd).skippedIds.includes(refused(1).changeId), false);
+  } finally { p.done(); }
+});
+
+test('a Core envelope that runs out of time counts as a failed attempt, up to the failed state', async () => {
+  const p = project();
+  const received = [];
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    completeChange(p.cwd, 'app.py', 'def total(items):\n    # TODO: check\n    return sum(items)\n');
+    // Earlier attempts already failed; this one is the last.
+    const jobs = __autoDebtTest.readJobs(p.cwd);
+    jobs.jobs[0].attempts = __autoDebtTest.MAX_ATTEMPTS - 1;
+    fs.writeFileSync(projectPaths(p.cwd).autoDebtJobs, JSON.stringify(jobs));
+    process.env.FAKE_DW_HANG = 'envelope';
+    const run = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received), measureTimeoutMs:4000 });
+    assert.equal(run.results[0].state, 'retry');
+    assert.equal(run.results[0].code, 'ENVELOPE_TIMEOUT');
+    const job = __autoDebtTest.readJobs(p.cwd).jobs[0];
+    assert.equal(job.state, 'failed');
+    assert.equal(job.attempts, __autoDebtTest.MAX_ATTEMPTS);
+    assert.equal(job.lastError.code, 'ENVELOPE_TIMEOUT');
+    assert.equal(autoDebtStatus(p.cwd, { probe:false }).changes[0].state, 'failed');
+    assert.equal(received.length, 0);
+  } finally { delete process.env.FAKE_DW_HANG; p.done(); }
+});
+
 test('a manual assurance settles the automatic job of the same change: Core is not run again', async () => {
   const p = project();
   const received = [];

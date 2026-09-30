@@ -7,6 +7,7 @@
 //   FAKE_DW_WRONG_CHANGE=1  the envelope names another change
 //   FAKE_DW_LOG      file receiving one line per invocation
 //   FAKE_DW_SLEEP_MS `debt` takes this long (to overlap concurrent workers)
+//   FAKE_DW_HANG     `debt` or `envelope`: that command hangs for FAKE_DW_HANG_MS (default 8000 ms)
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { changeId, repositoryFingerprint } from '../../src/change-identity.mjs';
@@ -19,6 +20,7 @@ if (process.env.FAKE_DW_LOG) fs.appendFileSync(process.env.FAKE_DW_LOG, `${args.
 if (args[0] === '--version') { console.log('diffwitness 0.0.0-fake'); process.exit(0); }
 if (args[1] === '--help') { console.log(`usage: dw ${args[0]} [-h]`); process.exit(0); }
 if (process.env.FAKE_DW_FAIL === args[0]) { console.error(`fake dw ${args[0]} failure`); process.exit(2); }
+if (process.env.FAKE_DW_HANG === args[0]) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Number(process.env.FAKE_DW_HANG_MS || 8000));
 const repo = value('--repo') || process.cwd();
 const tree = (commit) => execFileSync('git', ['rev-parse', `${commit}^{tree}`], { cwd:repo, encoding:'utf8' }).trim();
 const points = Number(process.env.FAKE_DW_POINTS || 8);

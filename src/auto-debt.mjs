@@ -35,6 +35,8 @@ const MAX_FAILED = 100;
 // Details of the latest measured changes, for the status. The identities of every measured change are
 // kept apart, without a bound (about thirty bytes each), so none is ever measured twice.
 const MAX_DONE = 200;
+// Details of the latest changes recorded as not measured (queue full). Their identities are kept apart,
+// without a bound, so each stays counted until it is queued or measured manually.
 const MAX_SKIPPED = 200;
 const MAX_ATTEMPTS = 5;
 const KEPT_WORK_DIRS = 64;
@@ -138,7 +140,7 @@ export function disableAutoDebt(cwd = process.cwd()) {
 }
 
 function emptyJobs() {
-  return { schema:JOBS_SCHEMA, jobs:[], done:[], measured:[], skipped:[], skippedTotal:0, failedDropped:0, degraded:false };
+  return { schema:JOBS_SCHEMA, jobs:[], done:[], measured:[], skipped:[], skippedIds:[], skippedTotal:0, failedDropped:0, degraded:false };
 }
 
 // Only a missing file is an empty queue; a damaged one stops the queue with an explicit error, never
@@ -151,11 +153,12 @@ function readJobs(cwd) {
     throw autoDebtError('IDLEPROOF_AUTO_DEBT_STATE_CORRUPT', `The automatic debt queue ${'.idleproof/auto-debt-jobs.json'} is unreadable (${error?.code || 'invalid JSON'}); nothing was queued. Inspect it before removing it deliberately.`);
   }
   if (value?.schema !== JOBS_SCHEMA || !Array.isArray(value.jobs) || !Array.isArray(value.done) || !Array.isArray(value.skipped)
-    || (value.measured !== undefined && !Array.isArray(value.measured))) {
+    || (value.measured !== undefined && !Array.isArray(value.measured)) || (value.skippedIds !== undefined && !Array.isArray(value.skippedIds))) {
     throw autoDebtError('IDLEPROOF_AUTO_DEBT_STATE_CORRUPT', `The automatic debt queue ${'.idleproof/auto-debt-jobs.json'} has an unsupported schema; nothing was queued.`);
   }
   const measured = [...new Set([...(value.measured ?? []), ...value.done.map((item) => item.changeId)].filter((id) => CHANGE_ID.test(String(id))))];
-  return { ...emptyJobs(), ...value, measured, skippedTotal:Number.isInteger(value.skippedTotal) ? value.skippedTotal : value.skipped.length,
+  const skippedIds = [...new Set([...(value.skippedIds ?? []), ...value.skipped.map((item) => item?.changeId)].filter((id) => CHANGE_ID.test(String(id))))];
+  return { ...emptyJobs(), ...value, measured, skippedIds, skippedTotal:skippedIds.length,
     failedDropped:Number.isInteger(value.failedDropped) ? value.failedDropped : 0, degraded:value.degraded === true };
 }
 
@@ -172,9 +175,10 @@ function withJobs(cwd, fn) {
 // A change recorded as not measured (queue full) that is admitted or measured later is no longer reported
 // as not measured.
 function resolveSkipped(state, changeId) {
-  if (!state.skipped.some((item) => item.changeId === changeId)) return;
+  if (!state.skippedIds.includes(changeId)) return;
+  state.skippedIds = state.skippedIds.filter((id) => id !== changeId);
   state.skipped = state.skipped.filter((item) => item.changeId !== changeId);
-  state.skippedTotal = Math.max(0, state.skippedTotal - 1);
+  state.skippedTotal = state.skippedIds.length;
   state.degraded = state.skippedTotal > 0;
 }
 
@@ -193,9 +197,11 @@ export function enqueueAutoDebt(cwd, identity, { now = new Date() } = {}) {
     if (state.measured.includes(changeId)) return { queued:false, reason:'already-measured', changeId, pending:state.jobs.length };
     // Failed jobs never run again on their own, so they do not take the place of new changes.
     if (state.jobs.filter((job) => job.state !== 'failed').length >= MAX_JOBS) {
+      // The same change presented again (Stop, then SessionEnd) is one not-measured change, even once its
+      // details have left the bounded list.
+      if (!state.skippedIds.includes(changeId)) state.skippedIds.push(changeId);
+      state.skippedTotal = state.skippedIds.length;
       state.degraded = true;
-      // The same change presented again (Stop, then SessionEnd) is one not-measured change.
-      if (!state.skipped.some((item) => item.changeId === changeId)) state.skippedTotal += 1;
       state.skipped = [...state.skipped.filter((item) => item.changeId !== changeId), { changeId, at:now.toISOString(), base:reference(identity.base), candidate:reference(identity.candidate) }].slice(-MAX_SKIPPED);
       return { queued:false, reason:'queue-full', changeId, pending:state.jobs.length };
     }
@@ -310,7 +316,7 @@ function keptMeasurement(file, changeId) {
 function tail(text) { return String(text || '').trim().split(/\r?\n/).slice(-4).join(' | ').slice(0, 400); }
 
 // One job, synchronously: measure, bind, queue the receipt. Never throws; the outcome says what happened.
-function measureAndQueue(cwd, config, job) {
+function measureAndQueue(cwd, config, job, { timeoutMs = MEASURE_TIMEOUT_MS } = {}) {
   const work = path.join(projectPaths(cwd).autoDebtWork, job.changeId);
   const keptFile = path.join(work, 'receipt.json');
   // Measured already (the delivery queue refused it: Portal not configured, or full): only queue it again.
@@ -328,16 +334,18 @@ function measureAndQueue(cwd, config, job) {
   const envelopeFile = path.join(work, 'envelope.json');
   fs.rmSync(debtFile, { force:true }); fs.rmSync(envelopeFile, { force:true });
   // --no-record: the Core ledger is left to the manual `dw debt`; the measurement stays repeatable.
-  const debt = run(config.dw, ['debt', '--repo', root, '--base', base, '--candidate', candidate, '--json', debtFile, '--no-record', '--ignore-budget'], { cwd:root, timeout:MEASURE_TIMEOUT_MS });
+  const debt = run(config.dw, ['debt', '--repo', root, '--base', base, '--candidate', candidate, '--json', debtFile, '--no-record', '--ignore-budget'], { cwd:root, timeout:timeoutMs });
   if (debt.error?.code === 'UNSAFE_WINDOWS_ARGUMENT') return { state:'failed', code:debt.error.code, message:debt.error.message };
   if (debt.error) return { state:debt.error.code === 'ETIMEDOUT' ? 'retry' : 'core-unavailable', code:debt.error.code === 'ETIMEDOUT' ? 'MEASUREMENT_TIMEOUT' : 'CORE_UNAVAILABLE', message:String(debt.error.message || debt.error).slice(0, 300) };
   if (debt.status !== 0) return { state:'retry', code:'MEASUREMENT_FAILED', message:tail(debt.stderr || debt.stdout) };
   let report;
   try { report = JSON.parse(fs.readFileSync(debtFile, 'utf8')); } catch { return { state:'retry', code:'MEASUREMENT_INVALID', message:'dw debt wrote no readable report.' }; }
   if (!Number.isInteger(report?.report?.summary?.points)) return { state:'retry', code:'MEASUREMENT_INVALID', message:'dw debt reported no point total.' };
-  const bound = run(config.dw, ['envelope', '--repo', root, '--base', base, '--candidate', candidate, '--debt', debtFile, '--out', envelopeFile], { cwd:root, timeout:MEASURE_TIMEOUT_MS });
+  const bound = run(config.dw, ['envelope', '--repo', root, '--base', base, '--candidate', candidate, '--debt', debtFile, '--out', envelopeFile], { cwd:root, timeout:timeoutMs });
   if (bound.error?.code === 'UNSAFE_WINDOWS_ARGUMENT') return { state:'failed', code:bound.error.code, message:bound.error.message };
-  if (bound.error) return { state:'core-unavailable', code:'CORE_UNAVAILABLE', message:String(bound.error.message || bound.error).slice(0, 300) };
+  // A Core that answered `dw debt` and then runs out of time binding the envelope failed this measurement:
+  // it counts as an attempt, as a `dw debt` timeout does, so it reaches the failed state.
+  if (bound.error) return { state:bound.error.code === 'ETIMEDOUT' ? 'retry' : 'core-unavailable', code:bound.error.code === 'ETIMEDOUT' ? 'ENVELOPE_TIMEOUT' : 'CORE_UNAVAILABLE', message:String(bound.error.message || bound.error).slice(0, 300) };
   if (bound.status !== 0) return { state:'retry', code:'ENVELOPE_FAILED', message:tail(bound.stderr || bound.stdout) };
   let envelope;
   try { envelope = JSON.parse(fs.readFileSync(envelopeFile, 'utf8')); } catch { return { state:'retry', code:'ENVELOPE_INVALID', message:'dw envelope wrote no readable envelope.' }; }
@@ -388,7 +396,7 @@ const backoff = (attempts) => new Date(Date.now() + Math.min(60 * 60 * 1000, 30 
 // left by a worker that died, and is measured again.
 // `retry` holds the failed jobs an explicit `--retry-failed` may still take: only the one selected is reset,
 // so the others stay failed if this run stops early.
-function processNextJob(cwd, config, { retry = null } = {}) {
+function processNextJob(cwd, config, { retry = null, measureTimeoutMs = MEASURE_TIMEOUT_MS } = {}) {
   const job = withJobs(cwd, (state) => {
     for (const item of state.jobs) {
       if (item.state === 'measuring') { item.state = 'pending'; item.interrupted = (item.interrupted || 0) + 1; }
@@ -404,7 +412,7 @@ function processNextJob(cwd, config, { retry = null } = {}) {
     return structuredClone(next);
   });
   if (!job) return null;
-  const outcome = measureAndQueue(cwd, config, job);
+  const outcome = measureAndQueue(cwd, config, job, { timeoutMs:measureTimeoutMs });
   withJobs(cwd, (state) => {
     const item = state.jobs.find((entry) => entry.changeId === job.changeId);
     if (!item) return;
@@ -434,7 +442,7 @@ function processNextJob(cwd, config, { retry = null } = {}) {
 
 // The detached worker (also `idleproof portal auto-debt run`). One job per worker-lock hold, so jobs
 // queued meanwhile are taken by the same loop; a second worker finding the lock held just leaves.
-export async function runAutoDebtWorker(cwd = process.cwd(), { fetchImpl = globalThis.fetch, timeoutMs = 3000, retryFailed = false, maxJobs = MAX_JOBS } = {}) {
+export async function runAutoDebtWorker(cwd = process.cwd(), { fetchImpl = globalThis.fetch, timeoutMs = 3000, retryFailed = false, maxJobs = MAX_JOBS, measureTimeoutMs = MEASURE_TIMEOUT_MS } = {}) {
   const config = readAutoDebtConfig(cwd);
   if (!config?.enabled) return { enabled:false, results:[] };
   const results = [];
@@ -447,7 +455,7 @@ export async function runAutoDebtWorker(cwd = process.cwd(), { fetchImpl = globa
   while (taken < maxJobs) {
     let outcome;
     try {
-      outcome = withOwnedLock(projectPaths(cwd).autoDebtWorkerLock, () => processNextJob(cwd, config, { retry }), 'IDLEPROOF_AUTO_DEBT_WORKER_BUSY', 'Automatic debt worker');
+      outcome = withOwnedLock(projectPaths(cwd).autoDebtWorkerLock, () => processNextJob(cwd, config, { retry, measureTimeoutMs }), 'IDLEPROOF_AUTO_DEBT_WORKER_BUSY', 'Automatic debt worker');
     } catch (error) {
       if (error?.code === 'IDLEPROOF_AUTO_DEBT_WORKER_BUSY') { results.push({ state:'busy' }); break; }
       throw error;
@@ -501,4 +509,4 @@ export function autoDebtStatus(cwd = process.cwd(), { probe = true } = {}) {
   };
 }
 
-export const __autoDebtTest = { referenceCommit, configurationKey, measureAndQueue, processNextJob, readJobs, windowsShellLine, MAX_JOBS, MAX_FAILED, MAX_DONE, MAX_ATTEMPTS };
+export const __autoDebtTest = { referenceCommit, configurationKey, measureAndQueue, processNextJob, readJobs, windowsShellLine, MAX_JOBS, MAX_FAILED, MAX_DONE, MAX_SKIPPED, MAX_ATTEMPTS };
