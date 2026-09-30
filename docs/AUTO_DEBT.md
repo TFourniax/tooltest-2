@@ -46,7 +46,10 @@ file stops the feature with an explicit error; it is never replaced by an empty 
 
 **A measurement is taken once.** Before it is queued for Portal, the finished measurement is saved
 beside its job. If the delivery queue refuses it (Portal no longer configured, or its queue full), the
-job waits, and the next attempt queues that same measurement. Core is not run again.
+job waits, and the next attempt queues that same measurement. Core is not run again. A full delivery
+queue is sent by the worker itself, and the measurement is queued in the same run once the queue drains.
+A change Core has measured counts as measured even if its job later fails, so it is never measured
+again automatically.
 
 ## Portal or Core down
 
@@ -60,7 +63,8 @@ job waits, and the next attempt queues that same measurement. Core is not run ag
 ## Manual mode, diagnosis, recalculation
 
 - `idleproof portal auto-debt run [--retry-failed] [--json]` runs the worker by hand.
-  `--retry-failed` gives failed jobs another chance.
+  `--retry-failed` gives each failed job one more attempt during this run. A failed job it does not
+  reach, for example because Core is unavailable, stays failed.
 - `IDLEPROOF_AUTO_DEBT_WORKER=off` makes hooks only queue, and measurement waits for that command.
 - The manual path is unchanged: `dw debt` → `dw envelope` → `idleproof portal assurance --envelope FILE`.
   The same measurement of the same change is the same receipt.
@@ -76,3 +80,6 @@ job waits, and the next attempt queues that same measurement. Core is not run ag
   sessions. An older change fails with `NOT_CORRELATED` and sends nothing.
 - **Measurement configuration.** A change already measured is not measured again automatically, even if
   the Core configuration changes. Use the manual mode to recalculate.
+- **Windows `.cmd`/`.bat` Core launchers.** Windows runs them through `cmd.exe`. IdleProof quotes every
+  argument, but it refuses paths holding `"`, `%`, `!` or a line break (`UNSAFE_WINDOWS_ARGUMENT`), and
+  nothing runs. The `dw.exe` that pip installs runs without a shell and has no such limit.

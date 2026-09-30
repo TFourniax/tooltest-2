@@ -86,8 +86,27 @@ function findOnPath(name) {
   return null;
 }
 
+// Windows starts a .cmd/.bat launcher only through cmd.exe, which receives the arguments unescaped. Each
+// one is therefore double-quoted, which keeps & | < > ^ ( ) and spaces literal in both cmd.exe parses
+// (the command line, then the launcher's %*). The characters quoting cannot protect (" % ! and line
+// breaks) are refused: nothing runs in their presence. Any other launcher runs without a shell.
+const CMD_UNSAFE = /["%!\r\n\0]/;
+function windowsShellLine(command, args) {
+  const values = [command, ...args].map(String);
+  if (values.some((value) => CMD_UNSAFE.test(value))) return null;
+  // Backslashes before the closing quote are doubled so the program does not read an escaped quote.
+  return values.map((value) => `"${value.replace(/(\\+)$/, '$1$1')}"`).join(' ');
+}
+
 function run(command, args, options = {}) {
-  return spawnSync(command, args, { encoding:'utf8', windowsHide:true, maxBuffer:8 * 1024 * 1024, shell:process.platform === 'win32' && /\.(cmd|bat)$/i.test(command), ...options });
+  const settings = { encoding:'utf8', windowsHide:true, maxBuffer:8 * 1024 * 1024, ...options };
+  if (process.platform !== 'win32' || !/\.(cmd|bat)$/i.test(command)) return spawnSync(command, args, settings);
+  const line = windowsShellLine(command, args);
+  if (!line) {
+    const error = autoDebtError('UNSAFE_WINDOWS_ARGUMENT', `The Core launcher ${command} is a .cmd/.bat file, which Windows runs through cmd.exe, and a path given to it contains ", %, ! or a line break, which cmd.exe cannot receive safely; nothing was run. Configure the Core executable instead (\`idleproof portal auto-debt enable --dw <path to dw.exe>\`).`);
+    return { status:null, stdout:'', stderr:'', error };
+  }
+  return spawnSync(line, { ...settings, shell:true });
 }
 
 // The Core CLI, probed where it will run: `dw debt` must exist.
@@ -279,12 +298,14 @@ function measureAndQueue(cwd, config, job) {
   fs.rmSync(debtFile, { force:true }); fs.rmSync(envelopeFile, { force:true });
   // --no-record: the Core ledger is left to the manual `dw debt`; the measurement stays repeatable.
   const debt = run(config.dw, ['debt', '--repo', root, '--base', base, '--candidate', candidate, '--json', debtFile, '--no-record', '--ignore-budget'], { cwd:root, timeout:MEASURE_TIMEOUT_MS });
+  if (debt.error?.code === 'UNSAFE_WINDOWS_ARGUMENT') return { state:'failed', code:debt.error.code, message:debt.error.message };
   if (debt.error) return { state:debt.error.code === 'ETIMEDOUT' ? 'retry' : 'core-unavailable', code:debt.error.code === 'ETIMEDOUT' ? 'MEASUREMENT_TIMEOUT' : 'CORE_UNAVAILABLE', message:String(debt.error.message || debt.error).slice(0, 300) };
   if (debt.status !== 0) return { state:'retry', code:'MEASUREMENT_FAILED', message:tail(debt.stderr || debt.stdout) };
   let report;
   try { report = JSON.parse(fs.readFileSync(debtFile, 'utf8')); } catch { return { state:'retry', code:'MEASUREMENT_INVALID', message:'dw debt wrote no readable report.' }; }
   if (!Number.isInteger(report?.report?.summary?.points)) return { state:'retry', code:'MEASUREMENT_INVALID', message:'dw debt reported no point total.' };
   const bound = run(config.dw, ['envelope', '--repo', root, '--base', base, '--candidate', candidate, '--debt', debtFile, '--out', envelopeFile], { cwd:root, timeout:MEASURE_TIMEOUT_MS });
+  if (bound.error?.code === 'UNSAFE_WINDOWS_ARGUMENT') return { state:'failed', code:bound.error.code, message:bound.error.message };
   if (bound.error) return { state:'core-unavailable', code:'CORE_UNAVAILABLE', message:String(bound.error.message || bound.error).slice(0, 300) };
   if (bound.status !== 0) return { state:'retry', code:'ENVELOPE_FAILED', message:tail(bound.stderr || bound.stdout) };
   let envelope;
@@ -300,7 +321,13 @@ function measureAndQueue(cwd, config, job) {
   return queueMeasurement(cwd, job, measurement);
 }
 
-function queueMeasurement(cwd, job, { configKey, core, snapshot }) {
+// Every outcome here follows a Core measurement: `measurementTaken` records the change as measured, so it is
+// never measured again, even if its job later fails and leaves the list.
+function queueMeasurement(cwd, job, measurement) {
+  return { ...queueKeptMeasurement(cwd, job, measurement), measurementTaken:true };
+}
+
+function queueKeptMeasurement(cwd, job, { configKey, core, snapshot }) {
   let queued;
   try { queued = queueAssuranceReceipt(cwd, snapshot); }
   catch (error) { return { state:'retry', code:error?.code || 'RECEIPT_QUEUE_FAILED', message:String(error?.message || error).slice(0, 300) }; }
@@ -327,13 +354,18 @@ const backoff = (attempts) => new Date(Date.now() + Math.min(60 * 60 * 1000, 30 
 
 // Called with the worker lock held: nobody else is measuring, so a job still marked `measuring` was
 // left by a worker that died, and is measured again.
-function processNextJob(cwd, config, { retryFailed = false } = {}) {
+// `retry` holds the failed jobs an explicit `--retry-failed` may still take: only the one selected is reset,
+// so the others stay failed if this run stops early.
+function processNextJob(cwd, config, { retry = null } = {}) {
   const job = withJobs(cwd, (state) => {
     for (const item of state.jobs) {
       if (item.state === 'measuring') { item.state = 'pending'; item.interrupted = (item.interrupted || 0) + 1; }
-      if (retryFailed && item.state === 'failed') { item.state = 'pending'; item.attempts = 0; item.retryAfter = null; }
     }
-    const next = state.jobs.find((item) => item.state === 'pending' && (!item.retryAfter || Date.parse(item.retryAfter) <= Date.now()));
+    let next = state.jobs.find((item) => item.state === 'pending' && (!item.retryAfter || Date.parse(item.retryAfter) <= Date.now()));
+    if (!next && retry) {
+      next = state.jobs.find((item) => item.state === 'failed' && retry.has(item.changeId));
+      if (next) { retry.delete(next.changeId); Object.assign(next, { attempts:0, retryAfter:null }); }
+    }
     if (!next) return null;
     next.state = 'measuring';
     next.lastAttemptAt = new Date().toISOString();
@@ -345,6 +377,7 @@ function processNextJob(cwd, config, { retryFailed = false } = {}) {
     const item = state.jobs.find((entry) => entry.changeId === job.changeId);
     if (!item) return;
     const error = outcome.code ? { code:outcome.code, message:outcome.message ?? null, at:new Date().toISOString() } : null;
+    if (outcome.measurementTaken && !state.measured.includes(job.changeId)) state.measured.push(job.changeId);
     if (outcome.state === 'done') {
       state.jobs = state.jobs.filter((entry) => entry.changeId !== job.changeId);
       state.done = [...state.done.filter((entry) => entry.changeId !== job.changeId), { changeId:job.changeId, configKey:outcome.configKey, core:outcome.core,
@@ -373,23 +406,33 @@ export async function runAutoDebtWorker(cwd = process.cwd(), { fetchImpl = globa
   const config = readAutoDebtConfig(cwd);
   if (!config?.enabled) return { enabled:false, results:[] };
   const results = [];
-  let first = true;
+  const flush = () => flushPortalQueue(cwd, { fetchImpl, timeoutMs }).catch((error) => ({ ok:false, errorCode:error?.code || 'DELIVERY_FAILED' }));
+  let retry = null;
+  if (retryFailed) { try { retry = new Set(readJobs(cwd).jobs.filter((job) => job.state === 'failed').map((job) => job.changeId)); } catch { retry = null; } }
+  let delivery = null;
+  let drained = false;
   while (results.length < maxJobs) {
     let outcome;
     try {
-      outcome = withOwnedLock(projectPaths(cwd).autoDebtWorkerLock, () => processNextJob(cwd, config, { retryFailed:retryFailed && first }), 'IDLEPROOF_AUTO_DEBT_WORKER_BUSY', 'Automatic debt worker');
+      outcome = withOwnedLock(projectPaths(cwd).autoDebtWorkerLock, () => processNextJob(cwd, config, { retry }), 'IDLEPROOF_AUTO_DEBT_WORKER_BUSY', 'Automatic debt worker');
     } catch (error) {
       if (error?.code === 'IDLEPROOF_AUTO_DEBT_WORKER_BUSY') { results.push({ state:'busy' }); break; }
       throw error;
     }
-    first = false;
     if (!outcome) break;
     results.push(outcome);
+    // A full delivery queue is sent once (outside the worker lock); the kept measurement is then queued
+    // again in this run if the queue drained, or left waiting for the next run.
+    if (outcome.code === 'PORTAL_QUEUE_FULL' && !drained) {
+      drained = true;
+      delivery = await flush();
+      if (delivery.ok) continue;
+    }
     // The same unavailable Core or destination would fail every remaining job the same way.
     if (outcome.state === 'core-unavailable' || outcome.state === 'waiting') break;
   }
-  // The network is used only now, outside the worker lock, through the existing delivery queue.
-  const delivery = results.some((item) => item.state === 'done') ? await flushPortalQueue(cwd, { fetchImpl, timeoutMs }).catch((error) => ({ ok:false, errorCode:error?.code || 'DELIVERY_FAILED' })) : null;
+  // The network is used only outside the worker lock, through the existing delivery queue.
+  if (results.some((item) => item.state === 'done')) delivery = await flush();
   return { enabled:true, results, delivery };
 }
 
@@ -423,4 +466,4 @@ export function autoDebtStatus(cwd = process.cwd(), { probe = true } = {}) {
   };
 }
 
-export const __autoDebtTest = { referenceCommit, configurationKey, measureAndQueue, processNextJob, readJobs, MAX_JOBS, MAX_FAILED, MAX_DONE, MAX_ATTEMPTS };
+export const __autoDebtTest = { referenceCommit, configurationKey, measureAndQueue, processNextJob, readJobs, windowsShellLine, MAX_JOBS, MAX_FAILED, MAX_DONE, MAX_ATTEMPTS };

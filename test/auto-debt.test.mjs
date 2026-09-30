@@ -7,7 +7,7 @@ import path from 'node:path';
 import { execFileSync, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { processHookLifecycle } from '../src/hook.mjs';
-import { writePortalConfig } from '../src/portal-client.mjs';
+import { buildCurrentPortalSnapshot, writePortalConfig } from '../src/portal-client.mjs';
 import { autoDebtStatus, disableAutoDebt, enableAutoDebt, enqueueAutoDebt, runAutoDebtWorker, scheduleAutoDebt, __autoDebtTest } from '../src/auto-debt.mjs';
 import { syncPortalAssurance, readChangeEnvelope } from '../src/portal-assurance.mjs';
 import { projectPaths } from '../src/paths.mjs';
@@ -33,8 +33,8 @@ function fakeDw(dir) {
   return file;
 }
 
-function project({ endpoint = 'http://127.0.0.1:9/api/v1/snapshots' } = {}) {
-  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'idleproof-auto-debt-'));
+function project({ endpoint = 'http://127.0.0.1:9/api/v1/snapshots', prefix = 'idleproof-auto-debt-' } = {}) {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
   git(cwd, 'init', '-q', '-b', 'main'); git(cwd, 'config', 'user.name', 'Auto Debt'); git(cwd, 'config', 'user.email', 'auto-debt@example.invalid');
   fs.writeFileSync(path.join(cwd, 'app.py'), 'def total(items):\n    return sum(items)\n');
   git(cwd, 'add', '-A'); git(cwd, 'commit', '-qm', 'initial');
@@ -275,6 +275,12 @@ test('a measurement whose earlier receipt is no longer kept is reported failed, 
     assert.equal(change.lastError.code, 'IDLEPROOF_ASSURANCE_NOT_RETAINED');
     assert.equal(change.delivery, undefined);
     assert.equal(withAssurance(received).length, 1);
+    // Core did measure it: once its failed job leaves the list, completing it again measures nothing.
+    const after = __autoDebtTest.readJobs(p.cwd);
+    assert.equal(after.measured.includes(job.changeId), true);
+    fs.writeFileSync(projectPaths(p.cwd).autoDebtJobs, JSON.stringify({ ...after, jobs:[] }));
+    const identity = { available:true, changeId:job.changeId, repository:{ fingerprint:'dwrepo_x' }, base:{ tree:job.base.tree, sha:null }, candidate:{ tree:job.candidate.tree, sha:null } };
+    assert.equal(enqueueAutoDebt(p.cwd, identity).reason, 'already-measured');
   } finally { p.done(); }
 });
 
@@ -372,6 +378,60 @@ test('a measurement the delivery queue refused is kept and sent later, without m
     assert.equal(withAssurance(received)[0].assurance.softwareDebt.points, 8);
     assert.equal(autoDebtStatus(p.cwd, { probe:false }).changes.find((item) => item.changeId === sent.results[0].changeId).delivery, 'delivered');
   } finally { delete process.env.FAKE_DW_LOG; cleanup(log); p.done(); }
+});
+
+test('Core arguments reach the launcher literally, whatever the repository path holds', async () => {
+  // cmd.exe runs a .cmd/.bat launcher on Windows: every argument is quoted, and what quoting cannot
+  // protect is refused before anything runs.
+  const line = __autoDebtTest.windowsShellLine('C:\\Tools\\dw.cmd', ['debt', '--repo', 'C:\\work\\a&b (x)|y\\', '--base', 'abc']);
+  assert.equal(line, '"C:\\Tools\\dw.cmd" "debt" "--repo" "C:\\work\\a&b (x)|y\\\\" "--base" "abc"');
+  for (const unsafe of ['C:\\100%\\x', 'C:\\a"b', 'C:\\wow!', 'C:\\a\nb']) assert.equal(__autoDebtTest.windowsShellLine('C:\\dw.cmd', ['--repo', unsafe]), null);
+  // A real measurement from a repository whose path holds shell metacharacters (through the .cmd
+  // launcher and cmd.exe on Windows).
+  const p = project({ prefix:'idleproof-auto-debt-a&b (x)-' });
+  const received = [];
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    completeChange(p.cwd, 'app.py', 'def total(items):\n    # TODO: check\n    return sum(items)\n');
+    const run = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received) });
+    assert.equal(run.results[0].state, 'done');
+    assert.equal(withAssurance(received).length, 1);
+  } finally { p.done(); }
+});
+
+test('an explicit retry resets only the failed job it takes; the others stay failed', async () => {
+  const p = project();
+  const received = [];
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    const failedJob = (n) => ({ changeId:`dwchg_${String(n).padStart(24, '0')}`, repository:null, base:{ tree:'a'.repeat(40), commit:null }, candidate:{ tree:'b'.repeat(40), commit:null },
+      enqueuedAt:'2026-01-01T00:00:00.000Z', state:'failed', attempts:5, lastError:{ code:'MEASUREMENT_FAILED', message:'x', at:'2026-01-01T00:00:00.000Z' }, lastAttemptAt:null, retryAfter:null });
+    fs.writeFileSync(projectPaths(p.cwd).autoDebtJobs, JSON.stringify({ schema:'idleproof.auto-debt-jobs.v1', jobs:[failedJob(1), failedJob(2)], done:[], measured:[], skipped:[], skippedTotal:0, degraded:false }));
+    // Core is gone: the run stops at the first job it takes.
+    fs.rmSync(p.dw);
+    const run = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received), retryFailed:true });
+    assert.deepEqual(run.results.map((item) => [item.changeId, item.state]), [[failedJob(1).changeId, 'core-unavailable']]);
+    const states = Object.fromEntries(__autoDebtTest.readJobs(p.cwd).jobs.map((job) => [job.changeId, job.state]));
+    assert.equal(states[failedJob(1).changeId], 'pending');
+    assert.equal(states[failedJob(2).changeId], 'failed');
+  } finally { p.done(); }
+});
+
+test('a full delivery queue is sent by the worker, then the kept measurement is queued in the same run', async () => {
+  const p = project();
+  const received = [];
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    completeChange(p.cwd, 'app.py', 'def total(items):\n    # TODO: check\n    return sum(items)\n');
+    // The Portal delivery queue is already full of older receipts.
+    const older = buildCurrentPortalSnapshot(p.cwd);
+    fs.writeFileSync(projectPaths(p.cwd).portalQueue, JSON.stringify(Array.from({ length:200 }, () => older)));
+    const run = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received) });
+    assert.deepEqual(run.results.map((item) => [item.state, item.code ?? null]), [['waiting', 'PORTAL_QUEUE_FULL'], ['done', null]]);
+    assert.equal(received.some((item) => item.snapshotId === older.snapshotId), true);
+    assert.equal(withAssurance(received).length, 1);
+    assert.equal(queued(p.cwd).length, 0);
+  } finally { p.done(); }
 });
 
 test('references that no longer match are refused, never sent under another change', async () => {
