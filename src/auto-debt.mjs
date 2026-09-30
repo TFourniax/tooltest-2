@@ -235,38 +235,49 @@ function resolveFailedDropped(state, changeId) {
   state.failedDropped = state.failedDroppedIds.length;
 }
 
-// Called by the hook that completed the change: records its exact references, nothing else.
-export function enqueueAutoDebt(cwd, identity, { now = new Date() } = {}) {
-  const config = readAutoDebtConfig(cwd);
-  if (!config?.enabled) return { queued:false, reason:'disabled' };
+// The exact references of a completed change, or why there are none.
+function exactChange(identity) {
   const changeId = identity?.changeId;
   if (!identity?.available || !CHANGE_ID.test(String(changeId || '')) || !OBJECT_ID.test(String(identity.base?.tree || '')) || !OBJECT_ID.test(String(identity.candidate?.tree || ''))) {
     return { queued:false, reason:'no-exact-change' };
   }
   if (identity.base.tree === identity.candidate.tree) return { queued:false, reason:'empty-change', changeId };
+  return null;
+}
+
+// Called by the hook that completed the change: records its exact references, nothing else.
+export function enqueueAutoDebt(cwd, identity, { now = new Date() } = {}) {
+  const config = readAutoDebtConfig(cwd);
+  if (!config?.enabled) return { queued:false, reason:'disabled' };
+  const refused = exactChange(identity);
+  if (refused) return refused;
+  return withJobs(cwd, (state) => admitJob(cwd, state, identity, now));
+}
+
+// Under the queue lock.
+function admitJob(cwd, state, identity, now) {
+  const changeId = identity.changeId;
   const reference = (side) => ({ tree:side.tree, commit:OBJECT_ID.test(String(side.sha || '')) ? side.sha : null });
-  return withJobs(cwd, (state) => {
-    // Checked again under the lock, which `disable` also holds: a change completed as automatic debt is being
-    // disabled is either queued before, or not at all.
-    if (!readAutoDebtConfig(cwd)?.enabled) return { queued:false, reason:'disabled' };
-    if (state.jobs.some((job) => job.changeId === changeId)) return { queued:false, reason:'already-queued', changeId, pending:state.jobs.length };
-    if (state.measured.includes(changeId)) return { queued:false, reason:'already-measured', changeId, pending:state.jobs.length };
-    // Failed jobs never run again on their own, so they do not take the place of new changes.
-    if (state.jobs.filter((job) => job.state !== 'failed').length >= MAX_JOBS) {
-      // The same change presented again (Stop, then SessionEnd) is one not-measured change, even once its
-      // details have left the bounded list.
-      if (!state.skippedIds.includes(changeId)) state.skippedIds.push(changeId);
-      state.skippedTotal = state.skippedIds.length;
-      state.degraded = true;
-      state.skipped = [...state.skipped.filter((item) => item.changeId !== changeId), { changeId, at:now.toISOString(), base:reference(identity.base), candidate:reference(identity.candidate) }].slice(-MAX_SKIPPED);
-      return { queued:false, reason:'queue-full', changeId, pending:state.jobs.length };
-    }
-    state.jobs.push({ changeId, repository:identity.repository?.fingerprint ?? null, base:reference(identity.base), candidate:reference(identity.candidate),
-      enqueuedAt:now.toISOString(), state:'pending', attempts:0, lastError:null, lastAttemptAt:null, retryAfter:null });
-    resolveSkipped(state, changeId);
-    resolveFailedDropped(state, changeId);
-    return { queued:true, changeId, pending:state.jobs.length };
-  });
+  // Checked again under the lock, which `disable` also holds: a change completed as automatic debt is being
+  // disabled is either queued before, or not at all.
+  if (!readAutoDebtConfig(cwd)?.enabled) return { queued:false, reason:'disabled' };
+  if (state.jobs.some((job) => job.changeId === changeId)) return { queued:false, reason:'already-queued', changeId, pending:state.jobs.length };
+  if (state.measured.includes(changeId)) return { queued:false, reason:'already-measured', changeId, pending:state.jobs.length };
+  // Failed jobs never run again on their own, so they do not take the place of new changes.
+  if (state.jobs.filter((job) => job.state !== 'failed').length >= MAX_JOBS) {
+    // The same change presented again (Stop, then SessionEnd) is one not-measured change, even once its
+    // details have left the bounded list.
+    if (!state.skippedIds.includes(changeId)) state.skippedIds.push(changeId);
+    state.skippedTotal = state.skippedIds.length;
+    state.degraded = true;
+    state.skipped = [...state.skipped.filter((item) => item.changeId !== changeId), { changeId, at:now.toISOString(), base:reference(identity.base), candidate:reference(identity.candidate) }].slice(-MAX_SKIPPED);
+    return { queued:false, reason:'queue-full', changeId, pending:state.jobs.length };
+  }
+  state.jobs.push({ changeId, repository:identity.repository?.fingerprint ?? null, base:reference(identity.base), candidate:reference(identity.candidate),
+    enqueuedAt:now.toISOString(), state:'pending', attempts:0, lastError:null, lastAttemptAt:null, retryAfter:null });
+  resolveSkipped(state, changeId);
+  resolveFailedDropped(state, changeId);
+  return { queued:true, changeId, pending:state.jobs.length };
 }
 
 // A measurement sent through the manual path (`idleproof portal assurance`) settles the automatic job of
@@ -290,20 +301,32 @@ export function settleWithManualAssurance(cwd, changeId, { snapshotId = null, so
   });
 }
 
-// A DiffWitness measurement that the IDE hook could not queue for Portal (not configured, queue full or
-// unavailable) is kept as the measurement of this change's automatic job: the worker then retries its
-// delivery and never runs Core again for it. Written under the queue lock, so never after a reset; a change
-// already measured, or being measured by a worker, keeps its own measurement.
-export function keepNativeMeasurement(cwd, snapshot) {
+// A DiffWitness measurement of a completed change, kept by the IDE hook as the measurement of that change's
+// automatic job before it is queued for Portal: if the Portal queue refuses it (not configured, full or
+// unavailable), the job delivers it later and Core never runs again for that change. It is kept only with a
+// job that can deliver it, in the same queue-lock hold: the job already queued for the change (a failed one
+// becomes due again), or the job that the identity of an accepted Stop admits now. Never after a reset; a
+// change already measured, or being measured by a worker, keeps its own measurement.
+export function keepNativeMeasurement(cwd, snapshot, { identity = null, now = new Date() } = {}) {
   const changeId = snapshot?.change?.changeId;
   if (!CHANGE_ID.test(String(changeId || '')) || !snapshot?.assurance?.softwareDebt) return { kept:false, reason:'no-debt' };
   if (!readAutoDebtConfig(cwd)?.enabled) return { kept:false, reason:'disabled' };
+  const admits = identity?.changeId === changeId && !exactChange(identity);
   return withJobs(cwd, (state) => {
+    if (!readAutoDebtConfig(cwd)?.enabled) return { kept:false, reason:'disabled', changeId };
     if (state.measured.includes(changeId)) return { kept:false, reason:'already-measured', changeId };
-    if (state.jobs.find((item) => item.changeId === changeId)?.state === 'measuring') return { kept:false, reason:'measuring', changeId };
+    let job = state.jobs.find((item) => item.changeId === changeId);
+    if (job?.state === 'measuring') return { kept:false, reason:'measuring', changeId };
+    if (!job) {
+      if (!admits) return { kept:false, reason:'no-job', changeId };
+      const admitted = admitJob(cwd, state, identity, now);
+      if (!admitted.queued) return { kept:false, reason:admitted.reason, changeId };
+      job = state.jobs.find((item) => item.changeId === changeId);
+    }
     const work = path.join(projectPaths(cwd).autoDebtWork, changeId);
     fs.mkdirSync(work, { recursive:true, mode:0o700 });
     atomicJson(path.join(work, 'receipt.json'), { changeId, configKey:null, core:null, source:'ide', snapshot });
+    if (job.state === 'failed') Object.assign(job, { state:'pending', attempts:0, retryAfter:null });
     return { kept:true, changeId };
   });
 }

@@ -38,8 +38,9 @@ function combineStopOutput(idleOutput,diffResult){
   return diffOutput;
 }
 
-function queueAssurance(cwd) {
-  try { queueMatchingDiffWitnessAssurance(cwd); }
+// `autoDebtIdentity`: the completion that may admit its automatic job with this receipt (an accepted Stop).
+function queueAssurance(cwd, autoDebtIdentity=null) {
+  try { queueMatchingDiffWitnessAssurance(cwd,{autoDebtIdentity}); }
   catch { console.error('[idleproof-hook] Portal assurance queue unavailable; native assurance result preserved.'); }
 }
 
@@ -74,14 +75,16 @@ async function run() {
     }
     if(eventName==='Stop'){
       output=combineStopOutput(output,diffResult);
-      queueAssurance(cwd);
-      if(output?.decision!=='block') autoDebt();
+      const accepted=output?.decision!=='block';
+      queueAssurance(cwd,accepted?lifecycle?.completedIdentity??null:null);
+      if(accepted) autoDebt();
     }
   } else if(['SessionEnd','SubagentStop'].includes(eventName)) {
-    queueAssurance(cwd);
     // SessionEnd carries no DiffWitness verdict. Where the native Stop judges completions, only an accepted
     // Stop queues one: SessionEnd then only resumes the queued jobs, so a blocked completion stays unqueued.
-    if(eventName==='SessionEnd') autoDebt({resumeOnly:diffWitnessGateConfigured(cwd)});
+    const admits=eventName==='SessionEnd' && !diffWitnessGateConfigured(cwd);
+    queueAssurance(cwd,admits?lifecycle?.completedIdentity??null:null);
+    if(eventName==='SessionEnd') autoDebt({resumeOnly:!admits});
   }
 
   if(advisoryWarning) output={...(output||{}),systemMessage:[output?.systemMessage,advisoryWarning].filter(Boolean).join('\n')};

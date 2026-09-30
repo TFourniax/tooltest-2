@@ -138,15 +138,16 @@ async function run() {
     return;
   }
   if(nativeName==='stop'){
-    queueMatchingDiffWitnessAssurance(cwd);
     const stopOutput=cursorStopOutput(diffResult);
+    queueMatchingDiffWitnessAssurance(cwd,{ autoDebtIdentity:stopOutput?null:lifecycle?.completedIdentity??null });
     if(!stopOutput) scheduleAutoDebt(cwd,lifecycle?.completedIdentity);
     if(stopOutput)process.stdout.write(`${JSON.stringify(stopOutput)}\n`);
     return;
   }
-  if (['sessionEnd','subagentStop'].includes(nativeName)) queueMatchingDiffWitnessAssurance(cwd);
   // sessionEnd carries no DiffWitness verdict: where the native stop judges completions, it only resumes queued jobs.
-  if (nativeName==='sessionEnd') scheduleAutoDebt(cwd,diffWitnessGateConfigured(cwd)?null:lifecycle?.completedIdentity);
+  const admits=nativeName==='sessionEnd' && !diffWitnessGateConfigured(cwd);
+  if (['sessionEnd','subagentStop'].includes(nativeName)) queueMatchingDiffWitnessAssurance(cwd,{ autoDebtIdentity:admits?lifecycle?.completedIdentity??null:null });
+  if (nativeName==='sessionEnd') scheduleAutoDebt(cwd,admits?lifecycle?.completedIdentity:null);
 }
 
 run().catch((error)=>{

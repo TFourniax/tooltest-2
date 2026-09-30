@@ -703,6 +703,9 @@ test('a DiffWitness measurement that the Portal queue refuses is kept for the au
     const refused = hook();
     assert.equal(refused.queued, false);
     assert.equal(refused.kept.kept, true);
+    // Retained by its job, the refused receipt is not counted as a lost snapshot.
+    assert.equal(portalStatus(p.cwd).skippedSnapshots, 0);
+    assert.equal(portalStatus(p.cwd).degraded, false);
     const drained = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received) });
     assert.equal(fs.existsSync(log), false, 'Core is not run again for a change the IDE hook measured');
     assert.equal(drained.results.at(-1).state, 'done');
@@ -730,6 +733,73 @@ test('a DiffWitness measurement that the Portal queue refuses is kept for the au
       assert.equal(change.source, 'ide');
       assert.equal(change.points, 8);
     }
+  } finally { delete process.env.FAKE_DW_LOG; for (const file of [log, debtFile]) cleanup(file); p.done(); }
+});
+
+test('an IDE receipt is kept only with a job that can deliver it: the job an accepted Stop admits, never none', async () => {
+  const p = project();
+  const received = [];
+  const log = path.join(p.cwd, '..', `${path.basename(p.cwd)}-dw.log`);
+  const debtFile = path.join(p.cwd, '..', `${path.basename(p.cwd)}-debt.json`);
+  const envelopeFile = path.join(p.cwd, '.git', 'diffwitness', 'change-envelope.json');
+  // The hook also schedules a detached flush; an invalid NODE_OPTIONS makes that child exit at startup.
+  const hook = (autoDebtIdentity) => {
+    const nodeOptions = process.env.NODE_OPTIONS;
+    process.env.NODE_OPTIONS = '--idleproof-test-no-background-flush';
+    try { return queueMatchingDiffWitnessAssurance(p.cwd, { autoDebtIdentity }); }
+    finally { if (nodeOptions === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = nodeOptions; }
+  };
+  // A native Stop: IdleProof records the completion and leaves its automatic job to the runner; DiffWitness
+  // measures it and leaves its envelope.
+  const nativeCompletion = (file) => {
+    const session_id = `native-test-${Math.random().toString(16).slice(2)}`;
+    processHookLifecycle({ cwd:p.cwd, session_id, source:'claude', hook_event_name:'UserPromptSubmit', prompt:`write ${file}` });
+    fs.writeFileSync(path.join(p.cwd, file), 'def total(items):\n    # TODO: check\n    return sum(items)\n');
+    const { completedIdentity } = processHookLifecycle({ cwd:p.cwd, session_id, source:'claude', hook_event_name:'Stop' }, { deferAutoDebt:true });
+    git(p.cwd, 'add', '-A'); git(p.cwd, 'commit', '-qm', `change ${file}`);
+    fs.mkdirSync(path.dirname(envelopeFile), { recursive:true });
+    execFileSync(process.execPath, [FAKE_DW, 'debt', '--repo', p.cwd, '--base', 'HEAD~1', '--candidate', 'HEAD', '--json', debtFile], { cwd:p.cwd });
+    execFileSync(process.execPath, [FAKE_DW, 'envelope', '--repo', p.cwd, '--base', 'HEAD~1', '--candidate', 'HEAD', '--debt', debtFile, '--out', envelopeFile], { cwd:p.cwd });
+    return completedIdentity;
+  };
+  const keptFile = (changeId) => path.join(projectPaths(p.cwd).autoDebtWork, changeId, 'receipt.json');
+  const jobOf = (changeId) => __autoDebtTest.readJobs(p.cwd).jobs.find((job) => job.changeId === changeId);
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    process.env.FAKE_DW_LOG = log;
+    // The accepted Stop's identity admits the job and keeps the receipt in one step; the full Portal queue does
+    // not count it as lost, and the job delivers it without running Core.
+    const first = nativeCompletion('app.py');
+    assert.equal(jobOf(first.changeId), undefined);
+    fs.writeFileSync(projectPaths(p.cwd).portalQueue, JSON.stringify(Array.from({ length:200 }, () => buildCurrentPortalSnapshot(p.cwd))));
+    const skippedBefore = portalStatus(p.cwd).skippedSnapshots;
+    fs.rmSync(log, { force:true });
+    const admitted = hook(first);
+    assert.equal(admitted.queued, false);
+    assert.equal(admitted.kept.kept, true);
+    assert.equal(jobOf(first.changeId)?.state, 'pending');
+    assert.equal(portalStatus(p.cwd).skippedSnapshots, skippedBefore);
+    const run = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received) });
+    assert.equal(run.results.at(-1).state, 'done');
+    assert.equal(fs.existsSync(log), false, 'Core is not run for the kept receipt');
+    assert.equal(withAssurance(received).filter((item) => item.change?.changeId === first.changeId).length, 1);
+    // The Portal queue is full again. No job and no accepted Stop (a blocked one, or SessionEnd): the receipt
+    // is not kept.
+    const second = nativeCompletion('other.py');
+    fs.writeFileSync(projectPaths(p.cwd).portalQueue, JSON.stringify(Array.from({ length:200 }, () => buildCurrentPortalSnapshot(p.cwd))));
+    assert.equal(hook(null).kept.reason, 'no-job');
+    assert.equal(fs.existsSync(keptFile(second.changeId)), false);
+    // The automatic debt queue is full: the accepted Stop cannot admit a job, so nothing is kept for one; the
+    // change is reported as not measured.
+    for (let n = 1; n <= __autoDebtTest.MAX_JOBS; n += 1) {
+      enqueueAutoDebt(p.cwd, { available:true, changeId:`dwchg_${String(n).padStart(24, '0')}`, repository:{ fingerprint:'dwrepo_x' }, base:{ tree:'a'.repeat(40), sha:null }, candidate:{ tree:String(n).padStart(40, 'b'), sha:null } });
+    }
+    const full = hook(second);
+    assert.equal(full.kept.kept, false);
+    assert.equal(full.kept.reason, 'queue-full');
+    assert.equal(fs.existsSync(keptFile(second.changeId)), false);
+    assert.equal(jobOf(second.changeId), undefined);
+    assert.ok(autoDebtStatus(p.cwd, { probe:false }).skipped.some((item) => item.changeId === second.changeId));
   } finally { delete process.env.FAKE_DW_LOG; for (const file of [log, debtFile]) cleanup(file); p.done(); }
 });
 
