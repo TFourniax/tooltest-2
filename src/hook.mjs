@@ -146,7 +146,9 @@ function loadingOutput(cwd, state, event) {
   };
 }
 
-export function processHookLifecycle(event = {}) {
+// `deferAutoDebt`: the native IDE runners schedule automatic debt themselves, once the native DiffWitness
+// Stop has accepted the completion (see bin/idleproof-hook.mjs and src/cursor-hook-cli.mjs).
+export function processHookLifecycle(event = {}, { deferAutoDebt = false } = {}) {
   const cwd = event.cwd || process.cwd();
   const eventName = event.hook_event_name || event.type || 'event';
   let policyDecision = eventName === 'PreToolUse'
@@ -294,7 +296,7 @@ export function processHookLifecycle(event = {}) {
   // Automatic debt (when enabled): only a small job file is written here; a detached worker measures.
   // A session start also resumes jobs left by an interrupted worker or an unavailable Core.
   let autoDebt = null;
-  if (['Stop', 'SessionEnd', 'generic-stop', 'SessionStart'].includes(eventName)) autoDebt = scheduleAutoDebt(cwd, completedIdentity);
+  if (!deferAutoDebt && ['Stop', 'SessionEnd', 'generic-stop', 'SessionStart'].includes(eventName)) autoDebt = scheduleAutoDebt(cwd, completedIdentity);
 
   const hookOutput = policyDecision
     ? policyDecisionOutput(event, policyDecision)
@@ -313,6 +315,7 @@ export function processHookLifecycle(event = {}) {
     attestationError,
     portalSync,
     autoDebt,
+    completedIdentity,
     hookOutput
   };
 }

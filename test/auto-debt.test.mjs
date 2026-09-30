@@ -932,7 +932,13 @@ test('a queue holding a damaged record is reported as corrupt, never read as val
   try {
     enableAutoDebt(p.cwd, { dw:p.dw });
     const base = { schema:'idleproof.auto-debt-jobs.v1', jobs:[], done:[], measured:[], skipped:[], skippedTotal:0, degraded:false };
-    for (const damaged of [{ jobs:[null] }, { jobs:[{ changeId:`dwchg_${'1'.repeat(24)}`, state:'unknown' }] }, { done:[null] }, { skipped:[42] }]) {
+    const job = { changeId:`dwchg_${'1'.repeat(24)}`, repository:null, base:{ tree:'a'.repeat(40), commit:null }, candidate:{ tree:'b'.repeat(40), commit:null },
+      enqueuedAt:'2026-01-01T00:00:00.000Z', state:'pending', attempts:0, lastError:null, lastAttemptAt:null, retryAfter:null };
+    fs.writeFileSync(projectPaths(p.cwd).autoDebtJobs, JSON.stringify({ ...base, jobs:[job] }));
+    assert.equal(__autoDebtTest.readJobs(p.cwd).jobs.length, 1, 'a complete job is accepted');
+    const { base:_base, candidate:_candidate, ...withoutReferences } = job;
+    for (const damaged of [{ jobs:[null] }, { jobs:[{ ...job, state:'unknown' }] }, { jobs:[withoutReferences] }, { jobs:[{ ...job, candidate:{ tree:'nope', commit:null } }] },
+      { jobs:[{ ...job, attempts:'1' }] }, { jobs:[{ ...job, retryAfter:'not a time' }] }, { done:[null] }, { skipped:[42] }]) {
       fs.writeFileSync(projectPaths(p.cwd).autoDebtJobs, JSON.stringify({ ...base, ...damaged }));
       assert.equal(autoDebtStatus(p.cwd, { probe:false }).errorCode, 'IDLEPROOF_AUTO_DEBT_STATE_CORRUPT', JSON.stringify(damaged));
       assert.throws(() => __autoDebtTest.readJobs(p.cwd), (error) => error.code === 'IDLEPROOF_AUTO_DEBT_STATE_CORRUPT');
@@ -940,6 +946,35 @@ test('a queue holding a damaged record is reported as corrupt, never read as val
     const status = spawnSync(process.execPath, [CLI, 'portal', 'auto-debt', 'status', '--json'], { cwd:p.cwd, encoding:'utf8' });
     assert.equal(JSON.parse(status.stdout).errorCode, 'IDLEPROOF_AUTO_DEBT_STATE_CORRUPT');
   } finally { p.done(); }
+});
+
+test('the native IDE runners start automatic debt only for a Stop that DiffWitness accepts', () => {
+  const claudeRunner = path.join(HERE, '..', 'bin', 'idleproof-hook.mjs');
+  const cursorRunner = path.join(HERE, '..', 'src', 'cursor-hook-cli.mjs');
+  for (const runner of ['claude', 'cursor']) {
+    const p = project();
+    try {
+      enableAutoDebt(p.cwd, { dw:p.dw });
+      const hook = (eventName) => spawnSync(process.execPath,
+        runner === 'cursor' ? [cursorRunner, { UserPromptSubmit:'beforeSubmitPrompt', Stop:'stop' }[eventName]] : [claudeRunner, 'claude'],
+        { cwd:p.cwd, input:JSON.stringify({ cwd:p.cwd, session_id:`runner-${runner}`, hook_event_name:eventName, prompt:'Update app.py so total documents its check' }), encoding:'utf8',
+          env:{ ...process.env, IDLEPROOF_AUTO_DEBT_WORKER:'off' } });
+      // DiffWitness is required for this project and cannot run: the native Stop blocks the completion.
+      const integration = path.join(projectPaths(p.cwd).dir, 'diffwitness.json');
+      fs.writeFileSync(integration, JSON.stringify({ schema:'diffwitness.integration-config.v1', requireDiffWitness:true, diffWitnessCommand:path.join(p.cwd, 'missing-engine'), adapters:['claude', 'codex', 'cursor'] }));
+      assert.equal(hook('UserPromptSubmit').status, 0);
+      fs.writeFileSync(path.join(p.cwd, 'app.py'), 'def total(items):\n    # TODO: check\n    return sum(items)\n');
+      const blocked = hook('Stop');
+      assert.equal(blocked.status, 0, blocked.stderr);
+      assert.equal(JSON.parse(blocked.stdout.trim()).decision, 'block', runner);
+      assert.equal(__autoDebtTest.readJobs(p.cwd).jobs.length, 0, `${runner}: a blocked completion is not measured`);
+      // Without that requirement the same completion is accepted, and only then is its job queued.
+      fs.rmSync(integration);
+      const accepted = hook('Stop');
+      assert.equal(accepted.status, 0, accepted.stderr);
+      assert.equal(__autoDebtTest.readJobs(p.cwd).jobs.length, 1, `${runner}: an accepted completion is queued`);
+    } finally { p.done(); }
+  }
 });
 
 test('references that no longer match are refused, never sent under another change', async () => {

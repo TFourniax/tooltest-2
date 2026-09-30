@@ -181,7 +181,12 @@ function readJobs(cwd) {
   }
   // Every record names a change; a job is also in one of its states. A damaged record is a damaged queue.
   const record = (item) => item !== null && typeof item === 'object' && !Array.isArray(item) && CHANGE_ID.test(String(item.changeId || ''));
-  if (!value.jobs.every((job) => record(job) && JOB_STATES.has(job.state)) || !value.done.every(record) || !value.skipped.every(record)) {
+  const side = (ref) => ref !== null && typeof ref === 'object' && OBJECT_ID.test(String(ref.tree || '')) && (ref.commit == null || OBJECT_ID.test(String(ref.commit)));
+  const time = (at) => at == null || (typeof at === 'string' && !Number.isNaN(Date.parse(at)));
+  const job = (item) => record(item) && JOB_STATES.has(item.state) && side(item.base) && side(item.candidate)
+    && Number.isInteger(item.attempts) && item.attempts >= 0 && time(item.retryAfter) && time(item.lastAttemptAt) && time(item.enqueuedAt)
+    && (item.lastError == null || (typeof item.lastError === 'object' && !Array.isArray(item.lastError)));
+  if (!value.jobs.every(job) || !value.done.every(record) || !value.skipped.every(record)) {
     throw autoDebtError('IDLEPROOF_AUTO_DEBT_STATE_CORRUPT', `The automatic debt queue ${'.idleproof/auto-debt-jobs.json'} holds a damaged record; nothing was queued. Inspect it before removing it deliberately.`);
   }
   const measured = [...new Set([...(value.measured ?? []), ...value.done.map((item) => item.changeId)].filter((id) => CHANGE_ID.test(String(id))))];

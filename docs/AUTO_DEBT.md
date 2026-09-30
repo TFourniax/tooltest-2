@@ -14,7 +14,10 @@ Portal. This covers `idleproof run -- <command>` and the agent hooks. There is n
 
 1. **The hook that completes the change.** It writes one job to `.idleproof/auto-debt-jobs.json`,
    holding the exact references IdleProof froze: the repository, the base tree and the candidate tree.
-   Then it starts a detached worker. No measurement and no network happen in the hook.
+   Then it starts a detached worker. No measurement and no network happen in the hook. In the native
+   IDE runners (Claude, Codex, Cursor) this happens after the native DiffWitness Stop and its receipt: a
+   completion DiffWitness blocks is not queued, and a change its receipt already measured is not measured
+   again.
 2. **The worker.**
    1. It builds unreachable commits from those trees, with fixed metadata. It creates no ref, no index
       entry and no user commit, as Core does for its own analytical baselines.
