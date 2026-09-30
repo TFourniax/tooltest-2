@@ -186,18 +186,20 @@ function readJobs(cwd) {
   const record = (item) => item !== null && typeof item === 'object' && !Array.isArray(item) && CHANGE_ID.test(String(item.changeId || ''));
   const side = (ref) => ref !== null && typeof ref === 'object' && OBJECT_ID.test(String(ref.tree || '')) && (ref.commit == null || OBJECT_ID.test(String(ref.commit)));
   const time = (at) => at == null || (typeof at === 'string' && !Number.isNaN(Date.parse(at)));
+  const count = (n) => Number.isInteger(n) && n >= 0;
   // A job always has the time it was queued; an error, when there is one, says what failed and when (the
-  // status shows it as the reason).
+  // status shows it as the reason). A failed job always has one: every transition to `failed` records it.
   const error = (value) => value === null || (value !== undefined && typeof value === 'object' && !Array.isArray(value)
     && typeof value.code === 'string' && value.code.length > 0 && (value.message === null || typeof value.message === 'string')
     && typeof value.at === 'string' && time(value.at));
   const job = (item) => record(item) && JOB_STATES.has(item.state) && side(item.base) && side(item.candidate)
-    && Number.isInteger(item.attempts) && item.attempts >= 0 && time(item.retryAfter) && time(item.lastAttemptAt)
-    && typeof item.enqueuedAt === 'string' && time(item.enqueuedAt) && error(item.lastError);
+    && count(item.attempts) && time(item.retryAfter) && time(item.lastAttemptAt)
+    && typeof item.enqueuedAt === 'string' && time(item.enqueuedAt) && error(item.lastError)
+    && (item.state !== 'failed' || item.lastError !== null)
+    && (item.repository == null || typeof item.repository === 'string') && (item.interrupted === undefined || count(item.interrupted));
   // A measured change names the receipt that carries its measurement and the debt measured: its point and
   // obligation counts, whichever path measured it. A record missing them would report a change as delivered
   // and stop it being measured.
-  const count = (n) => Number.isInteger(n) && n >= 0;
   const done = (item) => record(item) && typeof item.snapshotId === 'string' && SNAPSHOT_ID.test(item.snapshotId)
     && (item.source === undefined || item.source === 'manual' || item.source === 'ide')
     && count(item.points) && count(item.obligations)
@@ -215,8 +217,10 @@ function readJobs(cwd) {
   const measured = [...new Set([...(value.measured ?? []), ...value.done.map((item) => item.changeId)])];
   const skippedIds = [...new Set([...(value.skippedIds ?? []), ...value.skipped.map((item) => item.changeId)])];
   const failedDroppedIds = [...new Set(value.failedDroppedIds ?? [])];
+  // Degraded means a change is recorded as not measured: derived from that record, so a stale flag can neither
+  // hide nor invent one.
   return { ...emptyJobs(), ...value, measured, skippedIds, skippedTotal:skippedIds.length, failedDroppedIds, failedDropped:failedDroppedIds.length,
-    degraded:value.degraded === true };
+    degraded:skippedIds.length > 0 };
 }
 
 // The queue is never written once the project was reset: its lock does not recreate the state directory,

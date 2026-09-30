@@ -1312,6 +1312,12 @@ test('a queue holding a damaged record is reported as corrupt, never read as val
       snapshotId:`ipsnap_${'0'.repeat(24)}`, queueReason:'queued', measuredAt:'2026-01-01T00:00:00.000Z', attempts:1 };
     fs.writeFileSync(projectPaths(p.cwd).autoDebtJobs, JSON.stringify({ ...base, done:[measuredRecord, { ...measuredRecord, changeId:`dwchg_${'4'.repeat(24)}`, source:'manual', budgetPassed:null }] }));
     assert.equal(__autoDebtTest.readJobs(p.cwd).done.length, 2, 'complete measured records are accepted');
+    // Degraded follows the not-measured record: a stale flag neither hides nor invents one.
+    const notMeasured = { changeId:`dwchg_${'5'.repeat(24)}`, at:'2026-01-01T00:00:00.000Z', base:{ tree:'a'.repeat(40), commit:null }, candidate:{ tree:'b'.repeat(40), commit:null } };
+    fs.writeFileSync(projectPaths(p.cwd).autoDebtJobs, JSON.stringify({ ...base, skipped:[notMeasured], degraded:false }));
+    assert.equal(autoDebtStatus(p.cwd, { probe:false }).degraded, true);
+    fs.writeFileSync(projectPaths(p.cwd).autoDebtJobs, JSON.stringify({ ...base, degraded:true }));
+    assert.equal(autoDebtStatus(p.cwd, { probe:false }).degraded, false);
     const { snapshotId:_snapshotId, ...withoutReceipt } = measuredRecord;
     const { base:_base, candidate:_candidate, ...withoutReferences } = job;
     for (const damaged of [{ jobs:[null] }, { jobs:[{ ...job, state:'unknown' }] }, { jobs:[withoutReferences] }, { jobs:[{ ...job, candidate:{ tree:'nope', commit:null } }] },
@@ -1326,7 +1332,9 @@ test('a queue holding a damaged record is reported as corrupt, never read as val
       // A job always has the time it was queued, and an error says what failed and when.
       { jobs:[{ ...job, enqueuedAt:undefined }] }, { jobs:[{ ...job, enqueuedAt:null }] }, { jobs:[{ ...job, lastError:{} }] },
       { jobs:[{ ...job, lastError:{ code:'MEASUREMENT_FAILED', message:1, at:'2026-01-01T00:00:00.000Z' } }] },
-      { jobs:[{ ...job, lastError:{ code:'MEASUREMENT_FAILED', message:null, at:'soon' } }] }]) {
+      { jobs:[{ ...job, lastError:{ code:'MEASUREMENT_FAILED', message:null, at:'soon' } }] },
+      // A failed job always says why.
+      { jobs:[{ ...job, state:'failed', lastError:null }] }, { jobs:[{ ...job, repository:42 }] }, { jobs:[{ ...job, interrupted:-1 }] }]) {
       fs.writeFileSync(projectPaths(p.cwd).autoDebtJobs, JSON.stringify({ ...base, ...damaged }));
       assert.equal(autoDebtStatus(p.cwd, { probe:false }).errorCode, 'IDLEPROOF_AUTO_DEBT_STATE_CORRUPT', JSON.stringify(damaged));
       assert.throws(() => __autoDebtTest.readJobs(p.cwd), (error) => error.code === 'IDLEPROOF_AUTO_DEBT_STATE_CORRUPT');
