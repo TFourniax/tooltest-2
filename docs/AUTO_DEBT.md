@@ -80,9 +80,9 @@ again automatically.
   measured manually.
 - The measurement files of the last 64 changes are kept in `.idleproof/auto-debt/<dwchg_…>/`.
 - `idleproof portal auto-debt disable` stops queueing new changes. It keeps the jobs and the history.
-- `idleproof reset` never moves the local state while a worker is measuring: it waits a few seconds for the
-  job to end, and otherwise stops with an explicit message and moves nothing. A worker that finds the state
-  reset stops without writing anything.
+- `idleproof reset` never moves the local state while a worker is measuring or delivering: it waits a few
+  seconds for the worker, and otherwise stops with an explicit message and moves nothing. A worker that
+  finds the state reset stops without writing anything.
 
 ## Limits
 

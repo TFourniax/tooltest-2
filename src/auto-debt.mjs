@@ -22,7 +22,7 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import { PACKAGE_ROOT, projectPaths } from './paths.mjs';
-import { withOwnedLock } from './portal-memory-lock.mjs';
+import { acquireOwnedLock, withOwnedLock } from './portal-memory-lock.mjs';
 import { flushPortalQueue, pendingPortalSnapshots, queuedPortalSnapshot, readPortalConfig } from './portal-client.mjs';
 import { buildAssurancePortalSnapshot, queueAssuranceReceipt } from './portal-assurance.mjs';
 
@@ -429,6 +429,11 @@ function boundFailed(state) {
 }
 
 const stillEnabled = (cwd) => { try { return readAutoDebtConfig(cwd)?.enabled === true; } catch { return false; } };
+// A job the worker would take now (a job left `measuring` is one a worker that died left behind).
+const dueJobWaiting = (cwd) => {
+  try { return readJobs(cwd).jobs.some((job) => job.state === 'measuring' || (job.state === 'pending' && (!job.retryAfter || Date.parse(job.retryAfter) <= Date.now()))); }
+  catch { return false; }
+};
 
 const backoff = (attempts) => new Date(Date.now() + Math.min(60 * 60 * 1000, 30 * 1000 * 2 ** Math.max(0, attempts - 1))).toISOString();
 
@@ -488,42 +493,68 @@ export async function runAutoDebtWorker(cwd = process.cwd(), { fetchImpl = globa
   const config = readAutoDebtConfig(cwd);
   if (!config?.enabled) return { enabled:false, results:[] };
   const results = [];
-  const flush = () => flushPortalQueue(cwd, { fetchImpl, timeoutMs }).catch((error) => ({ ok:false, errorCode:error?.code || 'DELIVERY_FAILED' }));
+  // The worker lock is never allowed to recreate the state directory: after a reset it is gone, and the
+  // worker stops instead of writing outside the archive.
+  const lockFile = projectPaths(cwd).autoDebtWorkerLock;
+  const lockArgs = ['IDLEPROOF_AUTO_DEBT_WORKER_BUSY', 'Automatic debt worker', { createParent:false }];
+  // Deliveries hold the worker lock too, so `idleproof reset` never moves the state while a flush can still
+  // write to it.
+  const flush = async () => {
+    let release;
+    try { release = acquireOwnedLock(lockFile, ...lockArgs); }
+    catch (error) { return { ok:false, errorCode:error?.code === 'ENOENT' ? 'IDLEPROOF_AUTO_DEBT_STATE_RESET' : error?.code || 'DELIVERY_FAILED' }; }
+    try {
+      if (!fs.existsSync(projectPaths(cwd).autoDebtConfig)) return { ok:false, errorCode:'IDLEPROOF_AUTO_DEBT_STATE_RESET' };
+      return await flushPortalQueue(cwd, { fetchImpl, timeoutMs });
+    } catch (error) { return { ok:false, errorCode:error?.code || 'DELIVERY_FAILED' }; }
+    finally { release(); }
+  };
   let retry = null;
   if (retryFailed) { try { retry = new Set(readJobs(cwd).jobs.filter((job) => job.state === 'failed').map((job) => job.changeId)); } catch { retry = null; } }
   let delivery = null;
   let drained = false;
   let taken = 0;
-  while (taken < maxJobs) {
-    // Reset (the local state was moved away) or disabled between jobs: stop.
-    if (!stillEnabled(cwd)) break;
-    let outcome;
-    try {
-      outcome = withOwnedLock(projectPaths(cwd).autoDebtWorkerLock, () => processNextJob(cwd, config, { retry, measureTimeoutMs }), 'IDLEPROOF_AUTO_DEBT_WORKER_BUSY', 'Automatic debt worker');
-    } catch (error) {
-      if (error?.code === 'IDLEPROOF_AUTO_DEBT_WORKER_BUSY') { results.push({ state:'busy' }); break; }
-      throw error;
+  // Busy, reset, disabled, or Core or the destination unavailable: no more jobs in this run.
+  let stopped = false;
+  const takeJobs = async () => {
+    while (taken < maxJobs) {
+      if (!stillEnabled(cwd)) { stopped = true; return; }
+      let outcome;
+      try {
+        outcome = withOwnedLock(lockFile, () => processNextJob(cwd, config, { retry, measureTimeoutMs }), ...lockArgs);
+      } catch (error) {
+        if (error?.code === 'IDLEPROOF_AUTO_DEBT_WORKER_BUSY') { results.push({ state:'busy' }); stopped = true; return; }
+        // The local state was reset: its directory is gone.
+        if (error?.code === 'ENOENT') { stopped = true; return; }
+        throw error;
+      }
+      if (!outcome) return;
+      results.push(outcome);
+      // A full delivery queue is sent once; the kept measurement is then queued again in this run if the
+      // queue drained, or left waiting for the next run. That second attempt of the same job is not charged
+      // to the run's job budget.
+      if (outcome.code === 'PORTAL_QUEUE_FULL' && !drained) {
+        drained = true;
+        delivery = await flush();
+        if (delivery.ok) continue;
+      }
+      taken += 1;
+      // The same unavailable Core or destination would fail every remaining job the same way.
+      if (outcome.state === 'core-unavailable' || outcome.state === 'waiting') { stopped = true; return; }
     }
-    if (!outcome) break;
-    results.push(outcome);
-    // A full delivery queue is sent once (outside the worker lock); the kept measurement is then queued
-    // again in this run if the queue drained, or left waiting for the next run.
-    // That second attempt of the same job is not charged to the run's job budget.
-    if (outcome.code === 'PORTAL_QUEUE_FULL' && !drained) {
-      drained = true;
-      delivery = await flush();
-      if (delivery.ok) continue;
-    }
-    taken += 1;
-    // The same unavailable Core or destination would fail every remaining job the same way.
-    if (outcome.state === 'core-unavailable' || outcome.state === 'waiting') break;
-  }
-  // The network is used only outside the worker lock, through the existing delivery queue. With
-  // `deliverQueued` (the `auto-debt run` command), receipts queued earlier and not delivered yet (Portal was
-  // offline) are sent too, even when this run measured nothing. An unreadable queue is flushed as well, so
-  // the delivery reports why (IDLEPROOF_PORTAL_QUEUE_CORRUPT) instead of passing for an empty queue.
+  };
+  // With `deliverQueued` (the `auto-debt run` command), receipts queued earlier and not delivered yet (Portal
+  // was offline) are sent too, even when this run measured nothing. An unreadable queue is flushed as well,
+  // so the delivery reports why (IDLEPROOF_PORTAL_QUEUE_CORRUPT) instead of passing for an empty queue.
   const receiptsWaiting = () => { try { return pendingPortalSnapshots(cwd) > 0; } catch { return true; } };
-  if (results.some((item) => item.state === 'done') || (deliverQueued && receiptsWaiting())) delivery = await flush();
+  for (let pass = 0; ; pass += 1) {
+    const before = results.length;
+    await takeJobs();
+    if (results.slice(before).some((item) => item.state === 'done') || (pass === 0 && deliverQueued && receiptsWaiting())) delivery = await flush();
+    // A change completed during that delivery found the lock held, and the worker started for it left:
+    // this worker takes it.
+    if (stopped || taken >= maxJobs || pass >= maxJobs || !dueJobWaiting(cwd)) break;
+  }
   return { enabled:true, results, delivery };
 }
 

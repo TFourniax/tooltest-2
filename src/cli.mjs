@@ -209,7 +209,7 @@ async function resetLocalState(cwd, args = []) {
       fs.rmSync(path.join(destination, path.basename(paths.autoDebtWorkerLock)), { recursive:true, force:true });
     }, 'IDLEPROOF_AUTO_DEBT_WORKER_BUSY', 'Automatic debt worker');
   } catch (error) {
-    if (error?.code === 'IDLEPROOF_AUTO_DEBT_WORKER_BUSY') throw new Error('Automatic debt is measuring a change. Wait for it to finish (`idleproof portal auto-debt status`), then reset again; nothing was moved.');
+    if (error?.code === 'IDLEPROOF_AUTO_DEBT_WORKER_BUSY') throw new Error('Automatic debt is measuring or delivering a change. Wait for it to finish (`idleproof portal auto-debt status`), then reset again; nothing was moved.');
     throw error;
   }
   if (force) {

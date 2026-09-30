@@ -744,7 +744,7 @@ test('reset never moves the local state under a measurement, and a worker then l
     // Reset waits for the worker's lock, then stops explicitly: nothing is moved.
     const refused = reset();
     assert.notEqual(refused.status, 0);
-    assert.match(refused.stderr, /measuring a change/);
+    assert.match(refused.stderr, /measuring or delivering a change/);
     assert.equal(fs.existsSync(projectPaths(p.cwd).autoDebtJobs), true);
     await finished;
     assert.equal(JSON.parse(out).results[0].state, 'done');
@@ -760,6 +760,54 @@ test('reset never moves the local state under a measurement, and a worker then l
     assert.equal(__autoDebtTest.processNextJob(p.cwd, { enabled:true, dw:p.dw }), null);
     assert.equal(fs.existsSync(projectPaths(p.cwd).autoDebtJobs), false);
   } finally { p.done(); }
+});
+
+test('reset never moves the local state while the worker delivers, and the delivery recreates nothing', async () => {
+  const p = project();
+  const received = [];
+  let answer;
+  const answered = new Promise((resolve) => { answer = resolve; });
+  // A Portal that answers only when the test lets it.
+  const slowPortal = async (url, options) => {
+    await answered;
+    received.push(JSON.parse(options.body));
+    return new Response(JSON.stringify(ack(options.body)), { status:202, headers:{ 'content-type':'application/json' } });
+  };
+  const reset = () => new Promise((resolve) => {
+    const child = spawn(process.execPath, [CLI, 'reset'], { cwd:p.cwd });
+    let stderr = '';
+    child.stderr.on('data', (chunk) => { stderr += chunk; });
+    child.on('close', (status) => resolve({ status, stderr }));
+  });
+  let run = null;
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    // The hook's own detached flush is kept out of this test: an invalid NODE_OPTIONS makes it exit at startup.
+    const nodeOptions = process.env.NODE_OPTIONS;
+    process.env.NODE_OPTIONS = '--idleproof-test-no-background-flush';
+    try { completeChange(p.cwd, 'app.py', 'def total(items):\n    # TODO: check\n    return sum(items)\n'); }
+    finally { if (nodeOptions === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = nodeOptions; }
+    run = runAutoDebtWorker(p.cwd, { fetchImpl:slowPortal, timeoutMs:15000 });
+    // The change is measured; its delivery is in flight and holds the worker lock.
+    for (let i = 0; i < 200 && !fs.existsSync(projectPaths(p.cwd).autoDebtWorkerLock); i += 1) await new Promise((resolve) => setTimeout(resolve, 25));
+    assert.equal(fs.existsSync(projectPaths(p.cwd).autoDebtWorkerLock), true);
+    const refused = await reset();
+    assert.notEqual(refused.status, 0);
+    assert.match(refused.stderr, /measuring or delivering a change/);
+    assert.equal(fs.existsSync(projectPaths(p.cwd).autoDebtJobs), true);
+    // Portal answers: the delivery ends, then reset archives the state, and nothing recreates it.
+    answer();
+    const result = await run;
+    assert.equal(result.results[0].state, 'done');
+    assert.equal(result.delivery.ok, true);
+    assert.equal(withAssurance(received).length, 1);
+    const archived = await reset();
+    assert.equal(archived.status, 0, archived.stderr);
+    assert.equal(fs.existsSync(projectPaths(p.cwd).dir), false);
+    // A worker started for the reset project stops without writing anything.
+    assert.deepEqual(await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received), deliverQueued:true }), { enabled:false, results:[] });
+    assert.equal(fs.existsSync(projectPaths(p.cwd).dir), false);
+  } finally { answer(); if (run) await run.catch(() => {}); p.done(); }
 });
 
 test('references that no longer match are refused, never sent under another change', async () => {
