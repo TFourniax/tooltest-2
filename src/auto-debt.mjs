@@ -43,6 +43,7 @@ const MAX_ATTEMPTS = 5;
 const KEPT_WORK_DIRS = 64;
 const MEASURE_TIMEOUT_MS = 10 * 60 * 1000;
 const CHANGE_ID = /^dwchg_[a-f0-9]{24}$/;
+const JOB_STATES = new Set(['pending', 'measuring', 'failed']);
 const OBJECT_ID = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/;
 // Fixed metadata: the reference commit of a tree is always the same object.
 const REFERENCE_ENV = {
@@ -178,6 +179,11 @@ function readJobs(cwd) {
     || (value.measured !== undefined && !Array.isArray(value.measured)) || (value.skippedIds !== undefined && !Array.isArray(value.skippedIds)) || (value.failedDroppedIds !== undefined && !Array.isArray(value.failedDroppedIds))) {
     throw autoDebtError('IDLEPROOF_AUTO_DEBT_STATE_CORRUPT', `The automatic debt queue ${'.idleproof/auto-debt-jobs.json'} has an unsupported schema; nothing was queued.`);
   }
+  // Every record names a change; a job is also in one of its states. A damaged record is a damaged queue.
+  const record = (item) => item !== null && typeof item === 'object' && !Array.isArray(item) && CHANGE_ID.test(String(item.changeId || ''));
+  if (!value.jobs.every((job) => record(job) && JOB_STATES.has(job.state)) || !value.done.every(record) || !value.skipped.every(record)) {
+    throw autoDebtError('IDLEPROOF_AUTO_DEBT_STATE_CORRUPT', `The automatic debt queue ${'.idleproof/auto-debt-jobs.json'} holds a damaged record; nothing was queued. Inspect it before removing it deliberately.`);
+  }
   const measured = [...new Set([...(value.measured ?? []), ...value.done.map((item) => item.changeId)].filter((id) => CHANGE_ID.test(String(id))))];
   const skippedIds = [...new Set([...(value.skippedIds ?? []), ...value.skipped.map((item) => item?.changeId)].filter((id) => CHANGE_ID.test(String(id))))];
   const failedDroppedIds = [...new Set((value.failedDroppedIds ?? []).filter((id) => CHANGE_ID.test(String(id))))];
@@ -231,6 +237,9 @@ export function enqueueAutoDebt(cwd, identity, { now = new Date() } = {}) {
   if (identity.base.tree === identity.candidate.tree) return { queued:false, reason:'empty-change', changeId };
   const reference = (side) => ({ tree:side.tree, commit:OBJECT_ID.test(String(side.sha || '')) ? side.sha : null });
   return withJobs(cwd, (state) => {
+    // Checked again under the lock, which `disable` also holds: a change completed as automatic debt is being
+    // disabled is either queued before, or not at all.
+    if (!readAutoDebtConfig(cwd)?.enabled) return { queued:false, reason:'disabled' };
     if (state.jobs.some((job) => job.changeId === changeId)) return { queued:false, reason:'already-queued', changeId, pending:state.jobs.length };
     if (state.measured.includes(changeId)) return { queued:false, reason:'already-measured', changeId, pending:state.jobs.length };
     // Failed jobs never run again on their own, so they do not take the place of new changes.

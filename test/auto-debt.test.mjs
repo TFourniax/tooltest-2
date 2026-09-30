@@ -901,6 +901,47 @@ test('a reset during `auto-debt enable` leaves nothing behind', async () => {
   } finally { p.done(); }
 });
 
+test('a change completed while automatic debt is being disabled is not queued after the disable', async () => {
+  const p = project();
+  const paths = projectPaths(p.cwd);
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    const enabled = JSON.parse(fs.readFileSync(paths.autoDebtConfig, 'utf8'));
+    // `disable` holds the queue lock while it writes the configuration; the hook read it as enabled just before.
+    const lockModule = new URL('../src/portal-memory-lock.mjs', import.meta.url).href;
+    const disabling = spawn(process.execPath, ['--input-type=module', '-e', `
+      const fs = await import('node:fs');
+      const { withOwnedLock } = await import(${JSON.stringify(lockModule)});
+      withOwnedLock(${JSON.stringify(paths.autoDebtJobsLock)}, () => {
+        process.stdout.write('held\\n');
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 800);
+        fs.writeFileSync(${JSON.stringify(paths.autoDebtConfig)}, ${JSON.stringify(JSON.stringify({ ...enabled, enabled:false }))});
+      }, 'TEST_QUEUE_BUSY', 'Test disable');
+    `], { stdio:['ignore', 'pipe', 'pipe'] });
+    const disabled = new Promise((resolve) => disabling.on('close', resolve));
+    await new Promise((resolve) => disabling.stdout.once('data', resolve));
+    const identity = { available:true, changeId:`dwchg_${'1'.repeat(24)}`, repository:{ fingerprint:'dwrepo_x' }, base:{ tree:'a'.repeat(40), sha:null }, candidate:{ tree:'b'.repeat(40), sha:null } };
+    assert.equal(enqueueAutoDebt(p.cwd, identity).reason, 'disabled');
+    assert.equal(await disabled, 0);
+    assert.equal(__autoDebtTest.readJobs(p.cwd).jobs.length, 0);
+  } finally { p.done(); }
+});
+
+test('a queue holding a damaged record is reported as corrupt, never read as valid', () => {
+  const p = project();
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    const base = { schema:'idleproof.auto-debt-jobs.v1', jobs:[], done:[], measured:[], skipped:[], skippedTotal:0, degraded:false };
+    for (const damaged of [{ jobs:[null] }, { jobs:[{ changeId:`dwchg_${'1'.repeat(24)}`, state:'unknown' }] }, { done:[null] }, { skipped:[42] }]) {
+      fs.writeFileSync(projectPaths(p.cwd).autoDebtJobs, JSON.stringify({ ...base, ...damaged }));
+      assert.equal(autoDebtStatus(p.cwd, { probe:false }).errorCode, 'IDLEPROOF_AUTO_DEBT_STATE_CORRUPT', JSON.stringify(damaged));
+      assert.throws(() => __autoDebtTest.readJobs(p.cwd), (error) => error.code === 'IDLEPROOF_AUTO_DEBT_STATE_CORRUPT');
+    }
+    const status = spawnSync(process.execPath, [CLI, 'portal', 'auto-debt', 'status', '--json'], { cwd:p.cwd, encoding:'utf8' });
+    assert.equal(JSON.parse(status.stdout).errorCode, 'IDLEPROOF_AUTO_DEBT_STATE_CORRUPT');
+  } finally { p.done(); }
+});
+
 test('references that no longer match are refused, never sent under another change', async () => {
   const p = project();
   const received = [];
