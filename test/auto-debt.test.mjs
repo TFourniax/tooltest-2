@@ -351,7 +351,7 @@ test('failed jobs neither block new changes nor accumulate: only the latest stay
     assert.equal(status.degraded, false);
     assert.equal(received.length, 0);
     // That older change is then measured manually: it is no longer counted as an older failure.
-    assert.equal(settleWithManualAssurance(p.cwd, failed[0].changeId, { snapshotId:null }).settled, true);
+    assert.equal(settleWithManualAssurance(p.cwd, failed[0].changeId, { snapshotId:`ipsnap_${'0'.repeat(24)}` }).settled, true);
     assert.equal(autoDebtStatus(p.cwd, { probe:false }).counts.failedNoLongerListed, 0);
     // Another failure evicts the next oldest; presented again later, that change is queued anew and is no
     // longer counted as an older failure either.
@@ -1194,6 +1194,19 @@ test('a change completed while automatic debt is being disabled is not queued af
   } finally { p.done(); }
 });
 
+test('a manual or IDE measurement settles the automatic job only with the receipt that carries it', () => {
+  const p = project();
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    completeChange(p.cwd, 'app.py', 'def total(items):\n    # TODO: check\n    return sum(items)\n');
+    const { changeId } = __autoDebtTest.readJobs(p.cwd).jobs[0];
+    assert.deepEqual(settleWithManualAssurance(p.cwd, changeId, { snapshotId:null }), { settled:false, reason:'no-receipt', changeId });
+    assert.equal(__autoDebtTest.readJobs(p.cwd).jobs[0].changeId, changeId, 'the job stays queued');
+    assert.equal(settleWithManualAssurance(p.cwd, changeId, { snapshotId:`ipsnap_${'0'.repeat(24)}` }).settled, true);
+    assert.equal(__autoDebtTest.readJobs(p.cwd).done[0].snapshotId, `ipsnap_${'0'.repeat(24)}`);
+  } finally { p.done(); }
+});
+
 test('a queue holding a damaged record is reported as corrupt, never read as valid', () => {
   const p = project();
   try {
@@ -1203,11 +1216,20 @@ test('a queue holding a damaged record is reported as corrupt, never read as val
       enqueuedAt:'2026-01-01T00:00:00.000Z', state:'pending', attempts:0, lastError:null, lastAttemptAt:null, retryAfter:null };
     fs.writeFileSync(projectPaths(p.cwd).autoDebtJobs, JSON.stringify({ ...base, jobs:[job] }));
     assert.equal(__autoDebtTest.readJobs(p.cwd).jobs.length, 1, 'a complete job is accepted');
+    const measuredRecord = { changeId:`dwchg_${'3'.repeat(24)}`, configKey:'k'.repeat(24), core:'dw 0.4.0', points:8, obligations:1, budgetPassed:true,
+      snapshotId:`ipsnap_${'0'.repeat(24)}`, queueReason:'queued', measuredAt:'2026-01-01T00:00:00.000Z', attempts:1 };
+    fs.writeFileSync(projectPaths(p.cwd).autoDebtJobs, JSON.stringify({ ...base, done:[measuredRecord, { ...measuredRecord, changeId:`dwchg_${'4'.repeat(24)}`, source:'manual', points:null, obligations:null, budgetPassed:null }] }));
+    assert.equal(__autoDebtTest.readJobs(p.cwd).done.length, 2, 'complete measured records are accepted');
+    const { snapshotId:_snapshotId, ...withoutReceipt } = measuredRecord;
     const { base:_base, candidate:_candidate, ...withoutReferences } = job;
     for (const damaged of [{ jobs:[null] }, { jobs:[{ ...job, state:'unknown' }] }, { jobs:[withoutReferences] }, { jobs:[{ ...job, candidate:{ tree:'nope', commit:null } }] },
       { jobs:[{ ...job, attempts:'1' }] }, { jobs:[{ ...job, retryAfter:'not a time' }] }, { done:[null] }, { skipped:[42] },
       // A damaged identity in a history is never dropped: forgetting a measured change would let Core measure it again.
-      { measured:[`dwchg_${'2'.repeat(24)}`, 'damaged'] }, { skippedIds:[null] }, { failedDroppedIds:[42] }, { measured:[[`dwchg_${'2'.repeat(24)}`]] }]) {
+      { measured:[`dwchg_${'2'.repeat(24)}`, 'damaged'] }, { skippedIds:[null] }, { failedDroppedIds:[42] }, { measured:[[`dwchg_${'2'.repeat(24)}`]] },
+      // A measured record names its receipt and what was measured: an incomplete one would report the change as
+      // delivered and stop it being measured.
+      { done:[{ changeId:measuredRecord.changeId }] }, { done:[withoutReceipt] }, { done:[{ ...measuredRecord, points:'8' }] },
+      { done:[{ ...measuredRecord, measuredAt:'not a time' }] }, { done:[{ ...measuredRecord, source:'other' }] }, { skipped:[{ changeId:measuredRecord.changeId }] }]) {
       fs.writeFileSync(projectPaths(p.cwd).autoDebtJobs, JSON.stringify({ ...base, ...damaged }));
       assert.equal(autoDebtStatus(p.cwd, { probe:false }).errorCode, 'IDLEPROOF_AUTO_DEBT_STATE_CORRUPT', JSON.stringify(damaged));
       assert.throws(() => __autoDebtTest.readJobs(p.cwd), (error) => error.code === 'IDLEPROOF_AUTO_DEBT_STATE_CORRUPT');

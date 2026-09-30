@@ -45,6 +45,7 @@ const MEASURE_TIMEOUT_MS = 10 * 60 * 1000;
 const CHANGE_ID = /^dwchg_[a-f0-9]{24}$/;
 const JOB_STATES = new Set(['pending', 'measuring', 'failed']);
 const OBJECT_ID = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/;
+const SNAPSHOT_ID = /^ipsnap_[a-f0-9]{24}$/;
 // Fixed metadata: the reference commit of a tree is always the same object.
 const REFERENCE_ENV = {
   GIT_AUTHOR_NAME:'IdleProof', GIT_AUTHOR_EMAIL:'idleproof@localhost', GIT_COMMITTER_NAME:'IdleProof', GIT_COMMITTER_EMAIL:'idleproof@localhost',
@@ -186,10 +187,21 @@ function readJobs(cwd) {
   const job = (item) => record(item) && JOB_STATES.has(item.state) && side(item.base) && side(item.candidate)
     && Number.isInteger(item.attempts) && item.attempts >= 0 && time(item.retryAfter) && time(item.lastAttemptAt) && time(item.enqueuedAt)
     && (item.lastError == null || (typeof item.lastError === 'object' && !Array.isArray(item.lastError)));
+  // A measured change names the receipt that carries its measurement and what was measured; an automatic
+  // measurement always has its point and obligation counts (a manual or IDE one may have none). A record
+  // missing them would report a change as delivered and stop it being measured.
+  const count = (n) => Number.isInteger(n) && n >= 0;
+  const done = (item) => record(item) && typeof item.snapshotId === 'string' && SNAPSHOT_ID.test(item.snapshotId)
+    && (item.source === undefined || item.source === 'manual' || item.source === 'ide')
+    && (item.source ? (item.points === null || count(item.points)) && (item.obligations === null || count(item.obligations)) : count(item.points) && count(item.obligations))
+    && (item.budgetPassed === null || typeof item.budgetPassed === 'boolean') && typeof item.measuredAt === 'string' && time(item.measuredAt)
+    && (item.attempts === undefined || count(item.attempts)) && (item.queueReason == null || typeof item.queueReason === 'string')
+    && (item.configKey == null || typeof item.configKey === 'string') && (item.core == null || typeof item.core === 'string');
+  const skipped = (item) => record(item) && typeof item.at === 'string' && time(item.at) && side(item.base) && side(item.candidate);
   // The identity histories outlive the bounded records: a damaged identity is never dropped silently, since
   // forgetting a measured change would let Core measure it again.
   const identities = (list) => (list ?? []).every((id) => typeof id === 'string' && CHANGE_ID.test(id));
-  if (!value.jobs.every(job) || !value.done.every(record) || !value.skipped.every(record)
+  if (!value.jobs.every(job) || !value.done.every(done) || !value.skipped.every(skipped)
     || !identities(value.measured) || !identities(value.skippedIds) || !identities(value.failedDroppedIds)) {
     throw autoDebtError('IDLEPROOF_AUTO_DEBT_STATE_CORRUPT', `The automatic debt queue ${'.idleproof/auto-debt-jobs.json'} holds a damaged record; nothing was queued. Inspect it before removing it deliberately.`);
   }
@@ -285,6 +297,8 @@ function admitJob(cwd, state, identity, now) {
 // that a worker is measuring right now is left to it (the same measurement deduplicates).
 export function settleWithManualAssurance(cwd, changeId, { snapshotId = null, softwareDebt = null, queueReason = null, source = 'manual' } = {}) {
   if (!CHANGE_ID.test(String(changeId || ''))) return { settled:false, reason:'no-change' };
+  // Settled only by a receipt the delivery queue accepted, which names its snapshot.
+  if (!SNAPSHOT_ID.test(String(snapshotId || ''))) return { settled:false, reason:'no-receipt', changeId };
   if (!readAutoDebtConfig(cwd)) return { settled:false, reason:'not-enabled' };
   return withJobs(cwd, (state) => {
     const job = state.jobs.find((item) => item.changeId === changeId);
