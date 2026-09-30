@@ -1322,7 +1322,11 @@ test('a queue holding a damaged record is reported as corrupt, never read as val
       // delivered and stop it being measured.
       { done:[{ changeId:measuredRecord.changeId }] }, { done:[withoutReceipt] }, { done:[{ ...measuredRecord, points:'8' }] },
       { done:[{ ...measuredRecord, measuredAt:'not a time' }] }, { done:[{ ...measuredRecord, source:'other' }] }, { skipped:[{ changeId:measuredRecord.changeId }] },
-      { done:[{ ...measuredRecord, source:'manual', points:null, obligations:null }] }]) {
+      { done:[{ ...measuredRecord, source:'manual', points:null, obligations:null }] },
+      // A job always has the time it was queued, and an error says what failed and when.
+      { jobs:[{ ...job, enqueuedAt:undefined }] }, { jobs:[{ ...job, enqueuedAt:null }] }, { jobs:[{ ...job, lastError:{} }] },
+      { jobs:[{ ...job, lastError:{ code:'MEASUREMENT_FAILED', message:1, at:'2026-01-01T00:00:00.000Z' } }] },
+      { jobs:[{ ...job, lastError:{ code:'MEASUREMENT_FAILED', message:null, at:'soon' } }] }]) {
       fs.writeFileSync(projectPaths(p.cwd).autoDebtJobs, JSON.stringify({ ...base, ...damaged }));
       assert.equal(autoDebtStatus(p.cwd, { probe:false }).errorCode, 'IDLEPROOF_AUTO_DEBT_STATE_CORRUPT', JSON.stringify(damaged));
       assert.throws(() => __autoDebtTest.readJobs(p.cwd), (error) => error.code === 'IDLEPROOF_AUTO_DEBT_STATE_CORRUPT');

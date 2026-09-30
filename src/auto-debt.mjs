@@ -186,9 +186,14 @@ function readJobs(cwd) {
   const record = (item) => item !== null && typeof item === 'object' && !Array.isArray(item) && CHANGE_ID.test(String(item.changeId || ''));
   const side = (ref) => ref !== null && typeof ref === 'object' && OBJECT_ID.test(String(ref.tree || '')) && (ref.commit == null || OBJECT_ID.test(String(ref.commit)));
   const time = (at) => at == null || (typeof at === 'string' && !Number.isNaN(Date.parse(at)));
+  // A job always has the time it was queued; an error, when there is one, says what failed and when (the
+  // status shows it as the reason).
+  const error = (value) => value === null || (value !== undefined && typeof value === 'object' && !Array.isArray(value)
+    && typeof value.code === 'string' && value.code.length > 0 && (value.message === null || typeof value.message === 'string')
+    && typeof value.at === 'string' && time(value.at));
   const job = (item) => record(item) && JOB_STATES.has(item.state) && side(item.base) && side(item.candidate)
-    && Number.isInteger(item.attempts) && item.attempts >= 0 && time(item.retryAfter) && time(item.lastAttemptAt) && time(item.enqueuedAt)
-    && (item.lastError == null || (typeof item.lastError === 'object' && !Array.isArray(item.lastError)));
+    && Number.isInteger(item.attempts) && item.attempts >= 0 && time(item.retryAfter) && time(item.lastAttemptAt)
+    && typeof item.enqueuedAt === 'string' && time(item.enqueuedAt) && error(item.lastError);
   // A measured change names the receipt that carries its measurement and the debt measured: its point and
   // obligation counts, whichever path measured it. A record missing them would report a change as delivered
   // and stop it being measured.
