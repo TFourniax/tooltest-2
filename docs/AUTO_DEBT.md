@@ -25,6 +25,9 @@ Portal. This covers `idleproof run -- <command>` and the agent hooks. There is n
       entry and no user commit, as Core does for its own analytical baselines.
    2. It runs `dw debt --no-record --ignore-budget`, then `dw envelope`, on those commits.
    3. It checks that Core bound the envelope to the same `dwchg_`.
+   One worker runs at a time; a worker that finds another one running leaves, and the running one takes
+   the jobs queued meanwhile. A run takes at most 100 jobs; if jobs are still due when it stops there, it
+   starts a fresh worker for them.
 3. **Delivery.** The envelope goes through the same receipt path and the same Portal delivery queue as
    `idleproof portal assurance`: one measurement is one receipt, whichever route sent it.
 

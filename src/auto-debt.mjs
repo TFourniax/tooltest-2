@@ -600,7 +600,9 @@ function processNextJob(cwd, { retry = null, measureTimeoutMs = MEASURE_TIMEOUT_
 
 // The detached worker (also `idleproof portal auto-debt run`). One job per worker-lock hold, so jobs
 // queued meanwhile are taken by the same loop; a second worker finding the lock held just leaves.
-export async function runAutoDebtWorker(cwd = process.cwd(), { fetchImpl = globalThis.fetch, timeoutMs = 3000, retryFailed = false, maxJobs = MAX_JOBS, measureTimeoutMs = MEASURE_TIMEOUT_MS, deliverQueued = false } = {}) {
+// `handOff` starts a fresh detached worker (none with IDLEPROOF_AUTO_DEBT_WORKER=off).
+export async function runAutoDebtWorker(cwd = process.cwd(), { fetchImpl = globalThis.fetch, timeoutMs = 3000, retryFailed = false, maxJobs = MAX_JOBS, measureTimeoutMs = MEASURE_TIMEOUT_MS, deliverQueued = false,
+  handOff = process.env.IDLEPROOF_AUTO_DEBT_WORKER === 'off' ? null : spawnWorker } = {}) {
   const config = readAutoDebtConfig(cwd);
   if (!config?.enabled) return { enabled:false, results:[] };
   const results = [];
@@ -658,15 +660,23 @@ export async function runAutoDebtWorker(cwd = process.cwd(), { fetchImpl = globa
   // was offline) are sent too, even when this run measured nothing. An unreadable queue is flushed as well,
   // so the delivery reports why (IDLEPROOF_PORTAL_QUEUE_CORRUPT) instead of passing for an empty queue.
   const receiptsWaiting = () => { try { return pendingPortalSnapshots(cwd) > 0; } catch { return true; } };
+  let capped = false;
   for (let pass = 0; ; pass += 1) {
     const before = results.length;
     await takeJobs();
     if (results.slice(before).some((item) => item.state === 'done') || (pass === 0 && deliverQueued && receiptsWaiting())) delivery = await flush();
     // A change completed during that delivery found the lock held, and the worker started for it left:
     // this worker takes it.
-    if (stopped || taken >= maxJobs || pass >= maxJobs || !dueJobWaiting(cwd)) break;
+    if (stopped || !dueJobWaiting(cwd)) break;
+    if (taken >= maxJobs || pass >= maxJobs) { capped = true; break; }
   }
-  return { enabled:true, results, delivery };
+  // At its cap with jobs still due (for example one queued during its last measurement, whose own worker found
+  // this lock held and left), the run hands them to a fresh worker; its lock is released by now. A run stopped
+  // by an unavailable Core or destination does not: the next trigger resumes it.
+  if (!capped) return { enabled:true, results, delivery };
+  let handedOff = false;
+  if (handOff) { try { handOff(cwd); handedOff = true; } catch {} }
+  return { enabled:true, results, delivery, handedOff };
 }
 
 // What happened to each change: never a value that was not measured.

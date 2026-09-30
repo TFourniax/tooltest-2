@@ -912,6 +912,31 @@ test('a job taken after `enable --dw` changed the Core CLI is measured with the 
   } finally { cleanup(otherBin); p.done(); }
 });
 
+test('a run that reaches its cap with jobs still due hands them to a fresh worker; a run with nothing due does not', async () => {
+  const p = project();
+  const received = [];
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    completeChange(p.cwd, 'app.py', 'def total(items):\n    # TODO: check\n    return sum(items)\n');
+    completeChange(p.cwd, 'other.py', 'x = 1\n');
+    const [, second] = __autoDebtTest.readJobs(p.cwd).jobs.map((job) => job.changeId);
+    const handedTo = [];
+    const handOff = (cwd) => handedTo.push(cwd);
+    // The second job is due when this run reaches its cap (as a change queued during its last measurement is,
+    // once its own worker has found the lock held and left).
+    const capped = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received), maxJobs:1, handOff });
+    assert.equal(capped.results.length, 1);
+    assert.equal(capped.handedOff, true);
+    assert.deepEqual(handedTo, [p.cwd]);
+    // The fresh worker takes it, and has nothing left to hand off.
+    const next = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received), maxJobs:1, handOff });
+    assert.equal(next.results.at(-1).changeId, second);
+    assert.equal(next.results.at(-1).state, 'done');
+    assert.equal(next.handedOff, undefined);
+    assert.equal(handedTo.length, 1);
+  } finally { p.done(); }
+});
+
 test('`auto-debt run` delivers receipts queued earlier, even when it has nothing to measure', async () => {
   const received = [];
   const server = http.createServer((request, response) => {
