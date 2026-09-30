@@ -177,7 +177,7 @@ export async function runPortalCli(args, { cwd = process.cwd() } = {}) {
       const shown = [...open, ...(room > 0 ? status.changes.filter((change) => change.state === 'measured').slice(-room) : [])];
       for (const change of shown) {
         const detail = change.state === 'measured'
-          ? `${change.points} point(s) · ${change.obligations} obligation(s) · budget ${change.budgetPassed === null ? 'n/a' : change.budgetPassed ? 'PASS' : 'EXCEEDED'} · ${change.delivery === 'awaiting-delivery' ? 'waiting for Portal delivery' : change.delivery}${change.source === 'manual' ? ' · measured manually' : ''}`
+          ? `${change.points} point(s) · ${change.obligations} obligation(s) · budget ${change.budgetPassed === null ? 'n/a' : change.budgetPassed ? 'PASS' : 'EXCEEDED'} · ${change.delivery === 'awaiting-delivery' ? 'waiting for Portal delivery' : change.delivery}${change.source === 'manual' ? ' · measured manually' : change.source === 'ide' ? ' · measured by the IDE hook' : ''}`
           : `${change.state}${change.lastError ? ` · ${change.lastError.code}${change.lastError.message ? `: ${change.lastError.message}` : ''}` : ''}`;
         console.log(`  ${change.changeId} · ${detail}`);
       }

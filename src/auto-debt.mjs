@@ -225,7 +225,7 @@ export function enqueueAutoDebt(cwd, identity, { now = new Date() } = {}) {
 // A measurement sent through the manual path (`idleproof portal assurance`) settles the automatic job of
 // the same change: it is never measured again automatically, and a not-measured record is resolved. A job
 // that a worker is measuring right now is left to it (the same measurement deduplicates).
-export function settleWithManualAssurance(cwd, changeId, { snapshotId = null, softwareDebt = null, queueReason = null } = {}) {
+export function settleWithManualAssurance(cwd, changeId, { snapshotId = null, softwareDebt = null, queueReason = null, source = 'manual' } = {}) {
   if (!CHANGE_ID.test(String(changeId || ''))) return { settled:false, reason:'no-change' };
   if (!readAutoDebtConfig(cwd)) return { settled:false, reason:'not-enabled' };
   return withJobs(cwd, (state) => {
@@ -236,7 +236,7 @@ export function settleWithManualAssurance(cwd, changeId, { snapshotId = null, so
     resolveFailedDropped(state, changeId);
     if (!state.measured.includes(changeId)) state.measured.push(changeId);
     if (!state.done.some((item) => item.changeId === changeId)) {
-      state.done = [...state.done, { changeId, source:'manual', points:softwareDebt?.points ?? null, obligations:softwareDebt?.obligations ?? null,
+      state.done = [...state.done, { changeId, source:source === 'ide' ? 'ide' : 'manual', points:softwareDebt?.points ?? null, obligations:softwareDebt?.obligations ?? null,
         budgetPassed:softwareDebt?.budgetPassed ?? null, snapshotId, queueReason, measuredAt:new Date().toISOString(), attempts:0 }].slice(-MAX_DONE);
     }
     return { settled:true, changeId, hadJob:Boolean(job) };
@@ -531,7 +531,7 @@ export function autoDebtStatus(cwd = process.cwd(), { probe = true } = {}) {
   const changes = [
     ...jobs.jobs.map((job) => ({ changeId:job.changeId, state:job.state === 'pending' ? (job.lastError ? 'retrying' : 'waiting') : job.state, attempts:job.attempts,
       lastError:job.lastError, retryAfter:job.retryAfter, enqueuedAt:job.enqueuedAt })),
-    ...jobs.done.slice(-20).map((item) => ({ changeId:item.changeId, state:'measured', source:item.source === 'manual' ? 'manual' : 'automatic', delivery:delivery(item.snapshotId), points:item.points, obligations:item.obligations,
+    ...jobs.done.slice(-20).map((item) => ({ changeId:item.changeId, state:'measured', source:['manual', 'ide'].includes(item.source) ? item.source : 'automatic', delivery:delivery(item.snapshotId), points:item.points, obligations:item.obligations,
       budgetPassed:item.budgetPassed, snapshotId:item.snapshotId, measuredAt:item.measuredAt }))
   ];
   return {

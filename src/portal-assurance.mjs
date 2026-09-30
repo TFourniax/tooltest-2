@@ -147,6 +147,10 @@ function writeAssuranceSent(cwd, entries) {
 
 // Every delivery route (this command and the IDE hook) queues an assurance through here, so one
 // measurement of one change stays one receipt whichever route sent it first.
+// Whether the current Portal delivery queue holds a receipt: queued now, already queued, or already held by
+// Portal. A receipt sent once to an earlier enrollment and refused now is not accepted.
+export const acceptedByPortalQueue=(queued)=>queued?.queued===true || queued?.reason==='duplicate' || queued?.reason==='held-by-portal';
+
 export function queueAssuranceReceipt(cwd, snapshot, { retainedByCaller=false }={}) {
   const key=assuranceKey(snapshot.change.changeId,snapshot.assurance);
   // Lookup, queueing and recording form one step per project, so concurrent hook and CLI
@@ -176,7 +180,7 @@ export function queueAssuranceReceipt(cwd, snapshot, { retainedByCaller=false }=
     if (!previous) recordAssuranceSent(cwd,key,receipt,{ pending:true });
     else if (recovered) recordAssuranceSent(cwd,key,receipt);
     const queued=queuePortalSnapshot(cwd,receipt,{ retainedByCaller });
-    const accepted=queued.queued || queued.reason==='duplicate' || queued.reason==='held-by-portal';
+    const accepted=acceptedByPortalQueue(queued);
     if (accepted && (!previous || previous.pending)) recordAssuranceSent(cwd,key,receipt);
     // Refused before entering the queue (Portal not configured, queue full): nothing was sent, so the
     // measurement is not recorded and a later attempt sends it normally.
@@ -202,9 +206,9 @@ export async function syncPortalAssurance(cwd=process.cwd(), envelope, options={
     snapshotId:receipt.snapshotId,
     changeId:receipt.change.changeId,
     newlyQueued:queued.queued,
-    // Whether the current Portal queue holds this receipt now (queued, already queued, or already held by
-    // Portal). `queueReason` 'already-sent' only says it was sent once, possibly to an earlier enrollment.
-    accepted:queued.queued === true || queued.reason === 'duplicate' || queued.reason === 'held-by-portal',
+    // Whether the current Portal queue holds this receipt now. `queueReason` 'already-sent' only says it
+    // was sent once, possibly to an earlier enrollment.
+    accepted:acceptedByPortalQueue(queued),
     queueReason:previous ? 'already-sent' : (queued.reason || null),
     skippedSnapshots:Math.max(queued.skippedSnapshots || 0,flushed.skippedSnapshots || 0),
     assurance:snapshot.assurance

@@ -73,7 +73,8 @@ again automatically.
   The same measurement of the same change is the same receipt. A manual assurance that the current Portal
   delivery queue accepts (queued now, already queued, or already held by Portal) settles the automatic job
   of that change, which is then never measured again automatically; the status
-  shows it as *measured manually*. A job a worker is measuring at that moment is left to the worker.
+  shows it as *measured manually*. A DiffWitness envelope that the IDE hook delivers settles the job the
+  same way, shown as *measured by the IDE hook*. A job a worker is measuring at that moment is left to the worker.
 - A change recorded as not measured (queue full) is no longer reported so once it is queued later or
   measured manually.
 - The measurement files of the last 64 changes are kept in `.idleproof/auto-debt/<dwchg_…>/`.

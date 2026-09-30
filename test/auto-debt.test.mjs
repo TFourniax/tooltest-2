@@ -10,6 +10,7 @@ import { processHookLifecycle } from '../src/hook.mjs';
 import { buildCurrentPortalSnapshot, portalStatus, writePortalConfig } from '../src/portal-client.mjs';
 import { autoDebtStatus, disableAutoDebt, enableAutoDebt, enqueueAutoDebt, runAutoDebtWorker, scheduleAutoDebt, settleWithManualAssurance, __autoDebtTest } from '../src/auto-debt.mjs';
 import { syncPortalAssurance, readChangeEnvelope } from '../src/portal-assurance.mjs';
+import { queueMatchingDiffWitnessAssurance } from '../src/ide-assurance.mjs';
 import { projectPaths } from '../src/paths.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -620,6 +621,53 @@ test('a manual assurance that the current Portal queue refuses does not settle t
     assert.equal(jobs.jobs.find((item) => item.changeId === job.changeId)?.state, 'pending');
     assert.equal(jobs.measured.includes(job.changeId), false);
   } finally { for (const file of [debtFile, envelopeFile]) cleanup(file); p.done(); }
+});
+
+test('a DiffWitness receipt that the IDE hook queues settles the automatic job of the same change', async () => {
+  const p = project();
+  const received = [];
+  const log = path.join(p.cwd, '..', `${path.basename(p.cwd)}-dw.log`);
+  const debtFile = path.join(p.cwd, '..', `${path.basename(p.cwd)}-debt.json`);
+  const envelopeFile = path.join(p.cwd, '.git', 'diffwitness', 'change-envelope.json');
+  // The hook also schedules a detached flush; an invalid NODE_OPTIONS makes that child exit at startup.
+  const hook = () => {
+    const nodeOptions = process.env.NODE_OPTIONS;
+    process.env.NODE_OPTIONS = '--idleproof-test-no-background-flush';
+    try { return queueMatchingDiffWitnessAssurance(p.cwd); }
+    finally { if (nodeOptions === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = nodeOptions; }
+  };
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    completeChange(p.cwd, 'app.py', 'def total(items):\n    # TODO: check\n    return sum(items)\n');
+    const job = __autoDebtTest.readJobs(p.cwd).jobs[0];
+    // The DiffWitness IDE integration measured the change and left its envelope for the hook.
+    git(p.cwd, 'add', '-A'); git(p.cwd, 'commit', '-qm', 'change');
+    fs.mkdirSync(path.dirname(envelopeFile), { recursive:true });
+    execFileSync(process.execPath, [FAKE_DW, 'debt', '--repo', p.cwd, '--base', 'HEAD~1', '--candidate', 'HEAD', '--json', debtFile], { cwd:p.cwd });
+    execFileSync(process.execPath, [FAKE_DW, 'envelope', '--repo', p.cwd, '--base', 'HEAD~1', '--candidate', 'HEAD', '--debt', debtFile, '--out', envelopeFile], { cwd:p.cwd });
+    // The delivery queue is full: the hook's receipt is refused, and the automatic job keeps waiting.
+    const older = buildCurrentPortalSnapshot(p.cwd);
+    fs.writeFileSync(projectPaths(p.cwd).portalQueue, JSON.stringify(Array.from({ length:200 }, () => older)));
+    const refused = hook();
+    assert.equal(refused.matched, true);
+    assert.equal(refused.queued, false);
+    assert.equal(refused.autoDebt, null);
+    assert.equal(__autoDebtTest.readJobs(p.cwd).jobs[0].state, 'pending');
+    // With room in the queue, the hook's receipt is accepted and settles the job.
+    fs.writeFileSync(projectPaths(p.cwd).portalQueue, '[]');
+    const hooked = hook();
+    assert.equal(hooked.queued, true);
+    assert.equal(hooked.autoDebt.settled, true);
+    assert.equal(hooked.autoDebt.hadJob, true);
+    process.env.FAKE_DW_LOG = log;
+    const run = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received) });
+    assert.equal(run.results.length, 0);
+    assert.equal(fs.existsSync(log), false);
+    const change = autoDebtStatus(p.cwd, { probe:false }).changes.find((item) => item.changeId === job.changeId);
+    assert.equal(change.state, 'measured');
+    assert.equal(change.source, 'ide');
+    assert.equal(change.points, 8);
+  } finally { delete process.env.FAKE_DW_LOG; for (const file of [log, debtFile]) cleanup(file); p.done(); }
 });
 
 test('references that no longer match are refused, never sent under another change', async () => {
