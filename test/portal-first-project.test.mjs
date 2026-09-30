@@ -471,7 +471,10 @@ test('recording a receipt waits for another process holding the receipt cache', 
     await new Promise((resolve) => setTimeout(resolve, 1000));
     assert.equal(fs.existsSync(projectPaths(cwd).portalAssuranceSent), false);
     assert.equal(fs.existsSync(projectPaths(cwd).portalQueue), false);
-    fs.rmSync(lock, { recursive:true, force:true });
+    // Released the way the product releases a lock: the owner file, then the directory, which rmdir removes
+    // only while it is empty. The waiting child may already have published its own lock in that place.
+    fs.rmSync(path.join(lock, 'owner'), { force:true });
+    try { fs.rmdirSync(lock); } catch (error) { if (!['ENOTEMPTY', 'EEXIST', 'ENOENT', 'EPERM', 'EBUSY'].includes(error.code)) throw error; }
     assert.equal((await exited).code, 0);
     assert.equal(JSON.parse(fs.readFileSync(projectPaths(cwd).portalAssuranceSent, 'utf8')).entries.length, 1);
   } finally { cleanup(cwd); }
