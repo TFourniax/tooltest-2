@@ -878,6 +878,29 @@ test('reset waits for a change being queued, and a queue write after a reset wri
   } finally { p.done(); }
 });
 
+test('a reset during `auto-debt enable` leaves nothing behind', async () => {
+  const p = project();
+  const run = (args, env = {}) => new Promise((resolve) => {
+    const child = spawn(process.execPath, [CLI, ...args], { cwd:p.cwd, env:{ ...process.env, ...env } });
+    let stderr = '';
+    child.stderr.on('data', (chunk) => { stderr += chunk; });
+    child.on('close', (status) => resolve({ status, stderr }));
+  });
+  try {
+    // Enabling probes Core, which takes a few seconds here; the project is reset meanwhile.
+    const enabling = run(['portal', 'auto-debt', 'enable', '--dw', p.dw], { FAKE_DW_PROBE_SLEEP_MS:'3000' });
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    const reset = await run(['reset']);
+    assert.equal(reset.status, 0, reset.stderr);
+    assert.equal(fs.existsSync(projectPaths(p.cwd).dir), false);
+    const enabled = await enabling;
+    assert.notEqual(enabled.status, 0);
+    assert.match(enabled.stderr, /IDLEPROOF_AUTO_DEBT_STATE_RESET|reset meanwhile/);
+    // The reset project stays as reset left it: no directory holding only the automatic debt configuration.
+    assert.equal(fs.existsSync(projectPaths(p.cwd).dir), false);
+  } finally { p.done(); }
+});
+
 test('references that no longer match are refused, never sent under another change', async () => {
   const p = project();
   const received = [];

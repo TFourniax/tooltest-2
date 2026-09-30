@@ -122,21 +122,42 @@ function probeCore(dw, cwd) {
 }
 
 // Explicit activation for this project, once it is attached to Portal: the results go to that enrollment.
+// The configuration is written under the queue lock, which `idleproof reset` also holds while it moves the
+// state, without recreating the state directory, and after `check` confirms inside the lock that the state
+// it depends on is still there: a reset meanwhile (for example during the Core probe) leaves nothing behind.
+function writeConfig(cwd, check, value) {
+  try {
+    withOwnedLock(projectPaths(cwd).autoDebtJobsLock, () => {
+      check();
+      atomicJson(projectPaths(cwd).autoDebtConfig, value);
+    }, 'IDLEPROOF_AUTO_DEBT_BUSY', 'Automatic debt queue', { createParent:false });
+  } catch (error) {
+    if (error?.code === 'ENOENT' && !fs.existsSync(projectPaths(cwd).dir)) throw autoDebtError('IDLEPROOF_AUTO_DEBT_STATE_RESET', 'The local state was reset meanwhile; nothing was written.');
+    throw error;
+  }
+}
+
+const portalRequired = () => autoDebtError('IDLEPROOF_AUTO_DEBT_PORTAL_REQUIRED', 'Attach this project to Portal first (`idleproof portal configure --endpoint URL --token-stdin`): automatic debt results are sent to that enrollment.');
+
 export function enableAutoDebt(cwd = process.cwd(), { dw = null } = {}) {
   const portal = readPortalConfig(cwd);
-  if (!portal?.enabled) throw autoDebtError('IDLEPROOF_AUTO_DEBT_PORTAL_REQUIRED', 'Attach this project to Portal first (`idleproof portal configure --endpoint URL --token-stdin`): automatic debt results are sent to that enrollment.');
+  if (!portal?.enabled) throw portalRequired();
   const command = dw ? path.resolve(cwd, dw) : findOnPath('dw');
   if (!command) throw autoDebtError('IDLEPROOF_AUTO_DEBT_CORE_NOT_FOUND', 'The Core CLI `dw` is not on PATH; pass its location with --dw PATH.');
   const probe = probeCore(command, cwd);
   if (!probe.ok) throw autoDebtError('IDLEPROOF_AUTO_DEBT_CORE_UNAVAILABLE', `${command} does not answer as the Core CLI (${probe.code}: ${probe.message}).`);
-  atomicJson(projectPaths(cwd).autoDebtConfig, { schema:CONFIG_SCHEMA, enabled:true, dw:command, enabledAt:new Date().toISOString() });
+  writeConfig(cwd, () => { if (!readPortalConfig(cwd)?.enabled) throw portalRequired(); },
+    { schema:CONFIG_SCHEMA, enabled:true, dw:command, enabledAt:new Date().toISOString() });
   return autoDebtStatus(cwd, { probe:false });
 }
 
 // Jobs and history are kept; only new completed changes stop being queued.
 export function disableAutoDebt(cwd = process.cwd()) {
   const config = readAutoDebtConfig(cwd);
-  if (config) atomicJson(projectPaths(cwd).autoDebtConfig, { schema:CONFIG_SCHEMA, enabled:false, dw:config.dw, enabledAt:config.enabledAt, disabledAt:new Date().toISOString() });
+  if (config) {
+    writeConfig(cwd, () => { if (!fs.existsSync(projectPaths(cwd).autoDebtConfig)) throw autoDebtError('IDLEPROOF_AUTO_DEBT_STATE_RESET', 'The local state was reset meanwhile; nothing was written.'); },
+      { schema:CONFIG_SCHEMA, enabled:false, dw:config.dw, enabledAt:config.enabledAt, disabledAt:new Date().toISOString() });
+  }
   return autoDebtStatus(cwd, { probe:false });
 }
 

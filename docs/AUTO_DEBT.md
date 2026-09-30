@@ -83,7 +83,7 @@ again automatically.
 - `idleproof portal auto-debt disable` stops queueing new changes. It keeps the jobs and the history.
 - `idleproof reset` never moves the local state while a worker is measuring or delivering, or while a hook
   is queueing a change: it waits a few seconds for them, and otherwise stops with an explicit message and
-  moves nothing. A worker or hook that finds the state reset writes nothing.
+  moves nothing. A worker, a hook or `auto-debt enable` that finds the state reset writes nothing.
 
 ## Limits
 
