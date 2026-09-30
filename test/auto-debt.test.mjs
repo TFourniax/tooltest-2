@@ -744,7 +744,7 @@ test('reset never moves the local state under a measurement, and a worker then l
     // Reset waits for the worker's lock, then stops explicitly: nothing is moved.
     const refused = reset();
     assert.notEqual(refused.status, 0);
-    assert.match(refused.stderr, /measuring or delivering a change/);
+    assert.match(refused.stderr, /measuring, delivering or queueing a change/);
     assert.equal(fs.existsSync(projectPaths(p.cwd).autoDebtJobs), true);
     await finished;
     assert.equal(JSON.parse(out).results[0].state, 'done');
@@ -793,7 +793,7 @@ test('reset never moves the local state while the worker delivers, and the deliv
     assert.equal(fs.existsSync(projectPaths(p.cwd).autoDebtWorkerLock), true);
     const refused = await reset();
     assert.notEqual(refused.status, 0);
-    assert.match(refused.stderr, /measuring or delivering a change/);
+    assert.match(refused.stderr, /measuring, delivering or queueing a change/);
     assert.equal(fs.existsSync(projectPaths(p.cwd).autoDebtJobs), true);
     // Portal answers: the delivery ends, then reset archives the state, and nothing recreates it.
     answer();
@@ -808,6 +808,74 @@ test('reset never moves the local state while the worker delivers, and the deliv
     assert.deepEqual(await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received), deliverQueued:true }), { enabled:false, results:[] });
     assert.equal(fs.existsSync(projectPaths(p.cwd).dir), false);
   } finally { answer(); if (run) await run.catch(() => {}); p.done(); }
+});
+
+test('the latest failures stay listed by the time they failed, not the order they were queued', async () => {
+  const p = project();
+  const received = [];
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    const hex = (n) => n.toString(16).padStart(24, '0');
+    const failedJob = (n) => ({ changeId:`dwchg_${hex(n)}`, repository:null, base:{ tree:'a'.repeat(40), commit:null }, candidate:{ tree:'b'.repeat(40), commit:null },
+      enqueuedAt:'2026-01-01T00:00:00.000Z', state:'failed', attempts:1, lastError:{ code:'REFERENCE_UNAVAILABLE', message:'gone', at:'2026-01-01T00:00:00.000Z' }, lastAttemptAt:null, retryAfter:null });
+    // Queued before all of them, delayed by its backoff, and failing only now.
+    const late = { changeId:`dwchg_${'e'.repeat(24)}`, repository:null, base:{ tree:'c'.repeat(40), commit:null }, candidate:{ tree:'d'.repeat(40), commit:null },
+      enqueuedAt:'2025-12-01T00:00:00.000Z', state:'pending', attempts:__autoDebtTest.MAX_ATTEMPTS - 1, lastError:{ code:'MEASUREMENT_FAILED', message:'failed', at:'2025-12-31T00:00:00.000Z' }, lastAttemptAt:null, retryAfter:null };
+    const failed = Array.from({ length:__autoDebtTest.MAX_FAILED }, (_, n) => failedJob(n + 1));
+    fs.writeFileSync(projectPaths(p.cwd).autoDebtJobs, JSON.stringify({ schema:'idleproof.auto-debt-jobs.v1', jobs:[late, ...failed], done:[], measured:[], skipped:[], skippedTotal:0, degraded:false }));
+    const run = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received) });
+    assert.equal(run.results[0].code, 'REFERENCE_UNAVAILABLE');
+    const jobs = __autoDebtTest.readJobs(p.cwd);
+    // The failure that just happened stays listed with its reason; the oldest failure leaves the list, counted.
+    const kept = jobs.jobs.find((job) => job.changeId === late.changeId);
+    assert.equal(kept?.state, 'failed');
+    assert.equal(kept.lastError.code, 'REFERENCE_UNAVAILABLE');
+    assert.equal(jobs.jobs.some((job) => job.changeId === failed[0].changeId), false);
+    assert.equal(autoDebtStatus(p.cwd, { probe:false }).counts.failedNoLongerListed, 1);
+  } finally { p.done(); }
+});
+
+test('reset waits for a change being queued, and a queue write after a reset writes nothing', async () => {
+  const p = project();
+  const paths = projectPaths(p.cwd);
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    // A hook is queueing a change: it holds the queue lock for a moment, then writes into the state.
+    const lockModule = new URL('../src/portal-memory-lock.mjs', import.meta.url).href;
+    const marker = path.join(paths.dir, 'queued-marker');
+    const holder = spawn(process.execPath, ['--input-type=module', '-e', `
+      const fs = await import('node:fs');
+      const { withOwnedLock } = await import(${JSON.stringify(lockModule)});
+      withOwnedLock(${JSON.stringify(paths.autoDebtJobsLock)}, () => {
+        process.stdout.write('held\\n');
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1200);
+        fs.writeFileSync(${JSON.stringify(marker)}, 'queued');
+      }, 'TEST_QUEUE_BUSY', 'Test queue writer');
+    `], { stdio:['ignore', 'pipe', 'pipe'] });
+    const holderDone = new Promise((resolve) => holder.on('close', resolve));
+    await new Promise((resolve) => holder.stdout.once('data', resolve));
+    const reset = await new Promise((resolve) => {
+      const child = spawn(process.execPath, [CLI, 'reset'], { cwd:p.cwd });
+      let stderr = '';
+      child.stderr.on('data', (chunk) => { stderr += chunk; });
+      child.on('close', (status) => resolve({ status, stderr }));
+    });
+    assert.equal(await holderDone, 0);
+    assert.equal(reset.status, 0, reset.stderr);
+    // Reset moved the state only after that write: it is in the archive, and no lock is.
+    const recovery = path.join(p.cwd, '.git', 'idleproof-recovery');
+    const [entry] = fs.readdirSync(recovery);
+    assert.equal(fs.readFileSync(path.join(recovery, entry, 'queued-marker'), 'utf8'), 'queued');
+    assert.equal(fs.existsSync(path.join(recovery, entry, 'auto-debt-jobs.lock')), false);
+    assert.equal(fs.existsSync(path.join(recovery, entry, 'auto-debt-worker.lock')), false);
+    // A queue write that reaches the lock after the reset writes nothing: the directory stays gone, and once
+    // IdleProof recreates it for its own state, the queue is still not written without its configuration.
+    assert.throws(() => __autoDebtTest.withJobs(p.cwd, () => null), (error) => error.code === 'IDLEPROOF_AUTO_DEBT_STATE_RESET');
+    assert.equal(fs.existsSync(paths.dir), false);
+    fs.mkdirSync(paths.dir);
+    assert.throws(() => __autoDebtTest.withJobs(p.cwd, () => null), (error) => error.code === 'IDLEPROOF_AUTO_DEBT_STATE_RESET');
+    assert.equal(fs.existsSync(paths.autoDebtJobs), false);
+  } finally { p.done(); }
 });
 
 test('references that no longer match are refused, never sent under another change', async () => {

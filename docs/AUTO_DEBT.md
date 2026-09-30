@@ -38,13 +38,14 @@ measurement repeatable. Recording lineages stays a manual `dw debt`.
 | `failed` | One of three causes, each shown with its reason: five failed measurements; references that cannot be measured (`REFERENCE_UNAVAILABLE`, `REFERENCE_MISMATCH`, `NOT_CORRELATED`); or the same measurement queued for Portal long ago whose receipt is no longer kept locally (`IDLEPROOF_ASSURANCE_NOT_RETAINED`), so it can be neither resent nor confirmed. Nothing was sent. |
 | `measured` | Sent to the delivery queue. The status then shows **waiting for Portal delivery** or **delivered**. |
 
-**Not measured (queue full).** When 100 jobs are already waiting or retrying, a newly completed change
-is recorded as not measured and the status is marked degraded. It is never dropped silently. Measure
-such changes manually. Each one stays counted until it is queued later or measured manually; the latest
-200 are listed with their references in `auto-debt status --json`. Failed jobs do not count toward this limit. The latest 100 failed jobs stay
-listed with their reason, and older ones are counted in the status as no longer listed, until their
-change is queued again or measured manually. A damaged queue
-file stops the feature with an explicit error; it is never replaced by an empty one.
+**Not measured (queue full).** When 100 jobs are already waiting or retrying, a newly completed change is
+recorded as not measured and the status is marked degraded. It is never dropped silently. Measure such
+changes manually. Each one stays counted until it is queued later or measured manually; the latest 200
+are listed with their references in `auto-debt status --json`. Failed jobs do not count toward this
+limit. The latest 100 failed jobs stay listed with their reason (the latest by the time they failed), and
+older ones are counted in the status as no longer listed, until their change is queued again or measured
+manually. A damaged queue file stops the feature with an explicit error; it is never replaced by an empty
+one.
 
 **A measurement is taken once.** Before it is queued for Portal, the finished measurement is saved
 beside its job. If the delivery queue refuses it (Portal no longer configured, or its queue full), the
@@ -80,9 +81,9 @@ again automatically.
   measured manually.
 - The measurement files of the last 64 changes are kept in `.idleproof/auto-debt/<dwchg_…>/`.
 - `idleproof portal auto-debt disable` stops queueing new changes. It keeps the jobs and the history.
-- `idleproof reset` never moves the local state while a worker is measuring or delivering: it waits a few
-  seconds for the worker, and otherwise stops with an explicit message and moves nothing. A worker that
-  finds the state reset stops without writing anything.
+- `idleproof reset` never moves the local state while a worker is measuring or delivering, or while a hook
+  is queueing a change: it waits a few seconds for them, and otherwise stops with an explicit message and
+  moves nothing. A worker or hook that finds the state reset writes nothing.
 
 ## Limits
 

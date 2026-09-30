@@ -164,14 +164,22 @@ function readJobs(cwd) {
     degraded:value.degraded === true };
 }
 
+// The queue is never written once the project was reset: its lock does not recreate the state directory,
+// and a queue whose configuration is gone is neither read nor written.
 function withJobs(cwd, fn) {
-  fs.mkdirSync(projectPaths(cwd).dir, { recursive:true });
-  return withOwnedLock(projectPaths(cwd).autoDebtJobsLock, () => {
-    const jobs = readJobs(cwd);
-    const result = fn(jobs);
-    atomicJson(projectPaths(cwd).autoDebtJobs, jobs);
-    return result;
-  }, 'IDLEPROOF_AUTO_DEBT_BUSY', 'Automatic debt queue');
+  const reset = () => autoDebtError('IDLEPROOF_AUTO_DEBT_STATE_RESET', 'The automatic debt configuration is gone (the local state was reset); nothing was queued.');
+  try {
+    return withOwnedLock(projectPaths(cwd).autoDebtJobsLock, () => {
+      if (!fs.existsSync(projectPaths(cwd).autoDebtConfig)) throw reset();
+      const jobs = readJobs(cwd);
+      const result = fn(jobs);
+      atomicJson(projectPaths(cwd).autoDebtJobs, jobs);
+      return result;
+    }, 'IDLEPROOF_AUTO_DEBT_BUSY', 'Automatic debt queue', { createParent:false });
+  } catch (error) {
+    if (error?.code === 'ENOENT' && !fs.existsSync(projectPaths(cwd).dir)) throw reset();
+    throw error;
+  }
 }
 
 // A change recorded as not measured (queue full) that is admitted or measured later is no longer reported
@@ -422,7 +430,11 @@ function queueKeptMeasurement(cwd, job, { configKey, core, snapshot }) {
 function boundFailed(state) {
   const failed = state.jobs.filter((job) => job.state === 'failed');
   if (failed.length <= MAX_FAILED) return;
-  const dropped = new Set(failed.slice(0, failed.length - MAX_FAILED).map((job) => job.changeId));
+  // By the time they failed, not the order they were queued: a job that fails late, after its backoff, is
+  // among the latest failures.
+  const failedAt = (job) => Date.parse(job.lastError?.at ?? job.lastAttemptAt ?? job.enqueuedAt) || 0;
+  const oldest = [...failed].sort((a, b) => failedAt(a) - failedAt(b)).slice(0, failed.length - MAX_FAILED);
+  const dropped = new Set(oldest.map((job) => job.changeId));
   state.jobs = state.jobs.filter((job) => !dropped.has(job.changeId));
   state.failedDroppedIds = [...new Set([...state.failedDroppedIds, ...dropped])];
   state.failedDropped = state.failedDroppedIds.length;
@@ -588,4 +600,4 @@ export function autoDebtStatus(cwd = process.cwd(), { probe = true } = {}) {
   };
 }
 
-export const __autoDebtTest = { referenceCommit, configurationKey, measureAndQueue, processNextJob, readJobs, windowsShellLine, MAX_JOBS, MAX_FAILED, MAX_DONE, MAX_SKIPPED, MAX_ATTEMPTS };
+export const __autoDebtTest = { referenceCommit, configurationKey, measureAndQueue, processNextJob, readJobs, withJobs, windowsShellLine, MAX_JOBS, MAX_FAILED, MAX_DONE, MAX_SKIPPED, MAX_ATTEMPTS };

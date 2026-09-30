@@ -193,23 +193,24 @@ async function resetLocalState(cwd, args = []) {
   const info = serverInfo(cwd);
   if (info && await probeServer(cwd, info)) throw new Error('IdleProof is running. Run `idleproof stop` before resetting local state.');
   const force = args.includes('--force');
-  // An automatic debt worker must not be measuring while the state moves: its last write would recreate the
-  // queue outside the archive. Holding its lock waits for a job to end (up to 3 s) and recovers a lock left
-  // by a worker that died; a worker still measuring stops the reset, and nothing is moved.
+  // No automatic debt worker may be measuring or delivering, and no hook queueing a change, while the state
+  // moves: their next write would recreate the queue outside the archive. Holding the worker lock, then the
+  // queue lock, waits for them (up to 3 s each) and recovers locks left by processes that died; one still
+  // busy stops the reset, and nothing is moved.
   let destination = null;
   try {
-    withOwnedLock(paths.autoDebtWorkerLock, () => {
+    withOwnedLock(paths.autoDebtWorkerLock, () => withOwnedLock(paths.autoDebtJobsLock, () => {
       if (force) { fs.rmSync(paths.dir, { recursive:true, force:true }); return; }
       const recoveryRoot = resetRecoveryRoot(cwd);
       fs.mkdirSync(recoveryRoot, { recursive:true, mode:0o700 });
       const stamp = new Date().toISOString().replace(/[:.]/g, '-');
       destination = path.join(recoveryRoot, `${stamp}-${process.pid}`);
       fs.renameSync(paths.dir, destination);
-      // The archive keeps the state, not this reset's lock.
-      fs.rmSync(path.join(destination, path.basename(paths.autoDebtWorkerLock)), { recursive:true, force:true });
-    }, 'IDLEPROOF_AUTO_DEBT_WORKER_BUSY', 'Automatic debt worker');
+      // The archive keeps the state, not this reset's locks.
+      for (const lock of [paths.autoDebtWorkerLock, paths.autoDebtJobsLock]) fs.rmSync(path.join(destination, path.basename(lock)), { recursive:true, force:true });
+    }, 'IDLEPROOF_AUTO_DEBT_BUSY', 'Automatic debt queue'), 'IDLEPROOF_AUTO_DEBT_WORKER_BUSY', 'Automatic debt worker');
   } catch (error) {
-    if (error?.code === 'IDLEPROOF_AUTO_DEBT_WORKER_BUSY') throw new Error('Automatic debt is measuring or delivering a change. Wait for it to finish (`idleproof portal auto-debt status`), then reset again; nothing was moved.');
+    if (['IDLEPROOF_AUTO_DEBT_WORKER_BUSY', 'IDLEPROOF_AUTO_DEBT_BUSY'].includes(error?.code)) throw new Error('Automatic debt is measuring, delivering or queueing a change. Wait for it to finish (`idleproof portal auto-debt status`), then reset again; nothing was moved.');
     throw error;
   }
   if (force) {
