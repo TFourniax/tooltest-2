@@ -161,7 +161,7 @@ export async function runPortalCli(args, { cwd = process.cwd() } = {}) {
       if (status.errorCode) { console.log(`Automatic debt: ${status.errorCode} · ${status.message}`); return; }
       console.log(`Automatic debt: ${status.enabled ? 'enabled' : 'disabled'}${status.dw ? ` · Core ${status.dw}${status.core ? ` (${status.core})` : ''}` : ''}`);
       const c = status.counts;
-      console.log(`  waiting ${c.waiting} · measuring ${c.measuring} · failed ${c.failed} · measured ${c.measured}${c.skipped ? ` · NOT MEASURED (queue full) ${c.skipped}` : ''}`);
+      console.log(`  waiting ${c.waiting} · measuring ${c.measuring} · failed ${c.failed}${c.failedNoLongerListed ? ` (+${c.failedNoLongerListed} older, no longer listed)` : ''} · measured ${c.measured}${c.skipped ? ` · NOT MEASURED (queue full) ${c.skipped}` : ''}`);
       if (status.degraded) console.log('  Some completed changes were not queued because the queue was full; measure them manually (`dw debt`, `dw envelope`, `idleproof portal assurance`).');
       // Changes still to measure, retrying or failed come first, with their reason; the latest measured
       // ones fill the rest of the ten lines.

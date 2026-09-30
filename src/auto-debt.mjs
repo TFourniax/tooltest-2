@@ -28,8 +28,10 @@ import { buildAssurancePortalSnapshot, queueAssuranceReceipt } from './portal-as
 
 const CONFIG_SCHEMA = 'idleproof.auto-debt-config.v1';
 const JOBS_SCHEMA = 'idleproof.auto-debt-jobs.v1';
-// Jobs still to measure, retrying or failed. Beyond it a completed change is recorded as skipped.
+// Jobs still to measure or retrying. Beyond it a completed change is recorded as skipped.
 const MAX_JOBS = 100;
+// Failed jobs kept listed, apart from the limit above; older ones are counted, never silently lost.
+const MAX_FAILED = 100;
 // Details of the latest measured changes, for the status. The identities of every measured change are
 // kept apart, without a bound (about thirty bytes each), so none is ever measured twice.
 const MAX_DONE = 200;
@@ -117,7 +119,7 @@ export function disableAutoDebt(cwd = process.cwd()) {
 }
 
 function emptyJobs() {
-  return { schema:JOBS_SCHEMA, jobs:[], done:[], measured:[], skipped:[], skippedTotal:0, degraded:false };
+  return { schema:JOBS_SCHEMA, jobs:[], done:[], measured:[], skipped:[], skippedTotal:0, failedDropped:0, degraded:false };
 }
 
 // Only a missing file is an empty queue; a damaged one stops the queue with an explicit error, never
@@ -134,7 +136,8 @@ function readJobs(cwd) {
     throw autoDebtError('IDLEPROOF_AUTO_DEBT_STATE_CORRUPT', `The automatic debt queue ${'.idleproof/auto-debt-jobs.json'} has an unsupported schema; nothing was queued.`);
   }
   const measured = [...new Set([...(value.measured ?? []), ...value.done.map((item) => item.changeId)].filter((id) => CHANGE_ID.test(String(id))))];
-  return { ...emptyJobs(), ...value, measured, skippedTotal:Number.isInteger(value.skippedTotal) ? value.skippedTotal : value.skipped.length, degraded:value.degraded === true };
+  return { ...emptyJobs(), ...value, measured, skippedTotal:Number.isInteger(value.skippedTotal) ? value.skippedTotal : value.skipped.length,
+    failedDropped:Number.isInteger(value.failedDropped) ? value.failedDropped : 0, degraded:value.degraded === true };
 }
 
 function withJobs(cwd, fn) {
@@ -160,7 +163,8 @@ export function enqueueAutoDebt(cwd, identity, { now = new Date() } = {}) {
   return withJobs(cwd, (state) => {
     if (state.jobs.some((job) => job.changeId === changeId)) return { queued:false, reason:'already-queued', changeId, pending:state.jobs.length };
     if (state.measured.includes(changeId)) return { queued:false, reason:'already-measured', changeId, pending:state.jobs.length };
-    if (state.jobs.length >= MAX_JOBS) {
+    // Failed jobs never run again on their own, so they do not take the place of new changes.
+    if (state.jobs.filter((job) => job.state !== 'failed').length >= MAX_JOBS) {
       state.degraded = true;
       state.skippedTotal += 1;
       state.skipped = [...state.skipped.filter((item) => item.changeId !== changeId), { changeId, at:now.toISOString(), base:reference(identity.base), candidate:reference(identity.candidate) }].slice(-MAX_SKIPPED);
@@ -233,17 +237,35 @@ function configurationKey(root, dw) {
   return { ok:true, key:createHash('sha256').update(`${String(version.stdout).trim()}\n${settings}`).digest('hex').slice(0, 24), core:String(version.stdout).trim().slice(0, 80) };
 }
 
-function pruneWork(dir) {
+// Keeps the work of every job still in the queue (its kept measurement) and of the latest others.
+function pruneWork(cwd) {
+  const dir = projectPaths(cwd).autoDebtWork;
   try {
-    const entries = fs.readdirSync(dir).map((name) => ({ name, at:fs.statSync(path.join(dir, name)).mtimeMs })).sort((a, b) => b.at - a.at);
+    const queued = new Set(readJobs(cwd).jobs.map((job) => job.changeId));
+    const entries = fs.readdirSync(dir).filter((name) => !queued.has(name))
+      .map((name) => ({ name, at:fs.statSync(path.join(dir, name)).mtimeMs })).sort((a, b) => b.at - a.at);
     for (const entry of entries.slice(KEPT_WORK_DIRS)) fs.rmSync(path.join(dir, entry.name), { recursive:true, force:true });
   } catch {}
+}
+
+// A measurement already taken for this job and not yet accepted by the delivery queue.
+function keptMeasurement(file, changeId) {
+  try {
+    const kept = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (kept?.changeId !== changeId || kept?.snapshot?.change?.changeId !== changeId || !kept?.snapshot?.assurance?.softwareDebt) return null;
+    return kept;
+  } catch { return null; }
 }
 
 function tail(text) { return String(text || '').trim().split(/\r?\n/).slice(-4).join(' | ').slice(0, 400); }
 
 // One job, synchronously: measure, bind, queue the receipt. Never throws; the outcome says what happened.
 function measureAndQueue(cwd, config, job) {
+  const work = path.join(projectPaths(cwd).autoDebtWork, job.changeId);
+  const keptFile = path.join(work, 'receipt.json');
+  // Measured already (the delivery queue refused it: Portal not configured, or full): only queue it again.
+  const kept = keptMeasurement(keptFile, job.changeId);
+  if (kept) return queueMeasurement(cwd, job, kept);
   let root;
   try { root = gitRoot(cwd); } catch (error) { return { state:'retry', code:error.code, message:error.message }; }
   const key = configurationKey(root, config.dw);
@@ -251,7 +273,6 @@ function measureAndQueue(cwd, config, job) {
   const base = referenceCommit(root, job.base);
   const candidate = referenceCommit(root, job.candidate);
   if (!base || !candidate) return { state:'failed', code:'REFERENCE_UNAVAILABLE', message:`The frozen ${base ? 'candidate' : 'base'} tree of ${job.changeId} is no longer in the repository; measure it manually if its trees can be recovered.` };
-  const work = path.join(projectPaths(cwd).autoDebtWork, job.changeId);
   fs.mkdirSync(work, { recursive:true, mode:0o700 });
   const debtFile = path.join(work, 'debt.json');
   const envelopeFile = path.join(work, 'envelope.json');
@@ -272,17 +293,34 @@ function measureAndQueue(cwd, config, job) {
   let snapshot;
   try { snapshot = buildAssurancePortalSnapshot(cwd, envelope); }
   catch (error) { return { state:'failed', code:'NOT_CORRELATED', message:String(error?.message || error).slice(0, 300) }; }
+  // Kept before queueing: if the queue refuses it, the next attempt sends this measurement, never a new one.
+  const measurement = { changeId:job.changeId, configKey:key.key, core:key.core, snapshot };
+  try { atomicJson(keptFile, measurement); }
+  catch (error) { return { state:'retry', code:'MEASUREMENT_NOT_KEPT', message:String(error?.message || error).slice(0, 300) }; }
+  return queueMeasurement(cwd, job, measurement);
+}
+
+function queueMeasurement(cwd, job, { configKey, core, snapshot }) {
   let queued;
   try { queued = queueAssuranceReceipt(cwd, snapshot); }
   catch (error) { return { state:'retry', code:error?.code || 'RECEIPT_QUEUE_FAILED', message:String(error?.message || error).slice(0, 300) }; }
-  pruneWork(projectPaths(cwd).autoDebtWork);
-  const measured = { configKey:key.key, core:key.core, points:snapshot.assurance.softwareDebt.points, obligations:snapshot.assurance.softwareDebt.obligations, budgetPassed:snapshot.assurance.softwareDebt.budgetPassed };
+  pruneWork(cwd);
+  const measured = { configKey, core, points:snapshot.assurance.softwareDebt.points, obligations:snapshot.assurance.softwareDebt.obligations, budgetPassed:snapshot.assurance.softwareDebt.budgetPassed };
   // The same measurement was queued for Portal long ago and its body is no longer kept: it can be neither
   // resent nor confirmed, so it is never reported delivered.
   if (queued.notRetained) return { state:'failed', code:'IDLEPROOF_ASSURANCE_NOT_RETAINED', message:`This measurement of ${job.changeId} was queued for Portal long ago and its receipt is no longer kept locally, so it can be neither resent nor confirmed; nothing was sent.` };
   if (queued.queued.reason === 'not-configured') return { state:'waiting', code:'PORTAL_NOT_CONFIGURED', message:'Portal is not configured any more; the measurement is kept and sent once it is.' };
   if (queued.queued.reason === 'queue-full') return { state:'waiting', code:'PORTAL_QUEUE_FULL', message:'The Portal delivery queue is full; the measurement is sent once it drains.' };
   return { state:'done', ...measured, snapshotId:queued.receipt.snapshotId, queueReason:queued.previous ? 'already-sent' : queued.queued.reason || (queued.queued.queued ? 'queued' : null) };
+}
+
+// Only the latest failed jobs stay listed; the older ones are counted in the status.
+function boundFailed(state) {
+  const failed = state.jobs.filter((job) => job.state === 'failed');
+  if (failed.length <= MAX_FAILED) return;
+  const dropped = new Set(failed.slice(0, failed.length - MAX_FAILED).map((job) => job.changeId));
+  state.jobs = state.jobs.filter((job) => !dropped.has(job.changeId));
+  state.failedDropped += dropped.size;
 }
 
 const backoff = (attempts) => new Date(Date.now() + Math.min(60 * 60 * 1000, 30 * 1000 * 2 ** Math.max(0, attempts - 1))).toISOString();
@@ -315,9 +353,11 @@ function processNextJob(cwd, config, { retryFailed = false } = {}) {
       if (!state.measured.includes(job.changeId)) state.measured.push(job.changeId);
     } else if (outcome.state === 'failed') {
       Object.assign(item, { state:'failed', lastError:error, attempts:item.attempts + 1 });
+      boundFailed(state);
     } else if (outcome.state === 'retry') {
       const attempts = item.attempts + 1;
       Object.assign(item, { state:attempts >= MAX_ATTEMPTS ? 'failed' : 'pending', lastError:error, attempts, retryAfter:attempts >= MAX_ATTEMPTS ? null : backoff(attempts) });
+      boundFailed(state);
     } else {
       // Core unavailable or Portal not reachable as a destination: not the measurement's fault, so no
       // attempt is counted; the job waits for the next trigger.
@@ -376,11 +416,11 @@ export function autoDebtStatus(cwd = process.cwd(), { probe = true } = {}) {
     dw:config?.dw ?? null,
     core:core ? (core.ok ? 'available' : core.code) : null,
     counts:{ waiting:jobs.jobs.filter((job) => job.state === 'pending').length, measuring:jobs.jobs.filter((job) => job.state === 'measuring').length,
-      failed:jobs.jobs.filter((job) => job.state === 'failed').length, measured:jobs.measured.length, skipped:jobs.skippedTotal },
+      failed:jobs.jobs.filter((job) => job.state === 'failed').length, failedNoLongerListed:jobs.failedDropped, measured:jobs.measured.length, skipped:jobs.skippedTotal },
     degraded:jobs.degraded,
     skipped:jobs.skipped.slice(-20),
     changes
   };
 }
 
-export const __autoDebtTest = { referenceCommit, configurationKey, measureAndQueue, processNextJob, readJobs, MAX_JOBS, MAX_DONE, MAX_ATTEMPTS };
+export const __autoDebtTest = { referenceCommit, configurationKey, measureAndQueue, processNextJob, readJobs, MAX_JOBS, MAX_FAILED, MAX_DONE, MAX_ATTEMPTS };

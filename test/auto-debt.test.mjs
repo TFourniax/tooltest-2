@@ -318,6 +318,62 @@ test('the status lists changes still waiting, retrying or failed before the meas
   } finally { p.done(); }
 });
 
+test('failed jobs neither block new changes nor accumulate: only the latest stay listed, older ones are counted', async () => {
+  const p = project();
+  const received = [];
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    const hex = (n) => n.toString(16).padStart(24, '0');
+    const failedJob = (n) => ({ changeId:`dwchg_${hex(n)}`, repository:null, base:{ tree:'a'.repeat(40), commit:null }, candidate:{ tree:'b'.repeat(40), commit:null },
+      enqueuedAt:'2026-01-01T00:00:00.000Z', state:'failed', attempts:1, lastError:{ code:'REFERENCE_UNAVAILABLE', message:'gone', at:'2026-01-01T00:00:00.000Z' }, lastAttemptAt:null, retryAfter:null });
+    const failed = Array.from({ length:__autoDebtTest.MAX_FAILED }, (_, n) => failedJob(n + 1));
+    fs.writeFileSync(projectPaths(p.cwd).autoDebtJobs, JSON.stringify({ schema:'idleproof.auto-debt-jobs.v1', jobs:failed, done:[], measured:[], skipped:[], skippedTotal:0, degraded:false }));
+    // A full list of failures does not take the place of a new change.
+    const identity = { available:true, changeId:`dwchg_${'e'.repeat(24)}`, repository:{ fingerprint:'dwrepo_x' }, base:{ tree:'c'.repeat(40), sha:null }, candidate:{ tree:'d'.repeat(40), sha:null } };
+    assert.equal(enqueueAutoDebt(p.cwd, identity).queued, true);
+    // Its trees do not exist: it fails too, and the oldest failure leaves the list but is counted.
+    const run = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received) });
+    assert.equal(run.results[0].code, 'REFERENCE_UNAVAILABLE');
+    const jobs = __autoDebtTest.readJobs(p.cwd);
+    assert.equal(jobs.jobs.filter((job) => job.state === 'failed').length, __autoDebtTest.MAX_FAILED);
+    assert.equal(jobs.jobs.some((job) => job.changeId === failed[0].changeId), false);
+    assert.equal(jobs.jobs.some((job) => job.changeId === identity.changeId), true);
+    const status = autoDebtStatus(p.cwd, { probe:false });
+    assert.equal(status.counts.failed, __autoDebtTest.MAX_FAILED);
+    assert.equal(status.counts.failedNoLongerListed, 1);
+    assert.equal(status.degraded, false);
+    assert.equal(received.length, 0);
+  } finally { p.done(); }
+});
+
+test('a measurement the delivery queue refused is kept and sent later, without measuring again', async () => {
+  const p = project();
+  const received = [];
+  const log = path.join(p.cwd, '..', `${path.basename(p.cwd)}-dw.log`);
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    completeChange(p.cwd, 'app.py', 'def total(items):\n    # TODO: check\n    return sum(items)\n');
+    // Portal is disconnected when the measurement is ready: the queue refuses it.
+    fs.rmSync(projectPaths(p.cwd).portalConfig);
+    process.env.FAKE_DW_LOG = log;
+    const refused = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received) });
+    assert.equal(refused.results[0].state, 'waiting');
+    assert.equal(refused.results[0].code, 'PORTAL_NOT_CONFIGURED');
+    const measuredOnce = fs.readFileSync(log, 'utf8').split('\n').filter((line) => /^(debt|envelope) /.test(line)).length;
+    assert.equal(measuredOnce, 2);
+    // Later triggers, and Core gone meanwhile: nothing is measured again.
+    await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received) });
+    fs.rmSync(p.dw);
+    writePortalConfig(p.cwd, { endpoint:'http://127.0.0.1:9/api/v1/snapshots', token:TOKEN });
+    const sent = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received) });
+    assert.equal(sent.results[0].state, 'done');
+    assert.equal(fs.readFileSync(log, 'utf8').split('\n').filter((line) => /^(debt|envelope) /.test(line)).length, measuredOnce);
+    assert.equal(withAssurance(received).length, 1);
+    assert.equal(withAssurance(received)[0].assurance.softwareDebt.points, 8);
+    assert.equal(autoDebtStatus(p.cwd, { probe:false }).changes.find((item) => item.changeId === sent.results[0].changeId).delivery, 'delivered');
+  } finally { delete process.env.FAKE_DW_LOG; cleanup(log); p.done(); }
+});
+
 test('references that no longer match are refused, never sent under another change', async () => {
   const p = project();
   const received = [];

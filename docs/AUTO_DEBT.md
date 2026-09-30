@@ -38,10 +38,15 @@ measurement repeatable. Recording lineages stays a manual `dw debt`.
 | `failed` | One of three causes, each shown with its reason: five failed measurements; references that cannot be measured (`REFERENCE_UNAVAILABLE`, `REFERENCE_MISMATCH`, `NOT_CORRELATED`); or the same measurement queued for Portal long ago whose receipt is no longer kept locally (`IDLEPROOF_ASSURANCE_NOT_RETAINED`), so it can be neither resent nor confirmed. Nothing was sent. |
 | `measured` | Sent to the delivery queue. The status then shows **waiting for Portal delivery** or **delivered**. |
 
-**Not measured (queue full).** When 100 jobs are already waiting, a newly completed change is recorded
-as not measured and the status is marked degraded. It is never dropped silently. Measure such changes
-manually. A damaged queue file stops the feature with an explicit error; it is never replaced by an
-empty one.
+**Not measured (queue full).** When 100 jobs are already waiting or retrying, a newly completed change
+is recorded as not measured and the status is marked degraded. It is never dropped silently. Measure
+such changes manually. Failed jobs do not count toward this limit. The latest 100 failed jobs stay
+listed with their reason, and older ones are counted in the status as no longer listed. A damaged queue
+file stops the feature with an explicit error; it is never replaced by an empty one.
+
+**A measurement is taken once.** Before it is queued for Portal, the finished measurement is saved
+beside its job. If the delivery queue refuses it (Portal no longer configured, or its queue full), the
+job waits, and the next attempt queues that same measurement. Core is not run again.
 
 ## Portal or Core down
 
