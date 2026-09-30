@@ -23,7 +23,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import { PACKAGE_ROOT, projectPaths } from './paths.mjs';
 import { withOwnedLock } from './portal-memory-lock.mjs';
-import { flushPortalQueue, queuedPortalSnapshot, readPortalConfig } from './portal-client.mjs';
+import { flushPortalQueue, pendingPortalSnapshots, queuedPortalSnapshot, readPortalConfig } from './portal-client.mjs';
 import { buildAssurancePortalSnapshot, queueAssuranceReceipt } from './portal-assurance.mjs';
 
 const CONFIG_SCHEMA = 'idleproof.auto-debt-config.v1';
@@ -480,7 +480,7 @@ function processNextJob(cwd, config, { retry = null, measureTimeoutMs = MEASURE_
 
 // The detached worker (also `idleproof portal auto-debt run`). One job per worker-lock hold, so jobs
 // queued meanwhile are taken by the same loop; a second worker finding the lock held just leaves.
-export async function runAutoDebtWorker(cwd = process.cwd(), { fetchImpl = globalThis.fetch, timeoutMs = 3000, retryFailed = false, maxJobs = MAX_JOBS, measureTimeoutMs = MEASURE_TIMEOUT_MS } = {}) {
+export async function runAutoDebtWorker(cwd = process.cwd(), { fetchImpl = globalThis.fetch, timeoutMs = 3000, retryFailed = false, maxJobs = MAX_JOBS, measureTimeoutMs = MEASURE_TIMEOUT_MS, deliverQueued = false } = {}) {
   const config = readAutoDebtConfig(cwd);
   if (!config?.enabled) return { enabled:false, results:[] };
   const results = [];
@@ -512,8 +512,10 @@ export async function runAutoDebtWorker(cwd = process.cwd(), { fetchImpl = globa
     // The same unavailable Core or destination would fail every remaining job the same way.
     if (outcome.state === 'core-unavailable' || outcome.state === 'waiting') break;
   }
-  // The network is used only outside the worker lock, through the existing delivery queue.
-  if (results.some((item) => item.state === 'done')) delivery = await flush();
+  // The network is used only outside the worker lock, through the existing delivery queue. With
+  // `deliverQueued` (the `auto-debt run` command), receipts queued earlier and not delivered yet (Portal was
+  // offline) are sent too, even when this run measured nothing.
+  if (results.some((item) => item.state === 'done') || (deliverQueued && pendingPortalSnapshots(cwd) > 0)) delivery = await flush();
   return { enabled:true, results, delivery };
 }
 

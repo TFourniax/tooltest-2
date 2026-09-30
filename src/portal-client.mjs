@@ -422,6 +422,11 @@ async function boundedResponse(response) {
   try { return JSON.parse(text); } catch { return {}; }
 }
 
+// Receipts waiting in the delivery queue; 0 when there are none or the queue cannot be read.
+export function pendingPortalSnapshots(cwd = process.cwd()) {
+  try { return readQueue(cwd).length; } catch { return 0; }
+}
+
 export async function flushPortalQueue(cwd = process.cwd(), { fetchImpl = globalThis.fetch, timeoutMs = 3000 } = {}) {
   const config = readPortalConfig(cwd);
   const initialQueue = readQueue(cwd);

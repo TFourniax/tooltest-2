@@ -187,7 +187,7 @@ export async function runPortalCli(args, { cwd = process.cwd() } = {}) {
     if (sub === 'disable') { printStatus(disableAutoDebt(cwd)); return true; }
     if (sub === 'status') { printStatus(autoDebtStatus(cwd)); return true; }
     if (sub === 'run') {
-      const result = await runAutoDebtWorker(cwd, { retryFailed:args.includes('--retry-failed') });
+      const result = await runAutoDebtWorker(cwd, { retryFailed:args.includes('--retry-failed'), deliverQueued:true });
       if (quiet) return true;
       if (json) print(result, true);
       else if (!result.enabled) console.log('Automatic debt is not enabled for this project (`idleproof portal auto-debt enable`).');

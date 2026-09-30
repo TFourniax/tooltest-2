@@ -670,6 +670,51 @@ test('a DiffWitness receipt that the IDE hook queues settles the automatic job o
   } finally { delete process.env.FAKE_DW_LOG; for (const file of [log, debtFile]) cleanup(file); p.done(); }
 });
 
+test('`auto-debt run` delivers receipts queued earlier, even when it has nothing to measure', async () => {
+  const received = [];
+  const server = http.createServer((request, response) => {
+    let body = '';
+    request.on('data', (chunk) => { body += chunk; });
+    request.on('end', () => {
+      const parsed = request.method === 'POST' ? JSON.parse(body || '{}') : null;
+      if (!/^ipsnap_/.test(String(parsed?.snapshotId || ''))) { response.writeHead(404, { 'content-type':'application/json' }); response.end('{}'); return; }
+      received.push(parsed);
+      response.writeHead(202, { 'content-type':'application/json' });
+      response.end(JSON.stringify(ack(body)));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const p = project({ endpoint:`http://127.0.0.1:${server.address().port}/api/v1/snapshots` });
+  // Asynchronous, so that the Portal stand-in in this process can answer the command.
+  const cli = () => new Promise((resolve) => {
+    const child = spawn(process.execPath, [CLI, 'portal', 'auto-debt', 'run', '--json'], { cwd:p.cwd });
+    let out = '';
+    child.stdout.on('data', (chunk) => { out += chunk; });
+    child.on('close', () => resolve(JSON.parse(out)));
+  });
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    // The hook's own detached flush is kept out of this test: an invalid NODE_OPTIONS makes it exit at startup.
+    const nodeOptions = process.env.NODE_OPTIONS;
+    process.env.NODE_OPTIONS = '--idleproof-test-no-background-flush';
+    try { completeChange(p.cwd, 'app.py', 'def total(items):\n    # TODO: check\n    return sum(items)\n'); }
+    finally { if (nodeOptions === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = nodeOptions; }
+    // Measured and queued while Portal was offline: the job is done, the receipt waits in the delivery queue.
+    const offline = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub([], { down:true }) });
+    assert.equal(offline.results[0].state, 'done');
+    assert.equal(offline.delivery.ok, false);
+    assert.equal(withAssurance(queued(p.cwd)).length, 1);
+    // Portal is back. The command has no job to measure, and still delivers the waiting receipt.
+    const run = await cli();
+    assert.equal(run.results.length, 0);
+    assert.equal(run.delivery.ok, true);
+    assert.equal(withAssurance(received).length, 1);
+    assert.equal(queued(p.cwd).length, 0);
+    // With nothing queued and nothing to measure, the command does not touch the network.
+    assert.equal((await cli()).delivery, null);
+  } finally { p.done(); await new Promise((resolve) => server.close(resolve)); }
+});
+
 test('references that no longer match are refused, never sent under another change', async () => {
   const p = project();
   const received = [];

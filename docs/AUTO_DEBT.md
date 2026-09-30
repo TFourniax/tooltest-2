@@ -56,8 +56,9 @@ again automatically.
 ## Portal or Core down
 
 - **Portal down.** The measurement is kept in the delivery queue and sent by the next delivery: the next
-  completed change, `idleproof portal sync`, or `idleproof portal auto-debt run`. Portal shows *Not
-  measured* until then, never zero.
+  completed change, `idleproof portal sync`, or `idleproof portal auto-debt run` (which also sends the
+  receipts waiting in the queue when it has nothing to measure). Portal shows *Not measured* until then,
+  never zero.
 - **Core missing or not answering.** The job waits with `CORE_UNAVAILABLE`. It is measured at the next
   trigger once Core answers. A Core that answers but runs out of time measuring the change counts as a
   failed attempt, so the job ends `failed` after five of them.
