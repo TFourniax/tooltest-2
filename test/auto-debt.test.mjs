@@ -426,7 +426,8 @@ test('a full delivery queue is sent by the worker, then the kept measurement is 
     // The Portal delivery queue is already full of older receipts.
     const older = buildCurrentPortalSnapshot(p.cwd);
     fs.writeFileSync(projectPaths(p.cwd).portalQueue, JSON.stringify(Array.from({ length:200 }, () => older)));
-    const run = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received) });
+    // Even when that job is the last one this run may take, its second attempt still happens.
+    const run = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received), maxJobs:1 });
     assert.deepEqual(run.results.map((item) => [item.state, item.code ?? null]), [['waiting', 'PORTAL_QUEUE_FULL'], ['done', null]]);
     assert.equal(received.some((item) => item.snapshotId === older.snapshotId), true);
     assert.equal(withAssurance(received).length, 1);

@@ -411,7 +411,8 @@ export async function runAutoDebtWorker(cwd = process.cwd(), { fetchImpl = globa
   if (retryFailed) { try { retry = new Set(readJobs(cwd).jobs.filter((job) => job.state === 'failed').map((job) => job.changeId)); } catch { retry = null; } }
   let delivery = null;
   let drained = false;
-  while (results.length < maxJobs) {
+  let taken = 0;
+  while (taken < maxJobs) {
     let outcome;
     try {
       outcome = withOwnedLock(projectPaths(cwd).autoDebtWorkerLock, () => processNextJob(cwd, config, { retry }), 'IDLEPROOF_AUTO_DEBT_WORKER_BUSY', 'Automatic debt worker');
@@ -423,11 +424,13 @@ export async function runAutoDebtWorker(cwd = process.cwd(), { fetchImpl = globa
     results.push(outcome);
     // A full delivery queue is sent once (outside the worker lock); the kept measurement is then queued
     // again in this run if the queue drained, or left waiting for the next run.
+    // That second attempt of the same job is not charged to the run's job budget.
     if (outcome.code === 'PORTAL_QUEUE_FULL' && !drained) {
       drained = true;
       delivery = await flush();
       if (delivery.ok) continue;
     }
+    taken += 1;
     // The same unavailable Core or destination would fail every remaining job the same way.
     if (outcome.state === 'core-unavailable' || outcome.state === 'waiting') break;
   }
