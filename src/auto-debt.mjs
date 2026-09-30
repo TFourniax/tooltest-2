@@ -187,13 +187,13 @@ function readJobs(cwd) {
   const job = (item) => record(item) && JOB_STATES.has(item.state) && side(item.base) && side(item.candidate)
     && Number.isInteger(item.attempts) && item.attempts >= 0 && time(item.retryAfter) && time(item.lastAttemptAt) && time(item.enqueuedAt)
     && (item.lastError == null || (typeof item.lastError === 'object' && !Array.isArray(item.lastError)));
-  // A measured change names the receipt that carries its measurement and what was measured; an automatic
-  // measurement always has its point and obligation counts (a manual or IDE one may have none). A record
-  // missing them would report a change as delivered and stop it being measured.
+  // A measured change names the receipt that carries its measurement and the debt measured: its point and
+  // obligation counts, whichever path measured it. A record missing them would report a change as delivered
+  // and stop it being measured.
   const count = (n) => Number.isInteger(n) && n >= 0;
   const done = (item) => record(item) && typeof item.snapshotId === 'string' && SNAPSHOT_ID.test(item.snapshotId)
     && (item.source === undefined || item.source === 'manual' || item.source === 'ide')
-    && (item.source ? (item.points === null || count(item.points)) && (item.obligations === null || count(item.obligations)) : count(item.points) && count(item.obligations))
+    && count(item.points) && count(item.obligations)
     && (item.budgetPassed === null || typeof item.budgetPassed === 'boolean') && typeof item.measuredAt === 'string' && time(item.measuredAt)
     && (item.attempts === undefined || count(item.attempts)) && (item.queueReason == null || typeof item.queueReason === 'string')
     && (item.configKey == null || typeof item.configKey === 'string') && (item.core == null || typeof item.core === 'string');
@@ -299,6 +299,9 @@ export function settleWithManualAssurance(cwd, changeId, { snapshotId = null, so
   if (!CHANGE_ID.test(String(changeId || ''))) return { settled:false, reason:'no-change' };
   // Settled only by a receipt the delivery queue accepted, which names its snapshot.
   if (!SNAPSHOT_ID.test(String(snapshotId || ''))) return { settled:false, reason:'no-receipt', changeId };
+  // Settled only by a measurement of the debt: a receipt that carries Proof alone leaves the job to Core.
+  if (!softwareDebt || !Number.isInteger(softwareDebt.points) || softwareDebt.points < 0 || !Number.isInteger(softwareDebt.obligations) || softwareDebt.obligations < 0
+    || ![true, false, null, undefined].includes(softwareDebt.budgetPassed)) return { settled:false, reason:'no-debt', changeId };
   if (!readAutoDebtConfig(cwd)) return { settled:false, reason:'not-enabled' };
   const settled = settleJob(cwd, changeId, { snapshotId, softwareDebt, queueReason, source });
   // The measurement files of a settled change (for example the IDE measurement kept for its job) are pruned
@@ -316,8 +319,8 @@ function settleJob(cwd, changeId, { snapshotId, softwareDebt, queueReason, sourc
     resolveFailedDropped(state, changeId);
     if (!state.measured.includes(changeId)) state.measured.push(changeId);
     if (!state.done.some((item) => item.changeId === changeId)) {
-      state.done = [...state.done, { changeId, source:source === 'ide' ? 'ide' : 'manual', points:softwareDebt?.points ?? null, obligations:softwareDebt?.obligations ?? null,
-        budgetPassed:softwareDebt?.budgetPassed ?? null, snapshotId, queueReason, measuredAt:new Date().toISOString(), attempts:0 }].slice(-MAX_DONE);
+      state.done = [...state.done, { changeId, source:source === 'ide' ? 'ide' : 'manual', points:softwareDebt.points, obligations:softwareDebt.obligations,
+        budgetPassed:softwareDebt.budgetPassed ?? null, snapshotId, queueReason, measuredAt:new Date().toISOString(), attempts:0 }].slice(-MAX_DONE);
     }
     return { settled:true, changeId, hadJob:Boolean(job) };
   });

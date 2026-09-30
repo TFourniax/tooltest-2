@@ -351,7 +351,7 @@ test('failed jobs neither block new changes nor accumulate: only the latest stay
     assert.equal(status.degraded, false);
     assert.equal(received.length, 0);
     // That older change is then measured manually: it is no longer counted as an older failure.
-    assert.equal(settleWithManualAssurance(p.cwd, failed[0].changeId, { snapshotId:`ipsnap_${'0'.repeat(24)}` }).settled, true);
+    assert.equal(settleWithManualAssurance(p.cwd, failed[0].changeId, { snapshotId:`ipsnap_${'0'.repeat(24)}`, softwareDebt:{ points:0, obligations:0, budgetPassed:true } }).settled, true);
     assert.equal(autoDebtStatus(p.cwd, { probe:false }).counts.failedNoLongerListed, 0);
     // Another failure evicts the next oldest; presented again later, that change is queued anew and is no
     // longer counted as an older failure either.
@@ -1231,15 +1231,52 @@ test('an IDE receipt that Portal accepts settles the job and its kept measuremen
   } finally { cleanup(debtFile); p.done(); }
 });
 
+test('an IDE receipt that carries Proof alone is delivered, but leaves the change to Core to measure its debt', async () => {
+  const p = project();
+  const received = [];
+  const debtFile = path.join(p.cwd, '..', `${path.basename(p.cwd)}-debt.json`);
+  const envelopeFile = path.join(p.cwd, '.git', 'diffwitness', 'change-envelope.json');
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    completeChange(p.cwd, 'app.py', 'def total(items):\n    # TODO: check\n    return sum(items)\n');
+    const { changeId } = __autoDebtTest.readJobs(p.cwd).jobs[0];
+    git(p.cwd, 'add', '-A'); git(p.cwd, 'commit', '-qm', 'change');
+    fs.mkdirSync(path.dirname(envelopeFile), { recursive:true });
+    execFileSync(process.execPath, [FAKE_DW, 'debt', '--repo', p.cwd, '--base', 'HEAD~1', '--candidate', 'HEAD', '--json', debtFile], { cwd:p.cwd });
+    execFileSync(process.execPath, [FAKE_DW, 'envelope', '--repo', p.cwd, '--base', 'HEAD~1', '--candidate', 'HEAD', '--debt', debtFile, '--out', envelopeFile], { cwd:p.cwd });
+    // The DiffWitness Stop measured Proof only: its envelope carries no debt.
+    const { debt:_debt, ...proofOnly } = JSON.parse(fs.readFileSync(envelopeFile, 'utf8'));
+    fs.writeFileSync(envelopeFile, JSON.stringify({ ...proofOnly, proof:{ tool:'diffwitness', claim:'validation', accepted:true, certificate_id:'cert-000001' } }));
+    // The hook also schedules a detached flush; an invalid NODE_OPTIONS makes that child exit at startup.
+    const nodeOptions = process.env.NODE_OPTIONS;
+    process.env.NODE_OPTIONS = '--idleproof-test-no-background-flush';
+    let hooked;
+    try { hooked = queueMatchingDiffWitnessAssurance(p.cwd); }
+    finally { if (nodeOptions === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = nodeOptions; }
+    assert.equal(hooked.queued, true, 'the Proof receipt is delivered');
+    assert.deepEqual(hooked.autoDebt, { settled:false, reason:'no-debt', changeId });
+    assert.equal(__autoDebtTest.readJobs(p.cwd).measured.includes(changeId), false);
+    // Core then measures the debt of that change.
+    const run = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received) });
+    assert.equal(run.results.at(-1).changeId, changeId);
+    assert.equal(run.results.at(-1).state, 'done');
+    assert.equal(run.results.at(-1).points, 8);
+  } finally { cleanup(debtFile); p.done(); }
+});
+
 test('a manual or IDE measurement settles the automatic job only with the receipt that carries it', () => {
   const p = project();
   try {
     enableAutoDebt(p.cwd, { dw:p.dw });
     completeChange(p.cwd, 'app.py', 'def total(items):\n    # TODO: check\n    return sum(items)\n');
     const { changeId } = __autoDebtTest.readJobs(p.cwd).jobs[0];
-    assert.deepEqual(settleWithManualAssurance(p.cwd, changeId, { snapshotId:null }), { settled:false, reason:'no-receipt', changeId });
+    const softwareDebt = { points:3, obligations:1, budgetPassed:true };
+    assert.deepEqual(settleWithManualAssurance(p.cwd, changeId, { snapshotId:null, softwareDebt }), { settled:false, reason:'no-receipt', changeId });
+    // A receipt that carries Proof alone measured no debt: the job stays for Core.
+    assert.deepEqual(settleWithManualAssurance(p.cwd, changeId, { snapshotId:`ipsnap_${'0'.repeat(24)}`, softwareDebt:null }), { settled:false, reason:'no-debt', changeId });
     assert.equal(__autoDebtTest.readJobs(p.cwd).jobs[0].changeId, changeId, 'the job stays queued');
-    assert.equal(settleWithManualAssurance(p.cwd, changeId, { snapshotId:`ipsnap_${'0'.repeat(24)}` }).settled, true);
+    assert.equal(__autoDebtTest.readJobs(p.cwd).measured.includes(changeId), false);
+    assert.equal(settleWithManualAssurance(p.cwd, changeId, { snapshotId:`ipsnap_${'0'.repeat(24)}`, softwareDebt }).settled, true);
     assert.equal(__autoDebtTest.readJobs(p.cwd).done[0].snapshotId, `ipsnap_${'0'.repeat(24)}`);
   } finally { p.done(); }
 });
@@ -1255,7 +1292,7 @@ test('a queue holding a damaged record is reported as corrupt, never read as val
     assert.equal(__autoDebtTest.readJobs(p.cwd).jobs.length, 1, 'a complete job is accepted');
     const measuredRecord = { changeId:`dwchg_${'3'.repeat(24)}`, configKey:'k'.repeat(24), core:'dw 0.4.0', points:8, obligations:1, budgetPassed:true,
       snapshotId:`ipsnap_${'0'.repeat(24)}`, queueReason:'queued', measuredAt:'2026-01-01T00:00:00.000Z', attempts:1 };
-    fs.writeFileSync(projectPaths(p.cwd).autoDebtJobs, JSON.stringify({ ...base, done:[measuredRecord, { ...measuredRecord, changeId:`dwchg_${'4'.repeat(24)}`, source:'manual', points:null, obligations:null, budgetPassed:null }] }));
+    fs.writeFileSync(projectPaths(p.cwd).autoDebtJobs, JSON.stringify({ ...base, done:[measuredRecord, { ...measuredRecord, changeId:`dwchg_${'4'.repeat(24)}`, source:'manual', budgetPassed:null }] }));
     assert.equal(__autoDebtTest.readJobs(p.cwd).done.length, 2, 'complete measured records are accepted');
     const { snapshotId:_snapshotId, ...withoutReceipt } = measuredRecord;
     const { base:_base, candidate:_candidate, ...withoutReferences } = job;
@@ -1266,7 +1303,8 @@ test('a queue holding a damaged record is reported as corrupt, never read as val
       // A measured record names its receipt and what was measured: an incomplete one would report the change as
       // delivered and stop it being measured.
       { done:[{ changeId:measuredRecord.changeId }] }, { done:[withoutReceipt] }, { done:[{ ...measuredRecord, points:'8' }] },
-      { done:[{ ...measuredRecord, measuredAt:'not a time' }] }, { done:[{ ...measuredRecord, source:'other' }] }, { skipped:[{ changeId:measuredRecord.changeId }] }]) {
+      { done:[{ ...measuredRecord, measuredAt:'not a time' }] }, { done:[{ ...measuredRecord, source:'other' }] }, { skipped:[{ changeId:measuredRecord.changeId }] },
+      { done:[{ ...measuredRecord, source:'manual', points:null, obligations:null }] }]) {
       fs.writeFileSync(projectPaths(p.cwd).autoDebtJobs, JSON.stringify({ ...base, ...damaged }));
       assert.equal(autoDebtStatus(p.cwd, { probe:false }).errorCode, 'IDLEPROOF_AUTO_DEBT_STATE_CORRUPT', JSON.stringify(damaged));
       assert.throws(() => __autoDebtTest.readJobs(p.cwd), (error) => error.code === 'IDLEPROOF_AUTO_DEBT_STATE_CORRUPT');

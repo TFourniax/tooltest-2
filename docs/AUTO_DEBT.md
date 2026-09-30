@@ -89,6 +89,8 @@ again automatically.
   of that change, which is then never measured again automatically; the status
   shows it as *measured manually*. A DiffWitness envelope that the IDE hook delivers settles the job the
   same way, shown as *measured by the IDE hook*. A job a worker is measuring at that moment is left to the worker.
+  Only an envelope that carries Software Debt settles the job: one that carries Proof alone is delivered, and
+  Core still measures the debt of that change.
   Before queueing that receipt, the IDE hook keeps its measurement for the change's job: the job already
   queued, or the one an accepted Stop admits in the same step. If Portal then refuses the receipt (not
   configured, queue full), the worker sends it later and does not run Core again for that change, and the
