@@ -307,12 +307,16 @@ export function settleWithManualAssurance(cwd, changeId, { snapshotId = null, so
 // job that can deliver it, in the same queue-lock hold: the job already queued for the change (a failed one
 // becomes due again), or the job that the identity of an accepted Stop admits now. Never after a reset; a
 // change already measured, or being measured by a worker, keeps its own measurement.
-export function keepNativeMeasurement(cwd, snapshot, { identity = null, now = new Date() } = {}) {
+// `queue(retained)` queues the receipt for Portal in that same hold, so `idleproof reset` (which takes this
+// lock) never moves the state between keeping the measurement and queueing its receipt. Its outcome is
+// returned as `queued` ({ value } or { error }); without `queue`, or when this lock is not taken (automatic
+// debt disabled, no debt measured), the caller queues the receipt itself.
+export function keepNativeMeasurement(cwd, snapshot, { identity = null, now = new Date(), queue = null } = {}) {
   const changeId = snapshot?.change?.changeId;
   if (!CHANGE_ID.test(String(changeId || '')) || !snapshot?.assurance?.softwareDebt) return { kept:false, reason:'no-debt' };
   if (!readAutoDebtConfig(cwd)?.enabled) return { kept:false, reason:'disabled' };
   const admits = identity?.changeId === changeId && !exactChange(identity);
-  return withJobs(cwd, (state) => {
+  const keep = (state) => {
     if (!readAutoDebtConfig(cwd)?.enabled) return { kept:false, reason:'disabled', changeId };
     if (state.measured.includes(changeId)) return { kept:false, reason:'already-measured', changeId };
     let job = state.jobs.find((item) => item.changeId === changeId);
@@ -328,6 +332,13 @@ export function keepNativeMeasurement(cwd, snapshot, { identity = null, now = ne
     atomicJson(path.join(work, 'receipt.json'), { changeId, configKey:null, core:null, source:'ide', snapshot });
     if (job.state === 'failed') Object.assign(job, { state:'pending', attempts:0, retryAfter:null });
     return { kept:true, changeId };
+  };
+  return withJobs(cwd, (state) => {
+    const kept = keep(state);
+    if (!queue) return kept;
+    // A failed queueing attempt leaves the kept job and its measurement in place: the job delivers it.
+    try { return { ...kept, queued:{ value:queue(kept.kept === true) } }; }
+    catch (error) { return { ...kept, queued:{ error } }; }
   });
 }
 

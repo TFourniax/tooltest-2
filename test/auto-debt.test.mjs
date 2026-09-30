@@ -8,8 +8,8 @@ import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { processHookLifecycle } from '../src/hook.mjs';
 import { buildCurrentPortalSnapshot, portalStatus, writePortalConfig } from '../src/portal-client.mjs';
-import { autoDebtStatus, disableAutoDebt, enableAutoDebt, enqueueAutoDebt, runAutoDebtWorker, scheduleAutoDebt, settleWithManualAssurance, __autoDebtTest } from '../src/auto-debt.mjs';
-import { syncPortalAssurance, readChangeEnvelope } from '../src/portal-assurance.mjs';
+import { autoDebtStatus, disableAutoDebt, enableAutoDebt, enqueueAutoDebt, keepNativeMeasurement, runAutoDebtWorker, scheduleAutoDebt, settleWithManualAssurance, __autoDebtTest } from '../src/auto-debt.mjs';
+import { buildAssurancePortalSnapshot, syncPortalAssurance, readChangeEnvelope } from '../src/portal-assurance.mjs';
 import { queueMatchingDiffWitnessAssurance } from '../src/ide-assurance.mjs';
 import { projectPaths } from '../src/paths.mjs';
 
@@ -801,6 +801,58 @@ test('an IDE receipt is kept only with a job that can deliver it: the job an acc
     assert.equal(jobOf(second.changeId), undefined);
     assert.ok(autoDebtStatus(p.cwd, { probe:false }).skipped.some((item) => item.changeId === second.changeId));
   } finally { delete process.env.FAKE_DW_LOG; for (const file of [log, debtFile]) cleanup(file); p.done(); }
+});
+
+test('an IDE receipt is queued in the same queue-lock hold that keeps its measurement: a reset never falls between the two', () => {
+  const p = project();
+  const debtFile = path.join(p.cwd, '..', `${path.basename(p.cwd)}-debt.json`);
+  const envelopeFile = path.join(p.cwd, '..', `${path.basename(p.cwd)}-envelope.json`);
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    completeChange(p.cwd, 'app.py', 'def total(items):\n    # TODO: check\n    return sum(items)\n');
+    const job = __autoDebtTest.readJobs(p.cwd).jobs[0];
+    git(p.cwd, 'add', '-A'); git(p.cwd, 'commit', '-qm', 'change');
+    execFileSync(process.execPath, [FAKE_DW, 'debt', '--repo', p.cwd, '--base', 'HEAD~1', '--candidate', 'HEAD', '--json', debtFile], { cwd:p.cwd });
+    execFileSync(process.execPath, [FAKE_DW, 'envelope', '--repo', p.cwd, '--base', 'HEAD~1', '--candidate', 'HEAD', '--debt', debtFile, '--out', envelopeFile], { cwd:p.cwd });
+    const snapshot = buildAssurancePortalSnapshot(p.cwd, JSON.parse(fs.readFileSync(envelopeFile, 'utf8')));
+    // A reset attempted while the receipt is being queued waits for the hold, then stops: nothing is moved.
+    let during = null;
+    const held = keepNativeMeasurement(p.cwd, snapshot, { queue:(retained) => {
+      during = spawnSync(process.execPath, [CLI, 'reset'], { cwd:p.cwd, encoding:'utf8', timeout:30000 });
+      return { retained };
+    } });
+    assert.equal(held.kept, true);
+    assert.deepEqual(held.queued, { value:{ retained:true } });
+    assert.notEqual(during.status, 0);
+    assert.match(`${during.stdout}${during.stderr}`, /queueing a change/);
+    assert.equal(fs.existsSync(projectPaths(p.cwd).autoDebtConfig), true);
+    assert.equal(fs.existsSync(path.join(projectPaths(p.cwd).autoDebtWork, job.changeId, 'receipt.json')), true);
+    // Once the hold ends, the reset moves the job together with its kept measurement.
+    const after = spawnSync(process.execPath, [CLI, 'reset'], { cwd:p.cwd, encoding:'utf8', timeout:30000 });
+    assert.equal(after.status, 0, after.stderr);
+    assert.equal(fs.existsSync(projectPaths(p.cwd).dir), false);
+  } finally { for (const file of [debtFile, envelopeFile]) cleanup(file); p.done(); }
+});
+
+test('a failed queueing attempt in that hold leaves the kept job and its measurement in place', () => {
+  const p = project();
+  const debtFile = path.join(p.cwd, '..', `${path.basename(p.cwd)}-debt.json`);
+  const envelopeFile = path.join(p.cwd, '..', `${path.basename(p.cwd)}-envelope.json`);
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    completeChange(p.cwd, 'app.py', 'def total(items):\n    # TODO: check\n    return sum(items)\n');
+    const job = __autoDebtTest.readJobs(p.cwd).jobs[0];
+    git(p.cwd, 'add', '-A'); git(p.cwd, 'commit', '-qm', 'change');
+    execFileSync(process.execPath, [FAKE_DW, 'debt', '--repo', p.cwd, '--base', 'HEAD~1', '--candidate', 'HEAD', '--json', debtFile], { cwd:p.cwd });
+    execFileSync(process.execPath, [FAKE_DW, 'envelope', '--repo', p.cwd, '--base', 'HEAD~1', '--candidate', 'HEAD', '--debt', debtFile, '--out', envelopeFile], { cwd:p.cwd });
+    const snapshot = buildAssurancePortalSnapshot(p.cwd, JSON.parse(fs.readFileSync(envelopeFile, 'utf8')));
+    const failure = Object.assign(new Error('busy'), { code:'IDLEPROOF_PORTAL_ASSURANCE_BUSY' });
+    const held = keepNativeMeasurement(p.cwd, snapshot, { queue:() => { throw failure; } });
+    assert.equal(held.kept, true);
+    assert.equal(held.queued.error, failure);
+    assert.equal(__autoDebtTest.readJobs(p.cwd).jobs.find((item) => item.changeId === job.changeId)?.state, 'pending');
+    assert.equal(fs.existsSync(path.join(projectPaths(p.cwd).autoDebtWork, job.changeId, 'receipt.json')), true);
+  } finally { for (const file of [debtFile, envelopeFile]) cleanup(file); p.done(); }
 });
 
 test('`auto-debt run` delivers receipts queued earlier, even when it has nothing to measure', async () => {

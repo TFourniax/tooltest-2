@@ -9,10 +9,21 @@ function envelopePath(cwd) {
 }
 
 // Kept for the automatic job of this change, which sends it later if the Portal queue refuses it, instead of
-// measuring the change again. Fail-open.
-function keepForAutoDebt(cwd, snapshot, identity) {
-  try { return keepNativeMeasurement(cwd, snapshot, { identity }); }
-  catch (error) { return { kept:false, errorCode:error?.code || 'IDLEPROOF_AUTO_DEBT_KEEP_FAILED' }; }
+// measuring the change again, then queued for Portal in the same automatic debt queue-lock hold, so a reset
+// never falls between the two. A receipt its job retains is not lost if the Portal queue is full, so the
+// queue does not count it as a skipped snapshot. Keeping is fail-open: without it, the receipt is queued as
+// before.
+function keepAndQueue(cwd, snapshot, identity) {
+  const queue = (retainedByCaller) => queueAssuranceReceipt(cwd, snapshot, { retainedByCaller });
+  let held;
+  try { held = keepNativeMeasurement(cwd, snapshot, { identity, queue }); }
+  catch (error) { held = { kept:false, errorCode:error?.code || 'IDLEPROOF_AUTO_DEBT_KEEP_FAILED' }; }
+  const { queued, ...kept } = held;
+  return { kept, queue:() => {
+    if (!queued) return queue(false);
+    if (queued.error) throw queued.error;
+    return queued.value;
+  } };
 }
 
 // `autoDebtIdentity`: the identity of the completion that the native Stop accepted. It lets this receipt admit
@@ -36,11 +47,9 @@ export function queueMatchingDiffWitnessAssurance(cwd = process.cwd(), { autoDeb
     return { matched:false, reason:'change-mismatch' };
   }
 
-  // Kept before it is queued: a receipt its automatic job retains is not lost if the Portal queue is full, so
-  // the queue does not count it as a skipped snapshot.
-  const kept = keepForAutoDebt(cwd, snapshot, autoDebtIdentity);
+  const { kept, queue } = keepAndQueue(cwd, snapshot, autoDebtIdentity);
   try {
-    const { receipt, queued } = queueAssuranceReceipt(cwd, snapshot, { retainedByCaller:kept.kept === true });
+    const { receipt, queued } = queue();
     snapshot = receipt;
     if (queued.reason === 'not-configured') {
       return { matched:true, queued:false, configured:false, snapshotId:snapshot.snapshotId, changeId:snapshot.change.changeId, kept };

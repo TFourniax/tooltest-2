@@ -86,7 +86,8 @@ again automatically.
   queued, or the one an accepted Stop admits in the same step. If Portal then refuses the receipt (not
   configured, queue full), the worker sends it later and does not run Core again for that change, and the
   Portal status does not count it as a lost snapshot. Without such a job (a blocked Stop, or the automatic
-  debt queue full) nothing is kept.
+  debt queue full) nothing is kept. Keeping the measurement and queueing the receipt happen in one hold of
+  the queue lock, so `idleproof reset` never falls between them.
 - A change recorded as not measured (queue full) is no longer reported so once it is queued later or
   measured manually.
 - The measurement files of the last 64 changes are kept in `.idleproof/auto-debt/<dwchg_…>/`.
