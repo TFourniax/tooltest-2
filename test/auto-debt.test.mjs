@@ -855,6 +855,63 @@ test('a failed queueing attempt in that hold leaves the kept job and its measure
   } finally { for (const file of [debtFile, envelopeFile]) cleanup(file); p.done(); }
 });
 
+test('a measurement whose receipt cannot be queued waits without spending attempts, and is sent once the queue is usable', async () => {
+  const p = project();
+  const received = [];
+  const log = path.join(p.cwd, '..', `${path.basename(p.cwd)}-dw.log`);
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    completeChange(p.cwd, 'app.py', 'def total(items):\n    # TODO: check\n    return sum(items)\n');
+    const { changeId } = __autoDebtTest.readJobs(p.cwd).jobs[0];
+    process.env.FAKE_DW_LOG = log;
+    // The Portal queue is unreadable: the measurement is taken and kept, but its receipt cannot be queued.
+    fs.writeFileSync(projectPaths(p.cwd).portalQueue, '{ damaged');
+    for (let run = 0; run <= __autoDebtTest.MAX_ATTEMPTS; run += 1) {
+      const result = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received) });
+      assert.equal(result.results.at(-1).code, 'IDLEPROOF_PORTAL_QUEUE_CORRUPT');
+      assert.equal(result.results.at(-1).state, 'waiting');
+    }
+    const job = __autoDebtTest.readJobs(p.cwd).jobs.find((item) => item.changeId === changeId);
+    assert.equal(job.state, 'pending', 'a delivery-side failure never makes the job fail');
+    assert.equal(job.attempts, 0);
+    assert.equal(fs.readFileSync(log, 'utf8').split('\n').filter((line) => line.startsWith('debt ')).length, 1, 'Core measured the change once');
+    // Once the queue is usable again, a normal trigger sends the kept measurement without measuring again.
+    fs.rmSync(projectPaths(p.cwd).portalQueue);
+    const sent = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received) });
+    assert.equal(sent.results.at(-1).state, 'done');
+    assert.equal(fs.readFileSync(log, 'utf8').split('\n').filter((line) => line.startsWith('debt ')).length, 1);
+    assert.equal(withAssurance(received).filter((item) => item.change?.changeId === changeId).length, 1);
+  } finally { delete process.env.FAKE_DW_LOG; cleanup(log); p.done(); }
+});
+
+test('a job taken after `enable --dw` changed the Core CLI is measured with the new one, even by a worker started before', async () => {
+  const p = project();
+  const received = [];
+  const otherBin = path.join(p.cwd, '..', `${path.basename(p.cwd)}-bin-new`);
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    completeChange(p.cwd, 'app.py', 'def total(items):\n    # TODO: check\n    return sum(items)\n');
+    completeChange(p.cwd, 'other.py', 'x = 1\n');
+    const [first, second] = __autoDebtTest.readJobs(p.cwd).jobs.map((job) => job.changeId);
+    const newDw = fakeDw(otherBin);
+    // The first receipt finds the Portal queue full, so the worker delivers between the two jobs. Meanwhile the
+    // owner selects another Core CLI and removes the old one.
+    fs.writeFileSync(projectPaths(p.cwd).portalQueue, JSON.stringify(Array.from({ length:200 }, () => buildCurrentPortalSnapshot(p.cwd))));
+    const deliver = portalStub(received);
+    let switched = false;
+    const fetchImpl = async (url, options) => {
+      if (!switched) { switched = true; enableAutoDebt(p.cwd, { dw:newDw }); fs.rmSync(p.dw); }
+      return deliver(url, options);
+    };
+    const run = await runAutoDebtWorker(p.cwd, { fetchImpl });
+    assert.equal(switched, true);
+    assert.equal(run.results.find((item) => item.changeId === first && item.state === 'done')?.state, 'done');
+    const later = run.results.filter((item) => item.changeId === second);
+    assert.equal(later.at(-1)?.state, 'done', JSON.stringify(later));
+    assert.equal(autoDebtStatus(p.cwd, { probe:false }).changes.find((item) => item.changeId === second)?.state, 'measured');
+  } finally { cleanup(otherBin); p.done(); }
+});
+
 test('`auto-debt run` delivers receipts queued earlier, even when it has nothing to measure', async () => {
   const received = [];
   const server = http.createServer((request, response) => {

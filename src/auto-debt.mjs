@@ -505,9 +505,11 @@ function queueMeasurement(cwd, job, measurement) {
 
 function queueKeptMeasurement(cwd, job, { configKey, core, source = null, snapshot }) {
   let queued;
-  // The measurement is kept beside its job: a full queue is a wait, not a lost receipt.
+  // The measurement is kept beside its job: a full queue is a wait, not a lost receipt. So is a Portal queue or
+  // receipt history that cannot be used right now (unreadable, busy): the measurement did not fail, so no
+  // attempt is counted and the job waits for the next trigger.
   try { queued = queueAssuranceReceipt(cwd, snapshot, { retainedByCaller:true }); }
-  catch (error) { return { state:'retry', code:error?.code || 'RECEIPT_QUEUE_FAILED', message:String(error?.message || error).slice(0, 300) }; }
+  catch (error) { return { state:'waiting', code:error?.code || 'RECEIPT_QUEUE_FAILED', message:String(error?.message || error).slice(0, 300) }; }
   pruneWork(cwd);
   const measured = { configKey, core, ...(source === 'ide' ? { source } : {}), points:snapshot.assurance.softwareDebt.points, obligations:snapshot.assurance.softwareDebt.obligations, budgetPassed:snapshot.assurance.softwareDebt.budgetPassed };
   // The same measurement was queued for Portal long ago and its body is no longer kept: it can be neither
@@ -545,10 +547,15 @@ const backoff = (attempts) => new Date(Date.now() + Math.min(60 * 60 * 1000, 30 
 // left by a worker that died, and is measured again.
 // `retry` holds the failed jobs an explicit `--retry-failed` may still take: only the one selected is reset,
 // so the others stay failed if this run stops early.
-function processNextJob(cwd, config, { retry = null, measureTimeoutMs = MEASURE_TIMEOUT_MS } = {}) {
+function processNextJob(cwd, { retry = null, measureTimeoutMs = MEASURE_TIMEOUT_MS } = {}) {
   // The lock may have been taken right after a reset moved the local state: nothing is written then.
   if (!stillEnabled(cwd)) return null;
+  let config = null;
   const job = withJobs(cwd, (state) => {
+    // Read with the job, under the queue lock that `enable` writes it under: a job taken after `enable --dw`
+    // returned is measured with the Core it selected, even by a worker started before.
+    try { config = readAutoDebtConfig(cwd); } catch { config = null; }
+    if (!config?.enabled) return null;
     for (const item of state.jobs) {
       if (item.state === 'measuring') { item.state = 'pending'; item.interrupted = (item.interrupted || 0) + 1; }
     }
@@ -625,7 +632,7 @@ export async function runAutoDebtWorker(cwd = process.cwd(), { fetchImpl = globa
       if (!stillEnabled(cwd)) { stopped = true; return; }
       let outcome;
       try {
-        outcome = withOwnedLock(lockFile, () => processNextJob(cwd, config, { retry, measureTimeoutMs }), ...lockArgs);
+        outcome = withOwnedLock(lockFile, () => processNextJob(cwd, { retry, measureTimeoutMs }), ...lockArgs);
       } catch (error) {
         if (error?.code === 'IDLEPROOF_AUTO_DEBT_WORKER_BUSY') { results.push({ state:'busy' }); stopped = true; return; }
         // The local state was reset: its directory is gone.

@@ -54,8 +54,11 @@ one.
 
 **A measurement is taken once.** Before it is queued for Portal, the finished measurement is saved
 beside its job. If the delivery queue refuses it (Portal no longer configured, or its queue full), the
-job waits, and the next attempt queues that same measurement. Core is not run again. A full delivery
-queue is sent by the worker itself, and the measurement is queued in the same run once the queue drains.
+job waits, and the next attempt queues that same measurement. Core is not run again. The same holds when
+the delivery queue or the receipt history cannot be used (unreadable, busy): the job waits with that
+reason, no attempt is counted, and the next trigger queues the measurement once they are usable. A full
+delivery queue is sent by the worker itself, and the measurement is queued in the same run once the queue
+drains.
 A change Core has measured counts as measured even if its job later fails, so it is never measured
 again automatically.
 
@@ -66,7 +69,8 @@ again automatically.
   receipts waiting in the queue when it has nothing to measure, and reports an unreadable queue as
   `IDLEPROOF_PORTAL_QUEUE_CORRUPT`). Portal shows *Not measured* until then, never zero.
 - **Core missing or not answering.** The job waits with `CORE_UNAVAILABLE`. It is measured at the next
-  trigger once Core answers. A Core that answers but runs out of time measuring the change counts as a
+  trigger once Core answers. The worker reads the configuration each time it takes a job, so a job taken
+  after `auto-debt enable --dw …` returned uses the new Core CLI, even in a run that started before. A Core that answers but runs out of time measuring the change counts as a
   failed attempt, so the job ends `failed` after five of them.
 - **Neither case blocks development.** The hook only writes a small file.
 
