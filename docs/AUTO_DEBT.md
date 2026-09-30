@@ -42,7 +42,8 @@ measurement repeatable. Recording lineages stays a manual `dw debt`.
 is recorded as not measured and the status is marked degraded. It is never dropped silently. Measure
 such changes manually. Each one stays counted until it is queued later or measured manually; the latest
 200 are listed with their references in `auto-debt status --json`. Failed jobs do not count toward this limit. The latest 100 failed jobs stay
-listed with their reason, and older ones are counted in the status as no longer listed. A damaged queue
+listed with their reason, and older ones are counted in the status as no longer listed, until their
+change is queued again or measured manually. A damaged queue
 file stops the feature with an explicit error; it is never replaced by an empty one.
 
 **A measurement is taken once.** Before it is queued for Portal, the finished measurement is saved
@@ -69,8 +70,9 @@ again automatically.
   reach, for example because Core is unavailable, stays failed.
 - `IDLEPROOF_AUTO_DEBT_WORKER=off` makes hooks only queue, and measurement waits for that command.
 - The manual path is unchanged: `dw debt` → `dw envelope` → `idleproof portal assurance --envelope FILE`.
-  The same measurement of the same change is the same receipt. A manual assurance that Portal records
-  settles the automatic job of that change, which is then never measured again automatically; the status
+  The same measurement of the same change is the same receipt. A manual assurance that the current Portal
+  delivery queue accepts (queued now, already queued, or already held by Portal) settles the automatic job
+  of that change, which is then never measured again automatically; the status
   shows it as *measured manually*. A job a worker is measuring at that moment is left to the worker.
 - A change recorded as not measured (queue full) is no longer reported so once it is queued later or
   measured manually.
@@ -83,7 +85,8 @@ again automatically.
   collection keeps them for its grace period. A job whose trees are gone fails with
   `REFERENCE_UNAVAILABLE` and sends nothing.
 - **Session history.** Assurance addresses the last 20 changes of an IDE session and the last 30
-  sessions. An older change fails with `NOT_CORRELATED` and sends nothing.
+  sessions. An older change fails with `NOT_CORRELATED` and sends nothing. Core's envelope is kept beside
+  the job, so `auto-debt run --retry-failed` correlates it again without measuring the change again.
 - **Measurement configuration.** A change already measured is not measured again automatically, even if
   the Core configuration changes. Use the manual mode to recalculate.
 - **Windows `.cmd`/`.bat` Core launchers.** Windows runs them through `cmd.exe`. IdleProof quotes every

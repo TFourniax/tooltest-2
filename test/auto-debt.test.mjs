@@ -8,7 +8,7 @@ import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { processHookLifecycle } from '../src/hook.mjs';
 import { buildCurrentPortalSnapshot, portalStatus, writePortalConfig } from '../src/portal-client.mjs';
-import { autoDebtStatus, disableAutoDebt, enableAutoDebt, enqueueAutoDebt, runAutoDebtWorker, scheduleAutoDebt, __autoDebtTest } from '../src/auto-debt.mjs';
+import { autoDebtStatus, disableAutoDebt, enableAutoDebt, enqueueAutoDebt, runAutoDebtWorker, scheduleAutoDebt, settleWithManualAssurance, __autoDebtTest } from '../src/auto-debt.mjs';
 import { syncPortalAssurance, readChangeEnvelope } from '../src/portal-assurance.mjs';
 import { projectPaths } from '../src/paths.mjs';
 
@@ -349,6 +349,18 @@ test('failed jobs neither block new changes nor accumulate: only the latest stay
     assert.equal(status.counts.failedNoLongerListed, 1);
     assert.equal(status.degraded, false);
     assert.equal(received.length, 0);
+    // That older change is then measured manually: it is no longer counted as an older failure.
+    assert.equal(settleWithManualAssurance(p.cwd, failed[0].changeId, { snapshotId:null }).settled, true);
+    assert.equal(autoDebtStatus(p.cwd, { probe:false }).counts.failedNoLongerListed, 0);
+    // Another failure evicts the next oldest; presented again later, that change is queued anew and is no
+    // longer counted as an older failure either.
+    const another = { ...identity, changeId:`dwchg_${'f'.repeat(24)}` };
+    assert.equal(enqueueAutoDebt(p.cwd, another).queued, true);
+    assert.equal((await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received) })).results[0].code, 'REFERENCE_UNAVAILABLE');
+    assert.equal(autoDebtStatus(p.cwd, { probe:false }).counts.failedNoLongerListed, 1);
+    const again = { available:true, changeId:failed[1].changeId, repository:{ fingerprint:'dwrepo_x' }, base:{ tree:'a'.repeat(40), sha:null }, candidate:{ tree:'b'.repeat(40), sha:null } };
+    assert.equal(enqueueAutoDebt(p.cwd, again).queued, true);
+    assert.equal(autoDebtStatus(p.cwd, { probe:false }).counts.failedNoLongerListed, 0);
   } finally { p.done(); }
 });
 
@@ -546,6 +558,68 @@ test('a manual assurance settles the automatic job of the same change: Core is n
     const identity = { available:true, changeId:job.changeId, repository:{ fingerprint:'dwrepo_x' }, base:{ tree:job.base.tree, sha:null }, candidate:{ tree:job.candidate.tree, sha:null } };
     assert.equal(enqueueAutoDebt(p.cwd, identity).reason, 'already-measured');
   } finally { delete process.env.FAKE_DW_LOG; for (const file of [log, debtFile, envelopeFile]) cleanup(file); p.done(); }
+});
+
+test('a change Core measured but IdleProof could not correlate keeps its envelope: a retry correlates it without measuring again', async () => {
+  const p = project();
+  const received = [];
+  const log = path.join(p.cwd, '..', `${path.basename(p.cwd)}-dw.log`);
+  const stateFiles = [projectPaths(p.cwd).state, projectPaths(p.cwd).stateBackup];
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    completeChange(p.cwd, 'app.py', 'def total(items):\n    # TODO: check\n    return sum(items)\n');
+    const job = __autoDebtTest.readJobs(p.cwd).jobs[0];
+    // The session history no longer holds the change (it aged out): correlation fails after Core measured it.
+    for (const file of stateFiles) if (fs.existsSync(file)) fs.renameSync(file, `${file}.hidden`);
+    process.env.FAKE_DW_LOG = log;
+    const first = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received) });
+    assert.equal(first.results[0].code, 'NOT_CORRELATED');
+    const failed = __autoDebtTest.readJobs(p.cwd);
+    assert.equal(failed.jobs[0].state, 'failed');
+    assert.equal(failed.measured.includes(job.changeId), true);
+    assert.equal(received.length, 0);
+    // The history holds the change again: the explicit retry correlates the kept envelope, and Core is not run.
+    for (const file of stateFiles) if (fs.existsSync(`${file}.hidden`)) fs.renameSync(`${file}.hidden`, file);
+    const retried = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received), retryFailed:true });
+    assert.equal(retried.results[0].state, 'done');
+    assert.equal(withAssurance(received).length, 1);
+    assert.equal(withAssurance(received)[0].change.changeId, job.changeId);
+    const calls = fs.readFileSync(log, 'utf8').split('\n');
+    assert.equal(calls.filter((line) => line.startsWith('debt --repo')).length, 1);
+    assert.equal(calls.filter((line) => line.startsWith('envelope ')).length, 1);
+  } finally { delete process.env.FAKE_DW_LOG; cleanup(log); p.done(); }
+});
+
+test('a manual assurance that the current Portal queue refuses does not settle the automatic job', async () => {
+  const p = project();
+  const debtFile = path.join(p.cwd, '..', `${path.basename(p.cwd)}-debt.json`);
+  const envelopeFile = path.join(p.cwd, '..', `${path.basename(p.cwd)}-envelope.json`);
+  const assurance = () => JSON.parse(spawnSync(process.execPath, [CLI, 'portal', 'assurance', '--envelope', envelopeFile, '--json'], { cwd:p.cwd, encoding:'utf8' }).stdout);
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    completeChange(p.cwd, 'app.py', 'def total(items):\n    # TODO: check\n    return sum(items)\n');
+    const waiting = fs.readFileSync(projectPaths(p.cwd).autoDebtJobs, 'utf8');
+    const job = __autoDebtTest.readJobs(p.cwd).jobs[0];
+    git(p.cwd, 'add', '-A'); git(p.cwd, 'commit', '-qm', 'change');
+    execFileSync(process.execPath, [FAKE_DW, 'debt', '--repo', p.cwd, '--base', 'HEAD~1', '--candidate', 'HEAD', '--json', debtFile], { cwd:p.cwd });
+    execFileSync(process.execPath, [FAKE_DW, 'envelope', '--repo', p.cwd, '--base', 'HEAD~1', '--candidate', 'HEAD', '--debt', debtFile, '--out', envelopeFile], { cwd:p.cwd });
+    // Sent once, to an earlier enrollment: that receipt is recorded as sent.
+    const first = assurance();
+    assert.equal(first.accepted, true);
+    assert.equal(first.autoDebt.settled, true);
+    // Later the automatic job of the same change waits again, and the current enrollment's delivery queue is
+    // full of other receipts.
+    fs.writeFileSync(projectPaths(p.cwd).autoDebtJobs, waiting);
+    const older = buildCurrentPortalSnapshot(p.cwd);
+    fs.writeFileSync(projectPaths(p.cwd).portalQueue, JSON.stringify(Array.from({ length:200 }, () => older)));
+    const refused = assurance();
+    assert.equal(refused.queueReason, 'already-sent');
+    assert.equal(refused.accepted, false);
+    assert.equal(refused.autoDebt, undefined);
+    const jobs = __autoDebtTest.readJobs(p.cwd);
+    assert.equal(jobs.jobs.find((item) => item.changeId === job.changeId)?.state, 'pending');
+    assert.equal(jobs.measured.includes(job.changeId), false);
+  } finally { for (const file of [debtFile, envelopeFile]) cleanup(file); p.done(); }
 });
 
 test('references that no longer match are refused, never sent under another change', async () => {

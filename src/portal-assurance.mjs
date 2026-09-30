@@ -189,7 +189,7 @@ export async function syncPortalAssurance(cwd=process.cwd(), envelope, options={
   const snapshot=buildAssurancePortalSnapshot(cwd,envelope);
   const { receipt, previous, queued, notRetained }=queueAssuranceReceipt(cwd,snapshot);
   if (notRetained) {
-    return { configured:true, ok:false, errorCode:'IDLEPROOF_ASSURANCE_NOT_RETAINED', message:'This measurement was queued for Portal long ago and its receipt is no longer kept locally, so it cannot be resent or confirmed; measure the change again to send it. Nothing was sent.', snapshotId:receipt.snapshotId, changeId:receipt.change.changeId, newlyQueued:false, queueReason:'not-retained', assurance:snapshot.assurance };
+    return { configured:true, ok:false, errorCode:'IDLEPROOF_ASSURANCE_NOT_RETAINED', message:'This measurement was queued for Portal long ago and its receipt is no longer kept locally, so it cannot be resent or confirmed; measure the change again to send it. Nothing was sent.', snapshotId:receipt.snapshotId, changeId:receipt.change.changeId, newlyQueued:false, accepted:false, queueReason:'not-retained', assurance:snapshot.assurance };
   }
   // Refused as not configured: nothing was queued, so this result stays unsent even if another process
   // enrolls Portal before a flush could run (that flush would succeed against an empty queue).
@@ -202,6 +202,9 @@ export async function syncPortalAssurance(cwd=process.cwd(), envelope, options={
     snapshotId:receipt.snapshotId,
     changeId:receipt.change.changeId,
     newlyQueued:queued.queued,
+    // Whether the current Portal queue holds this receipt now (queued, already queued, or already held by
+    // Portal). `queueReason` 'already-sent' only says it was sent once, possibly to an earlier enrollment.
+    accepted:queued.queued === true || queued.reason === 'duplicate' || queued.reason === 'held-by-portal',
     queueReason:previous ? 'already-sent' : (queued.reason || null),
     skippedSnapshots:Math.max(queued.skippedSnapshots || 0,flushed.skippedSnapshots || 0),
     assurance:snapshot.assurance

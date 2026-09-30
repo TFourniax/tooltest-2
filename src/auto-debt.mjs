@@ -30,7 +30,8 @@ const CONFIG_SCHEMA = 'idleproof.auto-debt-config.v1';
 const JOBS_SCHEMA = 'idleproof.auto-debt-jobs.v1';
 // Jobs still to measure or retrying. Beyond it a completed change is recorded as skipped.
 const MAX_JOBS = 100;
-// Failed jobs kept listed, apart from the limit above; older ones are counted, never silently lost.
+// Failed jobs kept listed, apart from the limit above; older ones are counted, never silently lost. Their
+// identities are kept without a bound, so a change measured manually later is no longer counted.
 const MAX_FAILED = 100;
 // Details of the latest measured changes, for the status. The identities of every measured change are
 // kept apart, without a bound (about thirty bytes each), so none is ever measured twice.
@@ -140,7 +141,7 @@ export function disableAutoDebt(cwd = process.cwd()) {
 }
 
 function emptyJobs() {
-  return { schema:JOBS_SCHEMA, jobs:[], done:[], measured:[], skipped:[], skippedIds:[], skippedTotal:0, failedDropped:0, degraded:false };
+  return { schema:JOBS_SCHEMA, jobs:[], done:[], measured:[], skipped:[], skippedIds:[], skippedTotal:0, failedDroppedIds:[], failedDropped:0, degraded:false };
 }
 
 // Only a missing file is an empty queue; a damaged one stops the queue with an explicit error, never
@@ -153,13 +154,14 @@ function readJobs(cwd) {
     throw autoDebtError('IDLEPROOF_AUTO_DEBT_STATE_CORRUPT', `The automatic debt queue ${'.idleproof/auto-debt-jobs.json'} is unreadable (${error?.code || 'invalid JSON'}); nothing was queued. Inspect it before removing it deliberately.`);
   }
   if (value?.schema !== JOBS_SCHEMA || !Array.isArray(value.jobs) || !Array.isArray(value.done) || !Array.isArray(value.skipped)
-    || (value.measured !== undefined && !Array.isArray(value.measured)) || (value.skippedIds !== undefined && !Array.isArray(value.skippedIds))) {
+    || (value.measured !== undefined && !Array.isArray(value.measured)) || (value.skippedIds !== undefined && !Array.isArray(value.skippedIds)) || (value.failedDroppedIds !== undefined && !Array.isArray(value.failedDroppedIds))) {
     throw autoDebtError('IDLEPROOF_AUTO_DEBT_STATE_CORRUPT', `The automatic debt queue ${'.idleproof/auto-debt-jobs.json'} has an unsupported schema; nothing was queued.`);
   }
   const measured = [...new Set([...(value.measured ?? []), ...value.done.map((item) => item.changeId)].filter((id) => CHANGE_ID.test(String(id))))];
   const skippedIds = [...new Set([...(value.skippedIds ?? []), ...value.skipped.map((item) => item?.changeId)].filter((id) => CHANGE_ID.test(String(id))))];
-  return { ...emptyJobs(), ...value, measured, skippedIds, skippedTotal:skippedIds.length,
-    failedDropped:Number.isInteger(value.failedDropped) ? value.failedDropped : 0, degraded:value.degraded === true };
+  const failedDroppedIds = [...new Set((value.failedDroppedIds ?? []).filter((id) => CHANGE_ID.test(String(id))))];
+  return { ...emptyJobs(), ...value, measured, skippedIds, skippedTotal:skippedIds.length, failedDroppedIds, failedDropped:failedDroppedIds.length,
+    degraded:value.degraded === true };
 }
 
 function withJobs(cwd, fn) {
@@ -180,6 +182,13 @@ function resolveSkipped(state, changeId) {
   state.skipped = state.skipped.filter((item) => item.changeId !== changeId);
   state.skippedTotal = state.skippedIds.length;
   state.degraded = state.skippedTotal > 0;
+}
+
+// A failed job that left the list is no longer counted once its change is queued again or measured manually.
+function resolveFailedDropped(state, changeId) {
+  if (!state.failedDroppedIds.includes(changeId)) return;
+  state.failedDroppedIds = state.failedDroppedIds.filter((id) => id !== changeId);
+  state.failedDropped = state.failedDroppedIds.length;
 }
 
 // Called by the hook that completed the change: records its exact references, nothing else.
@@ -208,6 +217,7 @@ export function enqueueAutoDebt(cwd, identity, { now = new Date() } = {}) {
     state.jobs.push({ changeId, repository:identity.repository?.fingerprint ?? null, base:reference(identity.base), candidate:reference(identity.candidate),
       enqueuedAt:now.toISOString(), state:'pending', attempts:0, lastError:null, lastAttemptAt:null, retryAfter:null });
     resolveSkipped(state, changeId);
+    resolveFailedDropped(state, changeId);
     return { queued:true, changeId, pending:state.jobs.length };
   });
 }
@@ -223,6 +233,7 @@ export function settleWithManualAssurance(cwd, changeId, { snapshotId = null, so
     if (job?.state === 'measuring') return { settled:false, reason:'measuring', changeId };
     state.jobs = state.jobs.filter((item) => item.changeId !== changeId);
     resolveSkipped(state, changeId);
+    resolveFailedDropped(state, changeId);
     if (!state.measured.includes(changeId)) state.measured.push(changeId);
     if (!state.done.some((item) => item.changeId === changeId)) {
       state.done = [...state.done, { changeId, source:'manual', points:softwareDebt?.points ?? null, obligations:softwareDebt?.obligations ?? null,
@@ -304,6 +315,16 @@ function pruneWork(cwd) {
   } catch {}
 }
 
+// Core's envelope for this job, bound to its change and kept before correlation: a correlation that failed
+// is retried with it, without running Core again.
+function keptEnvelope(file, changeId) {
+  try {
+    const kept = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (kept?.changeId !== changeId || kept?.envelope?.change_id !== changeId) return null;
+    return kept;
+  } catch { return null; }
+}
+
 // A measurement already taken for this job and not yet accepted by the delivery queue.
 function keptMeasurement(file, changeId) {
   try {
@@ -322,6 +343,11 @@ function measureAndQueue(cwd, config, job, { timeoutMs = MEASURE_TIMEOUT_MS } = 
   // Measured already (the delivery queue refused it: Portal not configured, or full): only queue it again.
   const kept = keptMeasurement(keptFile, job.changeId);
   if (kept) return queueMeasurement(cwd, job, kept);
+  const boundFile = path.join(work, 'bound.json');
+  // Measured and bound already, but not correlated yet (the change was not in the session history): only
+  // correlate it again.
+  const keptBound = keptEnvelope(boundFile, job.changeId);
+  if (keptBound) return correlateAndQueue(cwd, job, keptBound, keptFile);
   let root;
   try { root = gitRoot(cwd); } catch (error) { return { state:'retry', code:error.code, message:error.message }; }
   const key = configurationKey(root, config.dw);
@@ -350,13 +376,24 @@ function measureAndQueue(cwd, config, job, { timeoutMs = MEASURE_TIMEOUT_MS } = 
   let envelope;
   try { envelope = JSON.parse(fs.readFileSync(envelopeFile, 'utf8')); } catch { return { state:'retry', code:'ENVELOPE_INVALID', message:'dw envelope wrote no readable envelope.' }; }
   if (envelope?.change_id !== job.changeId) return { state:'failed', code:'REFERENCE_MISMATCH', message:`Core bound the measurement to ${String(envelope?.change_id || 'no change')}, not ${job.changeId}; nothing was sent.` };
+  // Kept before correlation: if the change cannot be correlated now, a retry uses this envelope, never a new
+  // measurement.
+  const measuredEnvelope = { changeId:job.changeId, configKey:key.key, core:key.core, envelope };
+  try { atomicJson(boundFile, measuredEnvelope); }
+  catch (error) { return { state:'retry', code:'MEASUREMENT_NOT_KEPT', message:String(error?.message || error).slice(0, 300) }; }
+  return correlateAndQueue(cwd, job, measuredEnvelope, keptFile);
+}
+
+// Every outcome here follows a Core measurement that is kept, so `measurementTaken` records the change as
+// measured: it is never measured again automatically.
+function correlateAndQueue(cwd, job, { configKey, core, envelope }, keptFile) {
   let snapshot;
   try { snapshot = buildAssurancePortalSnapshot(cwd, envelope); }
-  catch (error) { return { state:'failed', code:'NOT_CORRELATED', message:String(error?.message || error).slice(0, 300) }; }
+  catch (error) { return { state:'failed', code:'NOT_CORRELATED', message:String(error?.message || error).slice(0, 300), measurementTaken:true }; }
   // Kept before queueing: if the queue refuses it, the next attempt sends this measurement, never a new one.
-  const measurement = { changeId:job.changeId, configKey:key.key, core:key.core, snapshot };
+  const measurement = { changeId:job.changeId, configKey, core, snapshot };
   try { atomicJson(keptFile, measurement); }
-  catch (error) { return { state:'retry', code:'MEASUREMENT_NOT_KEPT', message:String(error?.message || error).slice(0, 300) }; }
+  catch (error) { return { state:'retry', code:'MEASUREMENT_NOT_KEPT', message:String(error?.message || error).slice(0, 300), measurementTaken:true }; }
   return queueMeasurement(cwd, job, measurement);
 }
 
@@ -387,7 +424,8 @@ function boundFailed(state) {
   if (failed.length <= MAX_FAILED) return;
   const dropped = new Set(failed.slice(0, failed.length - MAX_FAILED).map((job) => job.changeId));
   state.jobs = state.jobs.filter((job) => !dropped.has(job.changeId));
-  state.failedDropped += dropped.size;
+  state.failedDroppedIds = [...new Set([...state.failedDroppedIds, ...dropped])];
+  state.failedDropped = state.failedDroppedIds.length;
 }
 
 const backoff = (attempts) => new Date(Date.now() + Math.min(60 * 60 * 1000, 30 * 1000 * 2 ** Math.max(0, attempts - 1))).toISOString();
