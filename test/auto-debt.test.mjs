@@ -948,7 +948,7 @@ test('a queue holding a damaged record is reported as corrupt, never read as val
   } finally { p.done(); }
 });
 
-test('the native IDE runners start automatic debt only for a Stop that DiffWitness accepts', () => {
+test('the native IDE runners start automatic debt only for a Stop that DiffWitness accepts, never at SessionEnd after a blocked one', () => {
   const claudeRunner = path.join(HERE, '..', 'bin', 'idleproof-hook.mjs');
   const cursorRunner = path.join(HERE, '..', 'src', 'cursor-hook-cli.mjs');
   for (const runner of ['claude', 'cursor']) {
@@ -956,7 +956,7 @@ test('the native IDE runners start automatic debt only for a Stop that DiffWitne
     try {
       enableAutoDebt(p.cwd, { dw:p.dw });
       const hook = (eventName) => spawnSync(process.execPath,
-        runner === 'cursor' ? [cursorRunner, { UserPromptSubmit:'beforeSubmitPrompt', Stop:'stop' }[eventName]] : [claudeRunner, 'claude'],
+        runner === 'cursor' ? [cursorRunner, { UserPromptSubmit:'beforeSubmitPrompt', Stop:'stop', SessionEnd:'sessionEnd' }[eventName]] : [claudeRunner, 'claude'],
         { cwd:p.cwd, input:JSON.stringify({ cwd:p.cwd, session_id:`runner-${runner}`, hook_event_name:eventName, prompt:'Update app.py so total documents its check' }), encoding:'utf8',
           env:{ ...process.env, IDLEPROOF_AUTO_DEBT_WORKER:'off' } });
       // DiffWitness is required for this project and cannot run: the native Stop blocks the completion.
@@ -968,11 +968,19 @@ test('the native IDE runners start automatic debt only for a Stop that DiffWitne
       assert.equal(blocked.status, 0, blocked.stderr);
       assert.equal(JSON.parse(blocked.stdout.trim()).decision, 'block', runner);
       assert.equal(__autoDebtTest.readJobs(p.cwd).jobs.length, 0, `${runner}: a blocked completion is not measured`);
+      // The session then ends: SessionEnd records the same completion again, with no DiffWitness verdict.
+      const ended = hook('SessionEnd');
+      assert.equal(ended.status, 0, ended.stderr);
+      assert.equal(__autoDebtTest.readJobs(p.cwd).jobs.length, 0, `${runner}: SessionEnd does not queue the blocked completion`);
       // Without that requirement the same completion is accepted, and only then is its job queued.
       fs.rmSync(integration);
       const accepted = hook('Stop');
       assert.equal(accepted.status, 0, accepted.stderr);
       assert.equal(__autoDebtTest.readJobs(p.cwd).jobs.length, 1, `${runner}: an accepted completion is queued`);
+      // A project with no DiffWitness integration has no Stop verdict to wait for: SessionEnd queues what it completes.
+      fs.writeFileSync(path.join(p.cwd, 'other.py'), 'x = 1\n');
+      assert.equal(hook('SessionEnd').status, 0);
+      assert.equal(__autoDebtTest.readJobs(p.cwd).jobs.length, 2, `${runner}: without an integration SessionEnd queues its completion`);
     } finally { p.done(); }
   }
 });

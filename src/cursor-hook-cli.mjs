@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import process from 'node:process';
 import { processHookLifecycle } from './hook.mjs';
 import { queueMatchingDiffWitnessAssurance } from './ide-assurance.mjs';
-import { diffWitnessRequiredFailure, runDiffWitnessIdeHook } from './diffwitness-bridge.mjs';
+import { diffWitnessGateConfigured, diffWitnessRequiredFailure, runDiffWitnessIdeHook } from './diffwitness-bridge.mjs';
 import { scheduleAutoDebt } from './auto-debt.mjs';
 import { projectPaths } from './paths.mjs';
 
@@ -145,7 +145,8 @@ async function run() {
     return;
   }
   if (['sessionEnd','subagentStop'].includes(nativeName)) queueMatchingDiffWitnessAssurance(cwd);
-  if (nativeName==='sessionEnd') scheduleAutoDebt(cwd,lifecycle?.completedIdentity);
+  // sessionEnd carries no DiffWitness verdict: where the native stop judges completions, it only resumes queued jobs.
+  if (nativeName==='sessionEnd') scheduleAutoDebt(cwd,diffWitnessGateConfigured(cwd)?null:lifecycle?.completedIdentity);
 }
 
 run().catch((error)=>{

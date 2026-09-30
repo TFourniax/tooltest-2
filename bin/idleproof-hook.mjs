@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { processHookLifecycle } from '../src/hook.mjs';
 import { queueMatchingDiffWitnessAssurance } from '../src/ide-assurance.mjs';
-import { diffWitnessRequiredFailure, runDiffWitnessIdeHook } from '../src/diffwitness-bridge.mjs';
+import { diffWitnessGateConfigured, diffWitnessRequiredFailure, runDiffWitnessIdeHook } from '../src/diffwitness-bridge.mjs';
 import { readHookPayload } from '../src/hook-input.mjs';
 import { scheduleAutoDebt } from '../src/auto-debt.mjs';
 
@@ -54,7 +54,7 @@ async function run() {
   // Automatic debt waits for the native Stop and its IDE receipt below: it never measures a completion that
   // DiffWitness blocks, and a change the IDE receipt already measured is not measured again.
   let lifecycle=null;
-  const autoDebt=()=>{ if(lifecycle) scheduleAutoDebt(cwd,lifecycle.completedIdentity); };
+  const autoDebt=({resumeOnly=false}={})=>{ if(lifecycle) scheduleAutoDebt(cwd,resumeOnly?null:lifecycle.completedIdentity); };
   try { lifecycle=processHookLifecycle({ ...event, source:mode },{ deferAutoDebt:['Stop','SessionEnd'].includes(eventName) }); output=lifecycle.hookOutput || null; }
   catch {
     advisoryWarning='IdleProof context is unavailable; inspect idleproof repair. DiffWitness assurance is evaluated separately.';
@@ -79,7 +79,9 @@ async function run() {
     }
   } else if(['SessionEnd','SubagentStop'].includes(eventName)) {
     queueAssurance(cwd);
-    if(eventName==='SessionEnd') autoDebt();
+    // SessionEnd carries no DiffWitness verdict. Where the native Stop judges completions, only an accepted
+    // Stop queues one: SessionEnd then only resumes the queued jobs, so a blocked completion stays unqueued.
+    if(eventName==='SessionEnd') autoDebt({resumeOnly:diffWitnessGateConfigured(cwd)});
   }
 
   if(advisoryWarning) output={...(output||{}),systemMessage:[output?.systemMessage,advisoryWarning].filter(Boolean).join('\n')};

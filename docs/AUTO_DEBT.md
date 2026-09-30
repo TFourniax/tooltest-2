@@ -17,7 +17,9 @@ Portal. This covers `idleproof run -- <command>` and the agent hooks. There is n
    Then it starts a detached worker. No measurement and no network happen in the hook. In the native
    IDE runners (Claude, Codex, Cursor) this happens after the native DiffWitness Stop and its receipt: a
    completion DiffWitness blocks is not queued, and a change its receipt already measured is not measured
-   again.
+   again. `SessionEnd` carries no DiffWitness verdict: when the project has a DiffWitness integration, it
+   only resumes the queued jobs. A completion is then queued only by its accepted Stop; a change left
+   after the last Stop (an interrupted turn) is measured with the manual path.
 2. **The worker.**
    1. It builds unreachable commits from those trees, with fixed metadata. It creates no ref, no index
       entry and no user commit, as Core does for its own analytical baselines.
