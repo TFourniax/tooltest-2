@@ -1194,6 +1194,43 @@ test('a change completed while automatic debt is being disabled is not queued af
   } finally { p.done(); }
 });
 
+test('an IDE receipt that Portal accepts settles the job and its kept measurement is pruned like any other', () => {
+  const p = project();
+  const debtFile = path.join(p.cwd, '..', `${path.basename(p.cwd)}-debt.json`);
+  const envelopeFile = path.join(p.cwd, '.git', 'diffwitness', 'change-envelope.json');
+  const work = projectPaths(p.cwd).autoDebtWork;
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    // Measurement files left by many earlier changes, older than the one completed now.
+    const old = new Date('2020-01-01T00:00:00Z');
+    for (let n = 1; n <= __autoDebtTest.KEPT_WORK_DIRS + 6; n += 1) {
+      const dir = path.join(work, `dwchg_${n.toString(16).padStart(24, '0')}`);
+      fs.mkdirSync(dir, { recursive:true });
+      fs.writeFileSync(path.join(dir, 'receipt.json'), '{}');
+      fs.utimesSync(dir, old, old);
+    }
+    completeChange(p.cwd, 'app.py', 'def total(items):\n    # TODO: check\n    return sum(items)\n');
+    const { changeId } = __autoDebtTest.readJobs(p.cwd).jobs[0];
+    git(p.cwd, 'add', '-A'); git(p.cwd, 'commit', '-qm', 'change');
+    fs.mkdirSync(path.dirname(envelopeFile), { recursive:true });
+    execFileSync(process.execPath, [FAKE_DW, 'debt', '--repo', p.cwd, '--base', 'HEAD~1', '--candidate', 'HEAD', '--json', debtFile], { cwd:p.cwd });
+    execFileSync(process.execPath, [FAKE_DW, 'envelope', '--repo', p.cwd, '--base', 'HEAD~1', '--candidate', 'HEAD', '--debt', debtFile, '--out', envelopeFile], { cwd:p.cwd });
+    // The hook also schedules a detached flush; an invalid NODE_OPTIONS makes that child exit at startup.
+    const nodeOptions = process.env.NODE_OPTIONS;
+    process.env.NODE_OPTIONS = '--idleproof-test-no-background-flush';
+    let hooked;
+    try { hooked = queueMatchingDiffWitnessAssurance(p.cwd); }
+    finally { if (nodeOptions === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = nodeOptions; }
+    assert.equal(hooked.kept.kept, true);
+    assert.equal(hooked.queued, true);
+    assert.equal(hooked.autoDebt.settled, true);
+    // Settled, the change has no job left for a worker to prune after: the settlement prunes.
+    const left = fs.readdirSync(work);
+    assert.equal(left.length, __autoDebtTest.KEPT_WORK_DIRS);
+    assert.ok(left.includes(changeId), 'the latest change keeps its measurement files');
+  } finally { cleanup(debtFile); p.done(); }
+});
+
 test('a manual or IDE measurement settles the automatic job only with the receipt that carries it', () => {
   const p = project();
   try {

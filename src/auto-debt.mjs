@@ -300,6 +300,14 @@ export function settleWithManualAssurance(cwd, changeId, { snapshotId = null, so
   // Settled only by a receipt the delivery queue accepted, which names its snapshot.
   if (!SNAPSHOT_ID.test(String(snapshotId || ''))) return { settled:false, reason:'no-receipt', changeId };
   if (!readAutoDebtConfig(cwd)) return { settled:false, reason:'not-enabled' };
+  const settled = settleJob(cwd, changeId, { snapshotId, softwareDebt, queueReason, source });
+  // The measurement files of a settled change (for example the IDE measurement kept for its job) are pruned
+  // like the worker's: only the latest KEPT_WORK_DIRS changes keep theirs.
+  if (settled.settled) pruneWork(cwd);
+  return settled;
+}
+
+function settleJob(cwd, changeId, { snapshotId, softwareDebt, queueReason, source }) {
   return withJobs(cwd, (state) => {
     const job = state.jobs.find((item) => item.changeId === changeId);
     if (job?.state === 'measuring') return { settled:false, reason:'measuring', changeId };
@@ -723,4 +731,4 @@ export function autoDebtStatus(cwd = process.cwd(), { probe = true } = {}) {
   };
 }
 
-export const __autoDebtTest = { referenceCommit, configurationKey, measureAndQueue, processNextJob, readJobs, withJobs, windowsShellLine, MAX_JOBS, MAX_FAILED, MAX_DONE, MAX_SKIPPED, MAX_ATTEMPTS };
+export const __autoDebtTest = { referenceCommit, configurationKey, measureAndQueue, processNextJob, readJobs, withJobs, windowsShellLine, MAX_JOBS, MAX_FAILED, MAX_DONE, MAX_SKIPPED, MAX_ATTEMPTS, KEPT_WORK_DIRS };
