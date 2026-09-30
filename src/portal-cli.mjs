@@ -163,12 +163,18 @@ export async function runPortalCli(args, { cwd = process.cwd() } = {}) {
       const c = status.counts;
       console.log(`  waiting ${c.waiting} · measuring ${c.measuring} · failed ${c.failed} · measured ${c.measured}${c.skipped ? ` · NOT MEASURED (queue full) ${c.skipped}` : ''}`);
       if (status.degraded) console.log('  Some completed changes were not queued because the queue was full; measure them manually (`dw debt`, `dw envelope`, `idleproof portal assurance`).');
-      for (const change of status.changes.slice(-10)) {
+      // Changes still to measure, retrying or failed come first, with their reason; the latest measured
+      // ones fill the rest of the ten lines.
+      const open = status.changes.filter((change) => change.state !== 'measured').slice(-10);
+      const room = 10 - open.length;
+      const shown = [...open, ...(room > 0 ? status.changes.filter((change) => change.state === 'measured').slice(-room) : [])];
+      for (const change of shown) {
         const detail = change.state === 'measured'
           ? `${change.points} point(s) · ${change.obligations} obligation(s) · budget ${change.budgetPassed === null ? 'n/a' : change.budgetPassed ? 'PASS' : 'EXCEEDED'} · ${change.delivery === 'awaiting-delivery' ? 'waiting for Portal delivery' : change.delivery}`
           : `${change.state}${change.lastError ? ` · ${change.lastError.code}${change.lastError.message ? `: ${change.lastError.message}` : ''}` : ''}`;
         console.log(`  ${change.changeId} · ${detail}`);
       }
+      if (status.changes.length > shown.length) console.log(`  … ${status.changes.length - shown.length} more (idleproof portal auto-debt status --json)`);
     };
     if (sub === 'enable') { printStatus(enableAutoDebt(cwd, { dw:argValue(args, '--dw') })); return true; }
     if (sub === 'disable') { printStatus(disableAutoDebt(cwd)); return true; }

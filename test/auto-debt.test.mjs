@@ -250,6 +250,74 @@ test('the manual mode stays available and deduplicates with the automatic measur
   } finally { p.done(); }
 });
 
+test('a measurement whose earlier receipt is no longer kept is reported failed, never delivered', async () => {
+  const p = project();
+  const received = [];
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    completeChange(p.cwd, 'app.py', 'def total(items):\n    # TODO: check\n    return sum(items)\n');
+    const job = structuredClone(__autoDebtTest.readJobs(p.cwd).jobs[0]);
+    const first = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received) });
+    assert.equal(first.results[0].state, 'done');
+    // Much later: the receipt body is no longer kept locally, and the same change is measured again
+    // (as after a lost queue file). The client can neither resend nor confirm that receipt.
+    const sentFile = projectPaths(p.cwd).portalAssuranceSent;
+    const sent = JSON.parse(fs.readFileSync(sentFile, 'utf8'));
+    sent.entries = sent.entries.map(({ snapshot, ...entry }) => entry);
+    fs.writeFileSync(sentFile, JSON.stringify(sent));
+    const jobs = __autoDebtTest.readJobs(p.cwd);
+    fs.writeFileSync(projectPaths(p.cwd).autoDebtJobs, JSON.stringify({ ...jobs, jobs:[{ ...job, state:'pending', attempts:0 }], done:[], measured:[] }));
+    const again = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received) });
+    assert.equal(again.results[0].state, 'failed');
+    assert.equal(again.results[0].code, 'IDLEPROOF_ASSURANCE_NOT_RETAINED');
+    const change = autoDebtStatus(p.cwd, { probe:false }).changes.find((item) => item.changeId === job.changeId);
+    assert.equal(change.state, 'failed');
+    assert.equal(change.lastError.code, 'IDLEPROOF_ASSURANCE_NOT_RETAINED');
+    assert.equal(change.delivery, undefined);
+    assert.equal(withAssurance(received).length, 1);
+  } finally { p.done(); }
+});
+
+test('a measured change is never measured again, even beyond the bounded measurement details', async () => {
+  const p = project();
+  const received = [];
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    const hex = (n) => n.toString(16).padStart(24, '0');
+    const old = Array.from({ length:__autoDebtTest.MAX_DONE }, (_, n) => ({ changeId:`dwchg_${hex(n + 1)}`, points:0, obligations:0, budgetPassed:true, snapshotId:`ipsnap_${hex(n + 1)}`, measuredAt:'2026-01-01T00:00:00.000Z' }));
+    fs.writeFileSync(projectPaths(p.cwd).autoDebtJobs, JSON.stringify({ schema:'idleproof.auto-debt-jobs.v1', jobs:[], done:old, measured:old.map((item) => item.changeId), skipped:[], skippedTotal:0, degraded:false }));
+    completeChange(p.cwd, 'app.py', 'def total(items):\n    # TODO: check\n    return sum(items)\n');
+    const run = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received) });
+    assert.equal(run.results[0].state, 'done');
+    const jobs = __autoDebtTest.readJobs(p.cwd);
+    assert.equal(jobs.done.length, __autoDebtTest.MAX_DONE);
+    assert.equal(jobs.done.some((item) => item.changeId === old[0].changeId), false);
+    assert.equal(jobs.measured.length, __autoDebtTest.MAX_DONE + 1);
+    assert.equal(autoDebtStatus(p.cwd, { probe:false }).counts.measured, __autoDebtTest.MAX_DONE + 1);
+    // The oldest change left the details but not the identities: completing it again queues nothing.
+    const identity = { available:true, changeId:old[0].changeId, repository:{ fingerprint:'dwrepo_x' }, base:{ tree:'a'.repeat(40), sha:null }, candidate:{ tree:'b'.repeat(40), sha:null } };
+    assert.equal(enqueueAutoDebt(p.cwd, identity).reason, 'already-measured');
+    assert.equal(enqueueAutoDebt(p.cwd, { ...identity, changeId:run.results[0].changeId }).reason, 'already-measured');
+  } finally { p.done(); }
+});
+
+test('the status lists changes still waiting, retrying or failed before the measured ones', () => {
+  const p = project();
+  try {
+    const hex = (n) => n.toString(16).padStart(24, '0');
+    const done = Array.from({ length:12 }, (_, n) => ({ changeId:`dwchg_${hex(n + 1)}`, points:1, obligations:1, budgetPassed:true, snapshotId:`ipsnap_${hex(n + 1)}`, measuredAt:'2026-01-01T00:00:00.000Z' }));
+    const waiting = { changeId:`dwchg_${'f'.repeat(24)}`, repository:null, base:{ tree:'a'.repeat(40), commit:null }, candidate:{ tree:'b'.repeat(40), commit:null },
+      enqueuedAt:'2026-01-02T00:00:00.000Z', state:'pending', attempts:0, lastError:{ code:'CORE_UNAVAILABLE', message:'dw is not answering', at:'2026-01-02T00:00:00.000Z' }, lastAttemptAt:null, retryAfter:null };
+    fs.mkdirSync(projectPaths(p.cwd).dir, { recursive:true });
+    fs.writeFileSync(projectPaths(p.cwd).autoDebtJobs, JSON.stringify({ schema:'idleproof.auto-debt-jobs.v1', jobs:[waiting], done, measured:done.map((item) => item.changeId), skipped:[], skippedTotal:0, degraded:false }));
+    const out = execFileSync(process.execPath, [CLI, 'portal', 'auto-debt', 'status'], { cwd:p.cwd, encoding:'utf8' });
+    const lines = out.split('\n').filter((line) => line.startsWith('  dwchg_'));
+    assert.equal(lines.length, 10);
+    assert.match(lines[0], new RegExp(`${waiting.changeId} · retrying · CORE_UNAVAILABLE: dw is not answering`));
+    assert.match(out, /… 3 more \(idleproof portal auto-debt status --json\)/);
+  } finally { p.done(); }
+});
+
 test('references that no longer match are refused, never sent under another change', async () => {
   const p = project();
   const received = [];

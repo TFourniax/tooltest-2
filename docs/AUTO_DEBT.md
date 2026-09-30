@@ -28,14 +28,14 @@ measurement repeatable. Recording lineages stays a manual `dw debt`.
 
 ## States
 
-`idleproof portal auto-debt status [--json]` lists each change:
+`idleproof portal auto-debt status [--json]` lists each change. Changes still waiting, retrying or failed come first, with their reason; the latest measured changes fill the rest:
 
 | State | Meaning |
 |---|---|
 | `waiting` | Queued, not measured yet. |
 | `measuring` | A worker is measuring it. After a crash, the next worker measures it again. |
 | `retrying` | The last attempt did not measure it. The reason is shown: `CORE_UNAVAILABLE` (not counted as an attempt), `MEASUREMENT_FAILED`, … |
-| `failed` | Five failed measurements, or references that cannot be measured (`REFERENCE_UNAVAILABLE`, `REFERENCE_MISMATCH`, `NOT_CORRELATED`). Nothing was sent. |
+| `failed` | One of three causes, each shown with its reason: five failed measurements; references that cannot be measured (`REFERENCE_UNAVAILABLE`, `REFERENCE_MISMATCH`, `NOT_CORRELATED`); or the same measurement queued for Portal long ago whose receipt is no longer kept locally (`IDLEPROOF_ASSURANCE_NOT_RETAINED`), so it can be neither resent nor confirmed. Nothing was sent. |
 | `measured` | Sent to the delivery queue. The status then shows **waiting for Portal delivery** or **delivered**. |
 
 **Not measured (queue full).** When 100 jobs are already waiting, a newly completed change is recorded
