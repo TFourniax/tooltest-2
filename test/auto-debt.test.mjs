@@ -1264,6 +1264,24 @@ test('an IDE receipt that carries Proof alone is delivered, but leaves the chang
   } finally { cleanup(debtFile); p.done(); }
 });
 
+test('a configuration whose enablement is damaged is reported as corrupt, never read as disabled', () => {
+  const p = project();
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    const file = projectPaths(p.cwd).autoDebtConfig;
+    const valid = JSON.parse(fs.readFileSync(file, 'utf8'));
+    for (const [n, damaged] of [{ ...valid, enabled:undefined }, { ...valid, enabled:'yes' }, { ...valid, enabled:1 }].entries()) {
+      fs.writeFileSync(file, JSON.stringify(damaged));
+      assert.equal(autoDebtStatus(p.cwd, { probe:false }).errorCode, 'IDLEPROOF_AUTO_DEBT_CONFIG_CORRUPT', JSON.stringify(damaged.enabled));
+      // A completed change is not silently left unqueued: the hook reports the damaged configuration.
+      const hook = completeChange(p.cwd, 'app.py', `x = ${n}\n`);
+      assert.equal(hook.autoDebt.errorCode, 'IDLEPROOF_AUTO_DEBT_CONFIG_CORRUPT');
+    }
+    const status = spawnSync(process.execPath, [CLI, 'portal', 'auto-debt', 'status', '--json'], { cwd:p.cwd, encoding:'utf8' });
+    assert.equal(JSON.parse(status.stdout).errorCode, 'IDLEPROOF_AUTO_DEBT_CONFIG_CORRUPT');
+  } finally { p.done(); }
+});
+
 test('a manual or IDE measurement settles the automatic job only with the receipt that carries it', () => {
   const p = project();
   try {

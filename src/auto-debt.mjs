@@ -76,8 +76,10 @@ export function readAutoDebtConfig(cwd = process.cwd()) {
     if (error?.code === 'ENOENT') return null;
     throw autoDebtError('IDLEPROOF_AUTO_DEBT_CONFIG_CORRUPT', `Automatic debt configuration is unreadable (${error?.code || 'invalid JSON'}); run \`idleproof portal auto-debt enable\` again.`);
   }
-  if (value?.schema !== CONFIG_SCHEMA || typeof value.dw !== 'string' || !value.dw) throw autoDebtError('IDLEPROOF_AUTO_DEBT_CONFIG_CORRUPT', 'Automatic debt configuration has an unsupported schema; run `idleproof portal auto-debt enable` again.');
-  return { enabled:value.enabled === true, dw:value.dw, enabledAt:typeof value.enabledAt === 'string' ? value.enabledAt : null };
+  // `enable` and `disable` always write `enabled` as a boolean: any other value is a damaged configuration, never
+  // read as disabled (which would stop queueing changes without saying so).
+  if (value?.schema !== CONFIG_SCHEMA || typeof value.dw !== 'string' || !value.dw || typeof value.enabled !== 'boolean') throw autoDebtError('IDLEPROOF_AUTO_DEBT_CONFIG_CORRUPT', 'Automatic debt configuration has an unsupported schema; run `idleproof portal auto-debt enable` again.');
+  return { enabled:value.enabled, dw:value.dw, enabledAt:typeof value.enabledAt === 'string' ? value.enabledAt : null };
 }
 
 function findOnPath(name) {
