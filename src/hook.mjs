@@ -17,6 +17,7 @@ import { cachedFeatureModel, rememberFeature } from './feature-memory.mjs';
 import { buildHookDelivery } from './delivery.mjs';
 import { captureBaselineIdentity, finalizeChangeIdentity, COMPLETED_CHANGE_FIELDS } from './change-identity.mjs';
 import { schedulePortalSync } from './portal-client.mjs';
+import { scheduleAutoDebt } from './auto-debt.mjs';
 import { taskContinuityQuery, taskDisplayText, taskMetadata, updateSessionTask } from './task.mjs';
 import { validContextIdentity } from './continuity-contract.mjs';
 import { continuityCounts, loadContinuityContext, renderContinuityForAgent } from './continuity.mjs';
@@ -145,7 +146,9 @@ function loadingOutput(cwd, state, event) {
   };
 }
 
-export function processHookLifecycle(event = {}) {
+// `deferAutoDebt`: the native IDE runners schedule automatic debt themselves, once the native DiffWitness
+// Stop has accepted the completion (see bin/idleproof-hook.mjs and src/cursor-hook-cli.mjs).
+export function processHookLifecycle(event = {}, { deferAutoDebt = false } = {}) {
   const cwd = event.cwd || process.cwd();
   const eventName = event.hook_event_name || event.type || 'event';
   let policyDecision = eventName === 'PreToolUse'
@@ -162,6 +165,8 @@ export function processHookLifecycle(event = {}) {
 
   policyDecision = strictRecorderFailClosed(event, policyDecision, provenanceError, cwd);
   let surfacedExplanation = null;
+  // The exact references of the change this event completes, frozen for automatic debt.
+  let completedIdentity = null;
 
   const state = mutateState(cwd, (state) => {
     const session = ensureSession(state, event);
@@ -268,7 +273,10 @@ export function processHookLifecycle(event = {}) {
     }
 
     // Recorded once the turn's feature model and signals are known.
-    if (eventName === 'Stop' || eventName === 'SessionEnd' || eventName === 'generic-stop') freezeCompletedChange(session);
+    if (eventName === 'Stop' || eventName === 'SessionEnd' || eventName === 'generic-stop') {
+      freezeCompletedChange(session);
+      completedIdentity = session.changeIdentity?.available ? structuredClone(session.changeIdentity) : null;
+    }
 
     trimSessions(state);
     return state;
@@ -285,6 +293,10 @@ export function processHookLifecycle(event = {}) {
     // is first persisted to a bounded local queue, then a detached helper attempts delivery.
     portalSync = schedulePortalSync(cwd);
   }
+  // Automatic debt (when enabled): only a small job file is written here; a detached worker measures.
+  // A session start also resumes jobs left by an interrupted worker or an unavailable Core.
+  let autoDebt = null;
+  if (!deferAutoDebt && ['Stop', 'SessionEnd', 'generic-stop', 'SessionStart'].includes(eventName)) autoDebt = scheduleAutoDebt(cwd, completedIdentity);
 
   const hookOutput = policyDecision
     ? policyDecisionOutput(event, policyDecision)
@@ -302,6 +314,8 @@ export function processHookLifecycle(event = {}) {
     attestation,
     attestationError,
     portalSync,
+    autoDebt,
+    completedIdentity,
     hookOutput
   };
 }

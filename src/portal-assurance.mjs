@@ -147,7 +147,11 @@ function writeAssuranceSent(cwd, entries) {
 
 // Every delivery route (this command and the IDE hook) queues an assurance through here, so one
 // measurement of one change stays one receipt whichever route sent it first.
-export function queueAssuranceReceipt(cwd, snapshot) {
+// Whether the current Portal delivery queue holds a receipt: queued now, already queued, or already held by
+// Portal. A receipt sent once to an earlier enrollment and refused now is not accepted.
+export const acceptedByPortalQueue=(queued)=>queued?.queued===true || queued?.reason==='duplicate' || queued?.reason==='held-by-portal';
+
+export function queueAssuranceReceipt(cwd, snapshot, { retainedByCaller=false }={}) {
   const key=assuranceKey(snapshot.change.changeId,snapshot.assurance);
   // Lookup, queueing and recording form one step per project, so concurrent hook and CLI
   // processes neither lose each other's receipts nor queue two receipts for one measurement.
@@ -175,8 +179,8 @@ export function queueAssuranceReceipt(cwd, snapshot) {
     // delivery can drop its last copy.
     if (!previous) recordAssuranceSent(cwd,key,receipt,{ pending:true });
     else if (recovered) recordAssuranceSent(cwd,key,receipt);
-    const queued=queuePortalSnapshot(cwd,receipt);
-    const accepted=queued.queued || queued.reason==='duplicate' || queued.reason==='held-by-portal';
+    const queued=queuePortalSnapshot(cwd,receipt,{ retainedByCaller });
+    const accepted=acceptedByPortalQueue(queued);
     if (accepted && (!previous || previous.pending)) recordAssuranceSent(cwd,key,receipt);
     // Refused before entering the queue (Portal not configured, queue full): nothing was sent, so the
     // measurement is not recorded and a later attempt sends it normally.
@@ -189,7 +193,7 @@ export async function syncPortalAssurance(cwd=process.cwd(), envelope, options={
   const snapshot=buildAssurancePortalSnapshot(cwd,envelope);
   const { receipt, previous, queued, notRetained }=queueAssuranceReceipt(cwd,snapshot);
   if (notRetained) {
-    return { configured:true, ok:false, errorCode:'IDLEPROOF_ASSURANCE_NOT_RETAINED', message:'This measurement was queued for Portal long ago and its receipt is no longer kept locally, so it cannot be resent or confirmed; measure the change again to send it. Nothing was sent.', snapshotId:receipt.snapshotId, changeId:receipt.change.changeId, newlyQueued:false, queueReason:'not-retained', assurance:snapshot.assurance };
+    return { configured:true, ok:false, errorCode:'IDLEPROOF_ASSURANCE_NOT_RETAINED', message:'This measurement was queued for Portal long ago and its receipt is no longer kept locally, so it cannot be resent or confirmed; measure the change again to send it. Nothing was sent.', snapshotId:receipt.snapshotId, changeId:receipt.change.changeId, newlyQueued:false, accepted:false, queueReason:'not-retained', assurance:snapshot.assurance };
   }
   // Refused as not configured: nothing was queued, so this result stays unsent even if another process
   // enrolls Portal before a flush could run (that flush would succeed against an empty queue).
@@ -202,6 +206,9 @@ export async function syncPortalAssurance(cwd=process.cwd(), envelope, options={
     snapshotId:receipt.snapshotId,
     changeId:receipt.change.changeId,
     newlyQueued:queued.queued,
+    // Whether the current Portal queue holds this receipt now. `queueReason` 'already-sent' only says it
+    // was sent once, possibly to an earlier enrollment.
+    accepted:acceptedByPortalQueue(queued),
     queueReason:previous ? 'already-sent' : (queued.reason || null),
     skippedSnapshots:Math.max(queued.skippedSnapshots || 0,flushed.skippedSnapshots || 0),
     assurance:snapshot.assurance

@@ -211,8 +211,17 @@ export function withMemoryLock(cwd, fn) {
 }
 
 // The same owner-verified lock for another local record (for example the assurance receipt cache).
-export function withOwnedLock(file, fn, busyCode = 'IDLEPROOF_PORTAL_MEMORY_BUSY', label = 'Portal memory cursor') {
-  fs.mkdirSync(path.dirname(file), { recursive:true });
+export function withOwnedLock(file, fn, busyCode = 'IDLEPROOF_PORTAL_MEMORY_BUSY', label = 'Portal memory cursor', options = {}) {
+  const release = acquireOwnedLock(file, busyCode, label, options);
+  try { return fn(); }
+  finally { release(); }
+}
+
+// Takes the lock and returns the function that releases it, for work that spans an `await`, which
+// withOwnedLock cannot hold the lock across. With `createParent: false`, a missing directory is an error
+// (ENOENT) instead of being created.
+export function acquireOwnedLock(file, busyCode = 'IDLEPROOF_PORTAL_MEMORY_BUSY', label = 'Portal memory cursor', { createParent = true } = {}) {
+  if (createParent) fs.mkdirSync(path.dirname(file), { recursive:true });
   const token = newToken();
   const started = Date.now();
   const probe = memoProbe();
@@ -232,11 +241,8 @@ export function withOwnedLock(file, fn, busyCode = 'IDLEPROOF_PORTAL_MEMORY_BUSY
     error.code = busyCode;
     throw error;
   }
-  try { return fn(); }
-  finally {
-    // Never remove a lock that is no longer ours.
-    if (readOwner(file) === token) removeLock(file);
-  }
+  // Never remove a lock that is no longer ours.
+  return () => { if (readOwner(file) === token) removeLock(file); };
 }
 
 export const __memoryLockTest = { tryEvict, abandoned, memoProbe, claimPath, ownIncarnation, newToken, startTimeOf, startTimeProbes:() => startTimeProbes };

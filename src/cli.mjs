@@ -9,6 +9,7 @@ import { installCodex, uninstallCodex, hasCodexInstall } from './install-codex.m
 import { processHookEvent, processHookLifecycle, seedDemo, buildReceipt } from './hook.mjs';
 import { computeMetrics, loadState } from './state.mjs';
 import { DEFAULT_PORT, projectPaths } from './paths.mjs';
+import { withOwnedLock } from './portal-memory-lock.mjs';
 import { grantApproval, initPolicy, loadPolicy, policyHash } from './policy.mjs';
 import { buildAgentBom, ensureIdentity, readProvenanceEvents, verifyProvenanceChain } from './provenance.mjs';
 import { createAttestation, decodeAttestation, verifyAttestation } from './attest.mjs';
@@ -191,16 +192,31 @@ async function resetLocalState(cwd, args = []) {
   if (!fs.existsSync(paths.dir)) { console.log('IdleProof has no local state to reset.'); return; }
   const info = serverInfo(cwd);
   if (info && await probeServer(cwd, info)) throw new Error('IdleProof is running. Run `idleproof stop` before resetting local state.');
-  if (args.includes('--force')) {
-    fs.rmSync(paths.dir, { recursive:true, force:true });
+  const force = args.includes('--force');
+  // No automatic debt worker may be measuring or delivering, and no hook queueing a change, while the state
+  // moves: their next write would recreate the queue outside the archive. Holding the worker lock, then the
+  // queue lock, waits for them (up to 3 s each) and recovers locks left by processes that died; one still
+  // busy stops the reset, and nothing is moved.
+  let destination = null;
+  try {
+    withOwnedLock(paths.autoDebtWorkerLock, () => withOwnedLock(paths.autoDebtJobsLock, () => {
+      if (force) { fs.rmSync(paths.dir, { recursive:true, force:true }); return; }
+      const recoveryRoot = resetRecoveryRoot(cwd);
+      fs.mkdirSync(recoveryRoot, { recursive:true, mode:0o700 });
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+      destination = path.join(recoveryRoot, `${stamp}-${process.pid}`);
+      fs.renameSync(paths.dir, destination);
+      // The archive keeps the state, not this reset's locks.
+      for (const lock of [paths.autoDebtWorkerLock, paths.autoDebtJobsLock]) fs.rmSync(path.join(destination, path.basename(lock)), { recursive:true, force:true });
+    }, 'IDLEPROOF_AUTO_DEBT_BUSY', 'Automatic debt queue'), 'IDLEPROOF_AUTO_DEBT_WORKER_BUSY', 'Automatic debt worker');
+  } catch (error) {
+    if (['IDLEPROOF_AUTO_DEBT_WORKER_BUSY', 'IDLEPROOF_AUTO_DEBT_BUSY'].includes(error?.code)) throw new Error('Automatic debt is measuring, delivering or queueing a change. Wait for it to finish (`idleproof portal auto-debt status`), then reset again; nothing was moved.');
+    throw error;
+  }
+  if (force) {
     console.log('✓ IdleProof local state permanently deleted; hooks and project policy preserved.');
     return;
   }
-  const recoveryRoot = resetRecoveryRoot(cwd);
-  fs.mkdirSync(recoveryRoot, { recursive:true, mode:0o700 });
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const destination = path.join(recoveryRoot, `${stamp}-${process.pid}`);
-  fs.renameSync(paths.dir, destination);
   console.log(`✓ IdleProof local state archived before reset: ${path.relative(cwd, destination)}`);
   console.log('  Use `idleproof reset --force` only when you intentionally want irreversible deletion.');
 }

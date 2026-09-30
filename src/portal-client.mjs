@@ -365,7 +365,9 @@ function withFirstGeneratedAt(cwd, snapshot) {
   return snapshot;
 }
 
-export function queuePortalSnapshot(cwd = process.cwd(), snapshot = null) {
+// `retainedByCaller`: the caller keeps this snapshot and queues it again later (the automatic debt worker),
+// so a full queue refuses it without recording it as a skipped, lost snapshot.
+export function queuePortalSnapshot(cwd = process.cwd(), snapshot = null, { retainedByCaller = false } = {}) {
   const config = readPortalConfig(cwd);
   if (!config?.enabled) return { queued:false, reason:'not-configured', snapshotId:null, pending:0, skippedSnapshots:0 };
   const safeSnapshot = snapshot || buildCurrentPortalSnapshot(cwd);
@@ -384,6 +386,7 @@ export function queuePortalSnapshot(cwd = process.cwd(), snapshot = null) {
     }
     if (current.length >= MAX_QUEUE) {
       const health = readDeliveryHealth(cwd);
+      if (retainedByCaller) return { queued:false, reason:'queue-full', snapshotId:safeSnapshot.snapshotId, pending:current.length, skippedSnapshots:health.skippedSnapshots };
       const nextHealth = {
         ...health,
         degraded:true,
@@ -417,6 +420,11 @@ async function boundedResponse(response) {
   if (Buffer.byteLength(text, 'utf8') > MAX_RESPONSE_BYTES) throw portalError('IDLEPROOF_PORTAL_RESPONSE_TOO_LARGE', 'Portal response exceeded the 16 KiB safety budget.');
   if (!text) return {};
   try { return JSON.parse(text); } catch { return {}; }
+}
+
+// Receipts waiting in the delivery queue. Like the queue itself, it throws when the queue cannot be read.
+export function pendingPortalSnapshots(cwd = process.cwd()) {
+  return readQueue(cwd).length;
 }
 
 export async function flushPortalQueue(cwd = process.cwd(), { fetchImpl = globalThis.fetch, timeoutMs = 3000 } = {}) {

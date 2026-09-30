@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import process from 'node:process';
 import { processHookLifecycle } from './hook.mjs';
 import { queueMatchingDiffWitnessAssurance } from './ide-assurance.mjs';
-import { diffWitnessRequiredFailure, runDiffWitnessIdeHook } from './diffwitness-bridge.mjs';
+import { diffWitnessGateConfigured, diffWitnessRequiredFailure, runDiffWitnessIdeHook } from './diffwitness-bridge.mjs';
+import { scheduleAutoDebt } from './auto-debt.mjs';
 import { projectPaths } from './paths.mjs';
 
 const EVENT_MAP = {
@@ -109,7 +110,8 @@ async function run() {
     hook_event_name:eventName,
     tool_name:internalTool(input.tool_name)
   };
-  const lifecycle=processHookLifecycle(event);
+  // Automatic debt waits for the native Stop and its IDE receipt below (never for a Stop DiffWitness blocks).
+  const lifecycle=processHookLifecycle(event,{ deferAutoDebt:['Stop','SessionEnd'].includes(eventName) });
   let diffResult=null;
   if(['SessionStart','UserPromptSubmit','Stop'].includes(eventName)) diffResult=runDiffWitnessIdeHook({cwd,eventName,event});
 
@@ -136,12 +138,16 @@ async function run() {
     return;
   }
   if(nativeName==='stop'){
-    queueMatchingDiffWitnessAssurance(cwd);
     const stopOutput=cursorStopOutput(diffResult);
+    queueMatchingDiffWitnessAssurance(cwd,{ autoDebtIdentity:stopOutput?null:lifecycle?.completedIdentity??null });
+    if(!stopOutput) scheduleAutoDebt(cwd,lifecycle?.completedIdentity);
     if(stopOutput)process.stdout.write(`${JSON.stringify(stopOutput)}\n`);
     return;
   }
-  if (['sessionEnd','subagentStop'].includes(nativeName)) queueMatchingDiffWitnessAssurance(cwd);
+  // sessionEnd carries no DiffWitness verdict: where the native stop judges completions, it only resumes queued jobs.
+  const admits=nativeName==='sessionEnd' && !diffWitnessGateConfigured(cwd);
+  if (['sessionEnd','subagentStop'].includes(nativeName)) queueMatchingDiffWitnessAssurance(cwd,{ autoDebtIdentity:admits?lifecycle?.completedIdentity??null:null });
+  if (nativeName==='sessionEnd') scheduleAutoDebt(cwd,admits?lifecycle?.completedIdentity:null);
 }
 
 run().catch((error)=>{

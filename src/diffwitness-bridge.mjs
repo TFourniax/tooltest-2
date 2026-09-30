@@ -79,6 +79,11 @@ export function runDiffWitnessIdeHook({cwd=process.cwd(),eventName,event={}}={})
   return {supported:true,enabled:true,available:true,ok:true,required,output:parseLastJson(result.stdout),stderr:String(result.stderr||'').trim().slice(0,800)};
 }
 
+// Whether a native DiffWitness Stop judges this project's completions (an unreadable configuration counts).
+export function diffWitnessGateConfigured(cwd=process.cwd()){
+  return commandFor(cwd).enabled;
+}
+
 export function diffWitnessRequiredFailure(result){
   const reason=String(result?.message||'DiffWitness is unavailable for this project.').slice(0,1200);
   return {

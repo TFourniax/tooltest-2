@@ -36,6 +36,11 @@ export function projectPaths(cwd = process.cwd()) {
     portalHeld: path.join(dir, 'portal-held.json'),
     portalMemoryState: path.join(dir, 'portal-memory.json'),
     portalMemoryLock: path.join(dir, 'portal-memory.lock'),
+    autoDebtConfig: path.join(dir, 'auto-debt.json'),
+    autoDebtJobs: path.join(dir, 'auto-debt-jobs.json'),
+    autoDebtJobsLock: path.join(dir, 'auto-debt-jobs.lock'),
+    autoDebtWorkerLock: path.join(dir, 'auto-debt-worker.lock'),
+    autoDebtWork: path.join(dir, 'auto-debt'),
     diffwitnessConfig: path.join(dir, 'diffwitness.json'),
     // Pre-alpha compatibility only. Never write this path again; readers may migrate it once.
     defitnessConfig: legacyDefitnessConfig,

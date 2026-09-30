@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import { buildCurrentPortalSnapshot, configurePortal, disconnectPortal, ensurePortalIdentity, flushPortalQueue, portalStatus, syncPortal } from './portal-client.mjs';
 import { readChangeEnvelope, syncPortalAssurance } from './portal-assurance.mjs';
 import { portalMemoryStatus, resyncPortalMemory, syncPortalMemory } from './portal-memory-sync.mjs';
+import { autoDebtStatus, disableAutoDebt, enableAutoDebt, runAutoDebtWorker, settleWithManualAssurance } from './auto-debt.mjs';
 
 function argValue(args, name) {
   const i = args.indexOf(name);
@@ -19,6 +20,7 @@ export function portalCliHelp() {
     '  idleproof portal sync [--json]',
     '  idleproof portal assurance --envelope FILE [--json]',
     '  idleproof portal memory status|sync|resync [--json]',
+    '  idleproof portal auto-debt enable [--dw PATH] | disable | status [--json] | run [--retry-failed] [--json]',
     '  idleproof portal disconnect',
     '',
     'Portal config is project-local under .idleproof/, excluded from software change identity.',
@@ -26,7 +28,8 @@ export function portalCliHelp() {
     'A configured enrollment token can only submit privacy-safe snapshots to one Portal project.',
     'DiffWitness assurance is accepted only when its exact dwchg_ identity matches the completed IdleProof change.',
     'If offline delivery ever loses history because its bounded queue is saturated, status becomes explicitly degraded rather than hiding the gap.',
-    'Memory history pages export retained Project Memory metadata incrementally; the cursor advances only after Portal acknowledges the exact page.'
+    'Memory history pages export retained Project Memory metadata incrementally; the cursor advances only after Portal acknowledges the exact page.',
+    'Automatic debt, once enabled, measures each change IdleProof completes with the Core CLI in a detached worker and sends the result like `portal assurance`; no project test or proof command is run.'
   ].join('\n');
 }
 
@@ -141,6 +144,13 @@ export async function runPortalCli(args, { cwd = process.cwd() } = {}) {
     if (!file) throw new Error('Usage: idleproof portal assurance --envelope FILE');
     const envelope=readChangeEnvelope(file,cwd);
     const result=await syncPortalAssurance(cwd,envelope);
+    // Held by the current Portal queue (queued now, already queued, or already held by Portal): the automatic
+    // job of this change is settled. A receipt sent to an earlier enrollment and refused now settles nothing.
+    const recorded=result.configured!==false && result.accepted===true;
+    if (recorded) {
+      try { result.autoDebt=settleWithManualAssurance(cwd,result.changeId,{ snapshotId:result.snapshotId, softwareDebt:result.assurance?.softwareDebt, queueReason:result.queueReason }); }
+      catch (error) { result.autoDebt={ settled:false, errorCode:error?.code || 'IDLEPROOF_AUTO_DEBT_SETTLE_FAILED', message:String(error?.message || error).slice(0,300) }; }
+    }
     if (!quiet) {
       if (json) print(result,true);
       else if (!result.configured) console.log(`✓ Assurance verified for ${result.changeId}; Portal is not configured, so nothing was uploaded.`);
@@ -150,6 +160,45 @@ export async function runPortalCli(args, { cwd = process.cwd() } = {}) {
     }
     if (result.configured && result.ok === false) process.exitCode=2;
     return true;
+  }
+  if (cmd === 'auto-debt') {
+    const sub = args[2] || 'status';
+    const printStatus = (status) => {
+      if (json) return print(status, true);
+      if (status.errorCode) { console.log(`Automatic debt: ${status.errorCode} · ${status.message}`); return; }
+      console.log(`Automatic debt: ${status.enabled ? 'enabled' : 'disabled'}${status.dw ? ` · Core ${status.dw}${status.core ? ` (${status.core})` : ''}` : ''}`);
+      const c = status.counts;
+      console.log(`  waiting ${c.waiting} · measuring ${c.measuring} · failed ${c.failed}${c.failedNoLongerListed ? ` (+${c.failedNoLongerListed} older, no longer listed)` : ''} · measured ${c.measured}${c.skipped ? ` · NOT MEASURED (queue full) ${c.skipped}` : ''}`);
+      if (status.degraded) console.log('  Some completed changes were not queued because the queue was full; measure them manually (`dw debt`, `dw envelope`, `idleproof portal assurance`).');
+      // Changes still to measure, retrying or failed come first, with their reason; the latest measured
+      // ones fill the rest of the ten lines.
+      const open = status.changes.filter((change) => change.state !== 'measured').slice(-10);
+      const room = 10 - open.length;
+      const shown = [...open, ...(room > 0 ? status.changes.filter((change) => change.state === 'measured').slice(-room) : [])];
+      for (const change of shown) {
+        const detail = change.state === 'measured'
+          ? `${change.points} point(s) · ${change.obligations} obligation(s) · budget ${change.budgetPassed === null ? 'n/a' : change.budgetPassed ? 'PASS' : 'EXCEEDED'} · ${change.delivery === 'awaiting-delivery' ? 'waiting for Portal delivery' : change.delivery}${change.source === 'manual' ? ' · measured manually' : change.source === 'ide' ? ' · measured by the IDE hook' : ''}`
+          : `${change.state}${change.lastError ? ` · ${change.lastError.code}${change.lastError.message ? `: ${change.lastError.message}` : ''}` : ''}`;
+        console.log(`  ${change.changeId} · ${detail}`);
+      }
+      if (status.changes.length > shown.length) console.log(`  … ${status.changes.length - shown.length} more (idleproof portal auto-debt status --json)`);
+    };
+    if (sub === 'enable') { printStatus(enableAutoDebt(cwd, { dw:argValue(args, '--dw') })); return true; }
+    if (sub === 'disable') { printStatus(disableAutoDebt(cwd)); return true; }
+    if (sub === 'status') { printStatus(autoDebtStatus(cwd)); return true; }
+    if (sub === 'run') {
+      const result = await runAutoDebtWorker(cwd, { retryFailed:args.includes('--retry-failed'), deliverQueued:true });
+      if (quiet) return true;
+      if (json) print(result, true);
+      else if (!result.enabled) console.log('Automatic debt is not enabled for this project (`idleproof portal auto-debt enable`).');
+      else {
+        for (const item of result.results) console.log(item.state === 'busy' ? 'Another automatic debt worker is running; it takes the queued changes.' : `${item.changeId} · ${item.state}${item.code ? ` · ${item.code}` : ''}${item.state === 'done' ? ` · ${item.points} point(s)` : ''}`);
+        if (!result.results.length) console.log('No change waits for automatic debt.');
+        if (result.delivery) console.log(result.delivery.ok ? `Portal delivery · ${result.delivery.delivered} delivered · ${result.delivery.pending} pending` : `Portal delivery deferred · ${result.delivery.errorCode || 'failed'}; the receipts stay queued.`);
+      }
+      return true;
+    }
+    throw new Error('Usage: idleproof portal auto-debt enable [--dw PATH] | disable | status [--json] | run [--retry-failed] [--json]');
   }
   if (cmd === 'disconnect') {
     disconnectPortal(cwd);
