@@ -670,6 +670,69 @@ test('a DiffWitness receipt that the IDE hook queues settles the automatic job o
   } finally { delete process.env.FAKE_DW_LOG; for (const file of [log, debtFile]) cleanup(file); p.done(); }
 });
 
+test('a DiffWitness measurement that the Portal queue refuses is kept for the automatic job, and sent without measuring again', async () => {
+  const p = project();
+  const received = [];
+  const log = path.join(p.cwd, '..', `${path.basename(p.cwd)}-dw.log`);
+  const debtFile = path.join(p.cwd, '..', `${path.basename(p.cwd)}-debt.json`);
+  const envelopeFile = path.join(p.cwd, '.git', 'diffwitness', 'change-envelope.json');
+  // The hook also schedules a detached flush; an invalid NODE_OPTIONS makes that child exit at startup.
+  const hook = () => {
+    const nodeOptions = process.env.NODE_OPTIONS;
+    process.env.NODE_OPTIONS = '--idleproof-test-no-background-flush';
+    try { return queueMatchingDiffWitnessAssurance(p.cwd); }
+    finally { if (nodeOptions === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = nodeOptions; }
+  };
+  // The DiffWitness IDE integration measures the change and leaves its envelope for the hook.
+  const nativeChange = (file) => {
+    completeChange(p.cwd, file, 'def total(items):\n    # TODO: check\n    return sum(items)\n');
+    git(p.cwd, 'add', '-A'); git(p.cwd, 'commit', '-qm', `change ${file}`);
+    fs.mkdirSync(path.dirname(envelopeFile), { recursive:true });
+    execFileSync(process.execPath, [FAKE_DW, 'debt', '--repo', p.cwd, '--base', 'HEAD~1', '--candidate', 'HEAD', '--json', debtFile], { cwd:p.cwd });
+    execFileSync(process.execPath, [FAKE_DW, 'envelope', '--repo', p.cwd, '--base', 'HEAD~1', '--candidate', 'HEAD', '--debt', debtFile, '--out', envelopeFile], { cwd:p.cwd });
+    return __autoDebtTest.readJobs(p.cwd).jobs.at(-1).changeId;
+  };
+  const sentFor = (changeId) => withAssurance(received).filter((item) => item.change?.changeId === changeId);
+  try {
+    enableAutoDebt(p.cwd, { dw:p.dw });
+    process.env.FAKE_DW_LOG = log;
+    // The delivery queue is full: the hook's receipt is refused, and its measurement is kept for the job.
+    const full = nativeChange('app.py');
+    fs.writeFileSync(projectPaths(p.cwd).portalQueue, JSON.stringify(Array.from({ length:200 }, () => buildCurrentPortalSnapshot(p.cwd))));
+    fs.rmSync(log, { force:true });
+    const refused = hook();
+    assert.equal(refused.queued, false);
+    assert.equal(refused.kept.kept, true);
+    const drained = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received) });
+    assert.equal(fs.existsSync(log), false, 'Core is not run again for a change the IDE hook measured');
+    assert.equal(drained.results.at(-1).state, 'done');
+    assert.equal(sentFor(full).length, 1);
+    assert.equal(sentFor(full)[0].snapshotId, refused.snapshotId);
+    // Portal is disconnected: the receipt is refused as not configured, and the measurement is kept too.
+    const offline = nativeChange('other.py');
+    const portal = fs.readFileSync(projectPaths(p.cwd).portalConfig);
+    fs.rmSync(projectPaths(p.cwd).portalConfig);
+    fs.rmSync(log, { force:true });
+    const disconnected = hook();
+    assert.equal(disconnected.configured, false);
+    assert.equal(disconnected.kept.kept, true);
+    const waiting = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received) });
+    assert.equal(waiting.results.at(-1).code, 'PORTAL_NOT_CONFIGURED');
+    fs.writeFileSync(projectPaths(p.cwd).portalConfig, portal);
+    const delivered = await runAutoDebtWorker(p.cwd, { fetchImpl:portalStub(received) });
+    assert.equal(delivered.results.at(-1).state, 'done');
+    assert.equal(fs.existsSync(log), false, 'Core is not run again once Portal is back');
+    assert.equal(sentFor(offline).length, 1);
+    assert.equal(sentFor(offline)[0].snapshotId, disconnected.snapshotId);
+    for (const changeId of [full, offline]) {
+      const change = autoDebtStatus(p.cwd, { probe:false }).changes.find((item) => item.changeId === changeId);
+      assert.equal(change.state, 'measured');
+      assert.equal(change.source, 'ide');
+      assert.equal(change.points, 8);
+    }
+  } finally { delete process.env.FAKE_DW_LOG; for (const file of [log, debtFile]) cleanup(file); p.done(); }
+});
+
 test('`auto-debt run` delivers receipts queued earlier, even when it has nothing to measure', async () => {
   const received = [];
   const server = http.createServer((request, response) => {
@@ -938,7 +1001,9 @@ test('a queue holding a damaged record is reported as corrupt, never read as val
     assert.equal(__autoDebtTest.readJobs(p.cwd).jobs.length, 1, 'a complete job is accepted');
     const { base:_base, candidate:_candidate, ...withoutReferences } = job;
     for (const damaged of [{ jobs:[null] }, { jobs:[{ ...job, state:'unknown' }] }, { jobs:[withoutReferences] }, { jobs:[{ ...job, candidate:{ tree:'nope', commit:null } }] },
-      { jobs:[{ ...job, attempts:'1' }] }, { jobs:[{ ...job, retryAfter:'not a time' }] }, { done:[null] }, { skipped:[42] }]) {
+      { jobs:[{ ...job, attempts:'1' }] }, { jobs:[{ ...job, retryAfter:'not a time' }] }, { done:[null] }, { skipped:[42] },
+      // A damaged identity in a history is never dropped: forgetting a measured change would let Core measure it again.
+      { measured:[`dwchg_${'2'.repeat(24)}`, 'damaged'] }, { skippedIds:[null] }, { failedDroppedIds:[42] }, { measured:[[`dwchg_${'2'.repeat(24)}`]] }]) {
       fs.writeFileSync(projectPaths(p.cwd).autoDebtJobs, JSON.stringify({ ...base, ...damaged }));
       assert.equal(autoDebtStatus(p.cwd, { probe:false }).errorCode, 'IDLEPROOF_AUTO_DEBT_STATE_CORRUPT', JSON.stringify(damaged));
       assert.throws(() => __autoDebtTest.readJobs(p.cwd), (error) => error.code === 'IDLEPROOF_AUTO_DEBT_STATE_CORRUPT');

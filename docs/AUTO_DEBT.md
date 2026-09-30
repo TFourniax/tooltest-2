@@ -82,6 +82,8 @@ again automatically.
   of that change, which is then never measured again automatically; the status
   shows it as *measured manually*. A DiffWitness envelope that the IDE hook delivers settles the job the
   same way, shown as *measured by the IDE hook*. A job a worker is measuring at that moment is left to the worker.
+  If Portal refuses that receipt (not configured, queue full), the IDE hook's measurement is kept for the job:
+  the worker sends it later and does not run Core again for that change.
 - A change recorded as not measured (queue full) is no longer reported so once it is queued later or
   measured manually.
 - The measurement files of the last 64 changes are kept in `.idleproof/auto-debt/<dwchg_…>/`.

@@ -186,12 +186,16 @@ function readJobs(cwd) {
   const job = (item) => record(item) && JOB_STATES.has(item.state) && side(item.base) && side(item.candidate)
     && Number.isInteger(item.attempts) && item.attempts >= 0 && time(item.retryAfter) && time(item.lastAttemptAt) && time(item.enqueuedAt)
     && (item.lastError == null || (typeof item.lastError === 'object' && !Array.isArray(item.lastError)));
-  if (!value.jobs.every(job) || !value.done.every(record) || !value.skipped.every(record)) {
+  // The identity histories outlive the bounded records: a damaged identity is never dropped silently, since
+  // forgetting a measured change would let Core measure it again.
+  const identities = (list) => (list ?? []).every((id) => typeof id === 'string' && CHANGE_ID.test(id));
+  if (!value.jobs.every(job) || !value.done.every(record) || !value.skipped.every(record)
+    || !identities(value.measured) || !identities(value.skippedIds) || !identities(value.failedDroppedIds)) {
     throw autoDebtError('IDLEPROOF_AUTO_DEBT_STATE_CORRUPT', `The automatic debt queue ${'.idleproof/auto-debt-jobs.json'} holds a damaged record; nothing was queued. Inspect it before removing it deliberately.`);
   }
-  const measured = [...new Set([...(value.measured ?? []), ...value.done.map((item) => item.changeId)].filter((id) => CHANGE_ID.test(String(id))))];
-  const skippedIds = [...new Set([...(value.skippedIds ?? []), ...value.skipped.map((item) => item?.changeId)].filter((id) => CHANGE_ID.test(String(id))))];
-  const failedDroppedIds = [...new Set((value.failedDroppedIds ?? []).filter((id) => CHANGE_ID.test(String(id))))];
+  const measured = [...new Set([...(value.measured ?? []), ...value.done.map((item) => item.changeId)])];
+  const skippedIds = [...new Set([...(value.skippedIds ?? []), ...value.skipped.map((item) => item.changeId)])];
+  const failedDroppedIds = [...new Set(value.failedDroppedIds ?? [])];
   return { ...emptyJobs(), ...value, measured, skippedIds, skippedTotal:skippedIds.length, failedDroppedIds, failedDropped:failedDroppedIds.length,
     degraded:value.degraded === true };
 }
@@ -283,6 +287,24 @@ export function settleWithManualAssurance(cwd, changeId, { snapshotId = null, so
         budgetPassed:softwareDebt?.budgetPassed ?? null, snapshotId, queueReason, measuredAt:new Date().toISOString(), attempts:0 }].slice(-MAX_DONE);
     }
     return { settled:true, changeId, hadJob:Boolean(job) };
+  });
+}
+
+// A DiffWitness measurement that the IDE hook could not queue for Portal (not configured, queue full or
+// unavailable) is kept as the measurement of this change's automatic job: the worker then retries its
+// delivery and never runs Core again for it. Written under the queue lock, so never after a reset; a change
+// already measured, or being measured by a worker, keeps its own measurement.
+export function keepNativeMeasurement(cwd, snapshot) {
+  const changeId = snapshot?.change?.changeId;
+  if (!CHANGE_ID.test(String(changeId || '')) || !snapshot?.assurance?.softwareDebt) return { kept:false, reason:'no-debt' };
+  if (!readAutoDebtConfig(cwd)?.enabled) return { kept:false, reason:'disabled' };
+  return withJobs(cwd, (state) => {
+    if (state.measured.includes(changeId)) return { kept:false, reason:'already-measured', changeId };
+    if (state.jobs.find((item) => item.changeId === changeId)?.state === 'measuring') return { kept:false, reason:'measuring', changeId };
+    const work = path.join(projectPaths(cwd).autoDebtWork, changeId);
+    fs.mkdirSync(work, { recursive:true, mode:0o700 });
+    atomicJson(path.join(work, 'receipt.json'), { changeId, configKey:null, core:null, source:'ide', snapshot });
+    return { kept:true, changeId };
   });
 }
 
@@ -383,7 +405,8 @@ function tail(text) { return String(text || '').trim().split(/\r?\n/).slice(-4).
 function measureAndQueue(cwd, config, job, { timeoutMs = MEASURE_TIMEOUT_MS } = {}) {
   const work = path.join(projectPaths(cwd).autoDebtWork, job.changeId);
   const keptFile = path.join(work, 'receipt.json');
-  // Measured already (the delivery queue refused it: Portal not configured, or full): only queue it again.
+  // Measured already, here or by the IDE hook (the delivery queue refused it: Portal not configured, or full):
+  // only queue it again.
   const kept = keptMeasurement(keptFile, job.changeId);
   if (kept) return queueMeasurement(cwd, job, kept);
   const boundFile = path.join(work, 'bound.json');
@@ -446,13 +469,13 @@ function queueMeasurement(cwd, job, measurement) {
   return { ...queueKeptMeasurement(cwd, job, measurement), measurementTaken:true };
 }
 
-function queueKeptMeasurement(cwd, job, { configKey, core, snapshot }) {
+function queueKeptMeasurement(cwd, job, { configKey, core, source = null, snapshot }) {
   let queued;
   // The measurement is kept beside its job: a full queue is a wait, not a lost receipt.
   try { queued = queueAssuranceReceipt(cwd, snapshot, { retainedByCaller:true }); }
   catch (error) { return { state:'retry', code:error?.code || 'RECEIPT_QUEUE_FAILED', message:String(error?.message || error).slice(0, 300) }; }
   pruneWork(cwd);
-  const measured = { configKey, core, points:snapshot.assurance.softwareDebt.points, obligations:snapshot.assurance.softwareDebt.obligations, budgetPassed:snapshot.assurance.softwareDebt.budgetPassed };
+  const measured = { configKey, core, ...(source === 'ide' ? { source } : {}), points:snapshot.assurance.softwareDebt.points, obligations:snapshot.assurance.softwareDebt.obligations, budgetPassed:snapshot.assurance.softwareDebt.budgetPassed };
   // The same measurement was queued for Portal long ago and its body is no longer kept: it can be neither
   // resent nor confirmed, so it is never reported delivered.
   if (queued.notRetained) return { state:'failed', code:'IDLEPROOF_ASSURANCE_NOT_RETAINED', message:`This measurement of ${job.changeId} was queued for Portal long ago and its receipt is no longer kept locally, so it can be neither resent nor confirmed; nothing was sent.` };
@@ -514,7 +537,7 @@ function processNextJob(cwd, config, { retry = null, measureTimeoutMs = MEASURE_
     if (outcome.measurementTaken && !state.measured.includes(job.changeId)) state.measured.push(job.changeId);
     if (outcome.state === 'done') {
       state.jobs = state.jobs.filter((entry) => entry.changeId !== job.changeId);
-      state.done = [...state.done.filter((entry) => entry.changeId !== job.changeId), { changeId:job.changeId, configKey:outcome.configKey, core:outcome.core,
+      state.done = [...state.done.filter((entry) => entry.changeId !== job.changeId), { changeId:job.changeId, ...(outcome.source ? { source:outcome.source } : {}), configKey:outcome.configKey, core:outcome.core,
         points:outcome.points, obligations:outcome.obligations, budgetPassed:outcome.budgetPassed, snapshotId:outcome.snapshotId, queueReason:outcome.queueReason,
         measuredAt:new Date().toISOString(), attempts:item.attempts + 1 }].slice(-MAX_DONE);
       if (!state.measured.includes(job.changeId)) state.measured.push(job.changeId);

@@ -1,11 +1,18 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { acceptedByPortalQueue, buildAssurancePortalSnapshot, queueAssuranceReceipt } from './portal-assurance.mjs';
-import { settleWithManualAssurance } from './auto-debt.mjs';
+import { keepNativeMeasurement, settleWithManualAssurance } from './auto-debt.mjs';
 import { schedulePortalSync } from './portal-client.mjs';
 
 function envelopePath(cwd) {
   return path.join(cwd, '.git', 'diffwitness', 'change-envelope.json');
+}
+
+// Refused by the Portal queue: the measurement is kept for the automatic job of this change, which sends it
+// later instead of measuring the change again. Fail-open.
+function keepForAutoDebt(cwd, snapshot) {
+  try { return keepNativeMeasurement(cwd, snapshot); }
+  catch (error) { return { kept:false, errorCode:error?.code || 'IDLEPROOF_AUTO_DEBT_KEEP_FAILED' }; }
 }
 
 export function queueMatchingDiffWitnessAssurance(cwd = process.cwd()) {
@@ -31,7 +38,7 @@ export function queueMatchingDiffWitnessAssurance(cwd = process.cwd()) {
     const { receipt, queued } = queueAssuranceReceipt(cwd, snapshot);
     snapshot = receipt;
     if (queued.reason === 'not-configured') {
-      return { matched:true, queued:false, configured:false, snapshotId:snapshot.snapshotId, changeId:snapshot.change.changeId };
+      return { matched:true, queued:false, configured:false, snapshotId:snapshot.snapshotId, changeId:snapshot.change.changeId, kept:keepForAutoDebt(cwd, snapshot) };
     }
     // processHookLifecycle already schedules the normal receipt. A second idempotent background
     // flush is cheap and closes either hook ordering: DiffWitness-first or IdleProof-first.
@@ -39,6 +46,8 @@ export function queueMatchingDiffWitnessAssurance(cwd = process.cwd()) {
     // Held by the current Portal queue: the automatic debt job of this change is settled, so Core does not
     // measure it again. Fail-open, like the rest of this path.
     let autoDebt = null;
+    let kept = null;
+    if (!acceptedByPortalQueue(queued) && queued.reason !== 'not-retained') kept = keepForAutoDebt(cwd, snapshot);
     if (acceptedByPortalQueue(queued)) {
       try {
         autoDebt = settleWithManualAssurance(cwd, snapshot.change.changeId, { snapshotId:snapshot.snapshotId, softwareDebt:snapshot.assurance?.softwareDebt ?? null,
@@ -52,11 +61,12 @@ export function queueMatchingDiffWitnessAssurance(cwd = process.cwd()) {
       snapshotId:snapshot.snapshotId,
       changeId:snapshot.change.changeId,
       delivery,
-      autoDebt
+      autoDebt,
+      kept
     };
   } catch (error) {
     // Portal is fail-open for coding. Proof/Debt authority remains in the local envelope and the
     // hook must not block a valid coding task because optional cloud delivery is unavailable.
-    return { matched:true, queued:false, configured:null, errorCode:error?.code || 'ASSURANCE_QUEUE_FAILED' };
+    return { matched:true, queued:false, configured:null, errorCode:error?.code || 'ASSURANCE_QUEUE_FAILED', kept:keepForAutoDebt(cwd, snapshot) };
   }
 }
