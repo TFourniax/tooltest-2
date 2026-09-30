@@ -7,7 +7,7 @@ import path from 'node:path';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { processHookLifecycle } from '../src/hook.mjs';
-import { buildCurrentPortalSnapshot, writePortalConfig } from '../src/portal-client.mjs';
+import { buildCurrentPortalSnapshot, portalStatus, writePortalConfig } from '../src/portal-client.mjs';
 import { autoDebtStatus, disableAutoDebt, enableAutoDebt, enqueueAutoDebt, runAutoDebtWorker, scheduleAutoDebt, __autoDebtTest } from '../src/auto-debt.mjs';
 import { syncPortalAssurance, readChangeEnvelope } from '../src/portal-assurance.mjs';
 import { projectPaths } from '../src/paths.mjs';
@@ -432,6 +432,10 @@ test('a full delivery queue is sent by the worker, then the kept measurement is 
     assert.equal(received.some((item) => item.snapshotId === older.snapshotId), true);
     assert.equal(withAssurance(received).length, 1);
     assert.equal(queued(p.cwd).length, 0);
+    // Nothing was lost: the kept measurement waited, so Portal delivery health records no skipped snapshot.
+    const health = portalStatus(p.cwd);
+    assert.equal(health.degraded, false);
+    assert.equal(health.skippedSnapshots, 0);
   } finally { p.done(); }
 });
 
@@ -443,6 +447,9 @@ test('a change recorded as not measured and admitted later is no longer reported
     for (let n = 1; n <= __autoDebtTest.MAX_JOBS; n += 1) assert.equal(enqueueAutoDebt(p.cwd, identity(n)).queued, true);
     const late = identity(__autoDebtTest.MAX_JOBS + 1);
     assert.equal(enqueueAutoDebt(p.cwd, late).reason, 'queue-full');
+    // Presented again while the queue is still full (Stop, then SessionEnd): still one not-measured change.
+    assert.equal(enqueueAutoDebt(p.cwd, late).reason, 'queue-full');
+    assert.equal(autoDebtStatus(p.cwd, { probe:false }).counts.skipped, 1);
     assert.equal(autoDebtStatus(p.cwd, { probe:false }).degraded, true);
     // A worker frees a slot, then a later hook (SessionEnd) presents the same change again.
     const jobs = __autoDebtTest.readJobs(p.cwd);

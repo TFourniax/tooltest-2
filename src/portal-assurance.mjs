@@ -147,7 +147,7 @@ function writeAssuranceSent(cwd, entries) {
 
 // Every delivery route (this command and the IDE hook) queues an assurance through here, so one
 // measurement of one change stays one receipt whichever route sent it first.
-export function queueAssuranceReceipt(cwd, snapshot) {
+export function queueAssuranceReceipt(cwd, snapshot, { retainedByCaller=false }={}) {
   const key=assuranceKey(snapshot.change.changeId,snapshot.assurance);
   // Lookup, queueing and recording form one step per project, so concurrent hook and CLI
   // processes neither lose each other's receipts nor queue two receipts for one measurement.
@@ -175,7 +175,7 @@ export function queueAssuranceReceipt(cwd, snapshot) {
     // delivery can drop its last copy.
     if (!previous) recordAssuranceSent(cwd,key,receipt,{ pending:true });
     else if (recovered) recordAssuranceSent(cwd,key,receipt);
-    const queued=queuePortalSnapshot(cwd,receipt);
+    const queued=queuePortalSnapshot(cwd,receipt,{ retainedByCaller });
     const accepted=queued.queued || queued.reason==='duplicate' || queued.reason==='held-by-portal';
     if (accepted && (!previous || previous.pending)) recordAssuranceSent(cwd,key,receipt);
     // Refused before entering the queue (Portal not configured, queue full): nothing was sent, so the

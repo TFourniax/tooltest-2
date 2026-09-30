@@ -194,7 +194,8 @@ export function enqueueAutoDebt(cwd, identity, { now = new Date() } = {}) {
     // Failed jobs never run again on their own, so they do not take the place of new changes.
     if (state.jobs.filter((job) => job.state !== 'failed').length >= MAX_JOBS) {
       state.degraded = true;
-      state.skippedTotal += 1;
+      // The same change presented again (Stop, then SessionEnd) is one not-measured change.
+      if (!state.skipped.some((item) => item.changeId === changeId)) state.skippedTotal += 1;
       state.skipped = [...state.skipped.filter((item) => item.changeId !== changeId), { changeId, at:now.toISOString(), base:reference(identity.base), candidate:reference(identity.candidate) }].slice(-MAX_SKIPPED);
       return { queued:false, reason:'queue-full', changeId, pending:state.jobs.length };
     }
@@ -359,7 +360,8 @@ function queueMeasurement(cwd, job, measurement) {
 
 function queueKeptMeasurement(cwd, job, { configKey, core, snapshot }) {
   let queued;
-  try { queued = queueAssuranceReceipt(cwd, snapshot); }
+  // The measurement is kept beside its job: a full queue is a wait, not a lost receipt.
+  try { queued = queueAssuranceReceipt(cwd, snapshot, { retainedByCaller:true }); }
   catch (error) { return { state:'retry', code:error?.code || 'RECEIPT_QUEUE_FAILED', message:String(error?.message || error).slice(0, 300) }; }
   pruneWork(cwd);
   const measured = { configKey, core, points:snapshot.assurance.softwareDebt.points, obligations:snapshot.assurance.softwareDebt.obligations, budgetPassed:snapshot.assurance.softwareDebt.budgetPassed };

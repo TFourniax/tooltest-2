@@ -365,7 +365,9 @@ function withFirstGeneratedAt(cwd, snapshot) {
   return snapshot;
 }
 
-export function queuePortalSnapshot(cwd = process.cwd(), snapshot = null) {
+// `retainedByCaller`: the caller keeps this snapshot and queues it again later (the automatic debt worker),
+// so a full queue refuses it without recording it as a skipped, lost snapshot.
+export function queuePortalSnapshot(cwd = process.cwd(), snapshot = null, { retainedByCaller = false } = {}) {
   const config = readPortalConfig(cwd);
   if (!config?.enabled) return { queued:false, reason:'not-configured', snapshotId:null, pending:0, skippedSnapshots:0 };
   const safeSnapshot = snapshot || buildCurrentPortalSnapshot(cwd);
@@ -384,6 +386,7 @@ export function queuePortalSnapshot(cwd = process.cwd(), snapshot = null) {
     }
     if (current.length >= MAX_QUEUE) {
       const health = readDeliveryHealth(cwd);
+      if (retainedByCaller) return { queued:false, reason:'queue-full', snapshotId:safeSnapshot.snapshotId, pending:current.length, skippedSnapshots:health.skippedSnapshots };
       const nextHealth = {
         ...health,
         degraded:true,
