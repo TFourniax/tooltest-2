@@ -194,12 +194,28 @@ export function isReviewDue(entry = {}) {
   return minutesSince(entry.lastAnsweredAt) >= nextReviewMinutes(entry.confidence || 0);
 }
 
+// Event text can include natural-language "select" or other coincidental words.
+// A database-specific learning recommendation needs a corroborating SQL file,
+// parsed data surface, or an explicit database task; otherwise it is misleading.
+export function sqlLessonSupported(session = {}) {
+  const signals = session?.taskSignals || {};
+  if (typeof signals.table === 'string' && signals.table.trim()) return true;
+  const paths = [signals.file, session.currentResource, ...(session.touchedFiles || [])].filter((value) => typeof value === 'string');
+  if (paths.some((file) => /(?:^|\/)(?:db|database|migrations?|repositories?|persistence)(?:\/|$)|\.sql$/i.test(file))) return true;
+  const prompt = String(session?.task?.anchor || session?.prompt || '');
+  return /\b(?:sql|transactions?|database|postgres(?:ql)?|sqlite|mysql)\b|\bselect\b[\s\S]{1,120}\bfrom\b|\binsert\s+into\b|\bupdate\s+\w+\s+set\b/i.test(prompt);
+}
+
+function applicableConcept(session, id) {
+  return id !== 'sql' || sqlLessonSupported(session);
+}
+
 export function selectLearningCard(state = {}, session = {}, fallbackId = 'testing') {
-  const sessionIds = Object.keys(session?.concepts || {}).filter((id) => CONCEPT_BY_ID[id]);
+  const sessionIds = Object.keys(session?.concepts || {}).filter((id) => CONCEPT_BY_ID[id] && applicableConcept(session,id));
   const pool = sessionIds.length
     ? sessionIds
-    : Object.keys(state.ledger || {}).filter((id) => CONCEPT_BY_ID[id] && state.ledger[id]?.exposures > 0);
-  if (!pool.length) return fallbackId;
+    : Object.keys(state.ledger || {}).filter((id) => CONCEPT_BY_ID[id] && state.ledger[id]?.exposures > 0 && applicableConcept(session,id));
+  if (!pool.length) return applicableConcept(session,fallbackId) ? fallbackId : 'testing';
 
   const scored = pool.map((id) => {
     const concept = CONCEPT_BY_ID[id];
@@ -277,7 +293,7 @@ function conceptProgress(state, session, id) {
 }
 
 export function buildLearningJourney(state = {}, session = {}) {
-  const ids = Object.keys(session?.concepts || {});
+  const ids = Object.keys(session?.concepts || {}).filter(id => applicableConcept(session,id));
   const journey = ids.map((id) => conceptProgress(state, session, id)).filter(Boolean)
     .sort((a, b) => b.score - a.score || b.risk - a.risk);
   const mastered = journey.filter((item) => item.status === 'mastered');
