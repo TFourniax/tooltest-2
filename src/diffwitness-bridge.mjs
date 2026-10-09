@@ -135,11 +135,13 @@ export function diffWitnessGateConfigured(cwd=process.cwd()){
 
 export function diffWitnessRequiredFailure(result){
   const reason=String(result?.message||'DiffWitness is unavailable for this project.').slice(0,1200);
-  return {
-    decision:'block',
-    reason:`DiffWitness cannot establish Proof/Debt evidence: ${reason}`,
-    systemMessage:`DiffWitness cannot establish Proof/Debt evidence: ${reason}`
-  };
+  const message=`DiffWitness cannot establish Proof/Debt evidence: ${reason}`;
+  // The agent cannot repair its own installed Core protocol. Stop once as explicitly
+  // unverified, rather than repeatedly blocking a no-change task into a retry loop.
+  if(result?.errorCode==='DIFFWITNESS_STOP_PROTOCOL_INVALID'){
+    return {continue:false,stopReason:message,systemMessage:message};
+  }
+  return {decision:'block',reason:message,systemMessage:message};
 }
 
 export const __diffWitnessBridgeTest={EVENT_MAP,parseLastJson,timeoutFor,commandFor};
