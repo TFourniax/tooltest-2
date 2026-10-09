@@ -73,10 +73,12 @@ test('required native Core Stop rejects the legacy pipx approve protocol before 
     assert.equal(result.required,true);
     assert.equal(result.errorCode,'DIFFWITNESS_STOP_PROTOCOL_INVALID');
     assert.equal(JSON.stringify(result).includes(privateMarker),false,'Untrusted provider stdout must not leak');
-    const blocked=diffWitnessRequiredFailure(result);
-    assert.equal(blocked.decision,'block');
-    assert.match(blocked.reason,/cannot establish Proof\/Debt evidence/);
-    assert.equal(stopAllowsCompletion(blocked),false);
+    const terminal=diffWitnessRequiredFailure(result);
+    assert.equal(terminal.decision,undefined,'No unsupported approval or retry-loop decision');
+    assert.equal(terminal.continue,false);
+    assert.match(terminal.stopReason,/cannot establish Proof\/Debt evidence/);
+    assert.equal(terminal.stopReason,terminal.systemMessage);
+    assert.equal(stopAllowsCompletion(terminal),false);
   } finally {fs.rmSync(cwd,{recursive:true,force:true});}
 });
 
