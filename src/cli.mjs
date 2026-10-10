@@ -40,6 +40,12 @@ Product boundary:
   idleproof edition [--json]
   idleproof portal-preview [--json]
 
+Project understanding:
+  idleproof project scan [--source HEAD|WORKTREE] [--document PATH] [--ci] [--resume SNAPSHOT] [--json]
+  idleproof project show|handoff [--source HEAD|WORKTREE] [--query TEXT] [--json]
+  idleproof project cancel
+  idleproof ai status|preview|explain|configure|remove
+
 Adapters:
   idleproof install claude|codex|all
   idleproof uninstall claude|codex|all
@@ -292,6 +298,10 @@ function printPortalPreview(cwd,args) {
 }
 
 export async function main(args) {
+  if(args[0]==='ai') {
+    const {byokCli}=await import('./byok-cli.mjs');
+    return byokCli(process.cwd(),args.slice(1));
+  }
   const [cmd = 'help', sub] = args;
   const cwd = process.cwd();
   if (['help','--help','-h'].includes(cmd)) return help();
@@ -312,6 +322,10 @@ export async function main(args) {
   if (cmd === 'run') return generic(args.slice(1));
   if (cmd === 'edition') return printEdition(args);
   if (cmd === 'portal-preview') return printPortalPreview(cwd,args);
+  if (cmd === 'project') {
+    const { projectScanCli } = await import('./project-scan.mjs');
+    return projectScanCli(cwd,args.slice(1));
+  }
   if (cmd === 'feature-lineage') {
     const { featureLineageCli } = await import('./feature-lineage.mjs');
     return featureLineageCli(cwd,loadState(cwd),args.slice(1));

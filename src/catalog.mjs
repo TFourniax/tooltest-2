@@ -29,7 +29,7 @@ export const CONCEPTS = [
   },
   {
     id: 'sql', title: 'SQL & transactions', level: 'high-risk', risk: 5, seconds: 38,
-    patterns: [/\bsql\b/i, /select\s/i, /insert\s/i, /update\s/i, /delete\s+from/i, /transaction/i, /postgres/i, /mysql/i, /sqlite/i],
+    patterns: [/\bsql\b/i, /\bselect\b[\s\S]{1,120}\bfrom\b/i, /\binsert\s+into\b/i, /\bupdate\s+[\w.\"`]+\s+set\b/i, /\bdelete\s+from\b/i, /\btransactions?\b/i, /\bpostgres(?:ql)?\b/i, /\bmysql\b/i, /\bsqlite\b/i],
     lesson: 'A transaction groups related writes into one atomic unit. Parameterized queries protect values from becoming executable SQL; constraints protect invariants even when application code is wrong.',
     why: 'Data bugs can survive tests, corrupt state permanently, and are expensive to unwind.',
     review: 'Check whether multi-step writes can leave partial state if the second step fails.',

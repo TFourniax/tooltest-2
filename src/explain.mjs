@@ -73,7 +73,12 @@ function fileObservation(file, session, currentFile) {
   let explanation;
   if (facts.length) {
     const prefix = normalized === currentFile ? 'is the file IdleProof can currently inspect most precisely' : 'was also inspected from the files touched in this task';
-    explanation=`${exact} ${prefix}. It looks like ${roleDescription(inferred.role)}; ${facts.join('; ')}.`;
+    // A known symbol, import or technology does not by itself justify a guessed
+    // responsibility. Low-confidence roles stay explicitly unknown even with facts.
+    const role = inferred.confidence === 'high' ? `It looks like ${roleDescription(inferred.role)}; `
+      : inferred.confidence === 'medium' ? `Its path suggests ${roleDescription(inferred.role)} (inferred, not proven); `
+      : 'Its responsibility is not established by the available evidence; ';
+    explanation=`${exact} ${prefix}. ${role}${facts.join('; ')}.`;
   } else if (inferred.confidence==='high') explanation=`${exact} was touched in this task and looks like ${roleDescription(inferred.role)}.`;
   else if (inferred.confidence==='medium') explanation=`${exact} was touched in this task. Its path suggests ${roleDescription(inferred.role)}, but IdleProof treats that as an inference rather than a proven runtime responsibility.`;
   else explanation=`${exact} was touched in this task. IdleProof will keep its exact name instead of inventing a business role that the available evidence does not support.`;

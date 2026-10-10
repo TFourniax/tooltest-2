@@ -1,0 +1,31 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import {createProjectCorpus} from './support/project-corpus.mjs';
+import {scanProject} from '../src/project-scan.mjs';
+
+test('generic multi-layer corpus keeps actual rules, links, intent and limitations separate',{skip:!process.env.IDLEPROOF_TEST_CORE},async t=>{
+  const p=createProjectCorpus();t.after(()=>fs.rmSync(p.cwd,{recursive:true,force:true}));
+  const model=await scanProject(p.cwd,{documents:p.documents,ci:true});
+  const row=name=>model.files.find(f=>f.path===name);
+  assert.equal(row('access_policy.py').status,'parsed','untouched code is inventoried');
+  assert.equal(row('.env').status,'excluded');assert.equal(row('credentials.json').status,'excluded');
+  assert.equal(row('node_modules/downloaded/index.py').status,'excluded');
+  assert.equal(row('.github/workflows/check.yml').role,'ci');assert.equal(row('migrations/001.sql').role,'ddl');
+  assert.equal(fs.existsSync(path.join(p.cwd,'SCAN_MUST_NOT_EXECUTE')),false);
+  const rules=row('rules.py').extraction.description.behaviors;
+  assert.equal(rules.length,3);assert.match(JSON.stringify(rules),/value >= 100/);assert.match(JSON.stringify(rules),/value >= 80/);assert.match(JSON.stringify(rules),/value \/\/ 10/);
+  assert.equal(row('interface.py').extraction.description.interfaces[0].authority,'INFERRED');
+  assert.equal(row('interface.py').extraction.description.interfaces[0].target,'/compute');
+  for(const [from,to] of [['view.py','service.py'],['service.py','access_policy.py'],['tests/test_rules.py','rules.py']])assert.ok(model.edges.find(e=>e.from===from&&e.to===to));
+  assert.ok(model.edges.find(e=>e.from==='dynamic_loader.py'&&!e.to));
+  assert.ok(model.duplicates.some(d=>d.paths.includes('copies/one.py')&&d.paths.includes('copies/two.py')));
+  assert.ok(!model.duplicates.some(d=>d.paths.includes('view.py')&&d.paths.includes('service.py')));
+  const requirement=model.intentMap.statements.find(s=>s.declaration.includes('three independent'));
+  assert.equal(requirement.authority,'DECLARED');assert.equal(requirement.implementation,'UNKNOWN');assert.equal(requirement.verification,'UNKNOWN');
+  assert.ok(requirement.testCandidates.some(c=>c.path==='tests/test_rules.py'));
+  assert.equal(model.header.proof,'UNKNOWN');assert.equal(model.header.runtimeGraph,false);
+  assert.doesNotMatch(JSON.stringify(model),/PRIVATE_CORPUS_SENTINEL/);
+  assert.ok(row('package.json').extraction.description.dependencies.some(d=>d.scope==='devDependencies'));
+});

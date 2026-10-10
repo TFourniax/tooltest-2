@@ -3,35 +3,109 @@
   "$id": "https://idleproof.dev/spec/idleproof-portal-snapshot-v1.schema.json",
   "title": "IdleProof Portal Snapshot v1",
   "type": "object",
-  "required": ["schema", "snapshotId", "generatedAt", "project", "task", "change", "understanding", "files", "privacy"],
+  "required": [
+    "schema",
+    "snapshotId",
+    "generatedAt",
+    "project",
+    "task",
+    "change",
+    "understanding",
+    "files",
+    "privacy"
+  ],
   "properties": {
-    "schema": { "const": "idleproof.portal-snapshot.v1" },
-    "snapshotId": { "type": "string", "pattern": "^ipsnap_[a-f0-9]{24}$" },
-    "generatedAt": { "type": "string", "format": "date-time" },
+    "schema": {
+      "const": "idleproof.portal-snapshot.v1"
+    },
+    "snapshotId": {
+      "type": "string",
+      "pattern": "^ipsnap_[a-f0-9]{24}$"
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
     "project": {
       "type": "object",
-      "required": ["name", "localId"],
+      "required": [
+        "name",
+        "localId"
+      ],
       "properties": {
-        "name": { "type": "string", "maxLength": 120 },
-        "localId": { "type": "string", "pattern": "^[a-f0-9]{24}$" }
+        "name": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "localId": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{24}$"
+        },
+        "repositoryFingerprint": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^dwrepo_[a-f0-9]{24}$"
+        }
       },
       "additionalProperties": false
     },
     "task": {
       "type": "object",
-      "required": ["summary", "promptDigest", "promptChars", "source", "status", "changed"],
+      "required": [
+        "summary",
+        "promptDigest",
+        "promptChars",
+        "source",
+        "status",
+        "changed"
+      ],
       "properties": {
-        "summary": { "type": ["string", "null"], "maxLength": 300 },
-        "promptDigest": { "type": ["string", "null"], "pattern": "^sha256:[a-f0-9]{64}$" },
-        "promptChars": { "type": "integer", "minimum": 0 },
-        "source": { "type": "string", "maxLength": 40 },
-        "status": { "type": ["string", "null"], "maxLength": 80 },
+        "summary": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 300
+        },
+        "promptDigest": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "promptChars": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "status": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 80
+        },
         "changed": {
           "type": "object",
-          "required": ["added", "deleted"],
+          "required": [
+            "added",
+            "deleted"
+          ],
           "properties": {
-            "added": { "type": "integer", "minimum": 0 },
-            "deleted": { "type": "integer", "minimum": 0 }
+            "added": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "deleted": {
+              "type": "integer",
+              "minimum": 0
+            }
           },
           "additionalProperties": false
         }
@@ -40,62 +114,503 @@
     },
     "change": {
       "type": "object",
-      "required": ["changeId", "diffSha256"],
+      "required": [
+        "changeId",
+        "diffSha256"
+      ],
       "properties": {
-        "changeId": { "type": ["string", "null"], "pattern": "^dwchg_[a-f0-9]{24}$" },
-        "diffSha256": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" }
+        "changeId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^dwchg_[a-f0-9]{24}$"
+        },
+        "diffSha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        }
       },
       "additionalProperties": false
     },
     "assurance": {
-      "type": ["object", "null"],
-      "required": ["schema", "proof", "softwareDebt"],
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "schema",
+        "proof",
+        "softwareDebt"
+      ],
       "properties": {
-        "schema": { "const": "idleproof.change-assurance.v1" },
+        "schema": {
+          "const": "idleproof.change-assurance.v1"
+        },
         "proof": {
-          "type": ["object", "null"],
-          "required": ["claim", "accepted", "certificateId"],
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "claim",
+            "accepted",
+            "certificateId"
+          ],
           "properties": {
-            "claim": { "enum": ["causal", "preservation", "validation", "not-required", "inconclusive", "unknown"] },
-            "accepted": { "type": "boolean" },
-            "certificateId": { "type": "string", "minLength": 6, "maxLength": 128 }
+            "claim": {
+              "enum": [
+                "causal",
+                "preservation",
+                "validation",
+                "not-required",
+                "inconclusive",
+                "unknown"
+              ]
+            },
+            "accepted": {
+              "type": "boolean"
+            },
+            "certificateId": {
+              "type": "string",
+              "minLength": 6,
+              "maxLength": 128
+            }
           },
           "additionalProperties": false
         },
         "softwareDebt": {
-          "type": ["object", "null"],
-          "required": ["points", "obligations", "budgetPassed"],
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "points",
+            "obligations",
+            "budgetPassed"
+          ],
           "properties": {
-            "points": { "type": "integer", "minimum": 0, "maximum": 1000000000 },
-            "obligations": { "type": "integer", "minimum": 0, "maximum": 1000000 },
-            "budgetPassed": { "type": ["boolean", "null"] }
+            "points": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000000
+            },
+            "obligations": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "budgetPassed": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
           },
           "additionalProperties": false
         }
       },
       "anyOf": [
-        { "properties": { "proof": { "type": "object" } } },
-        { "properties": { "softwareDebt": { "type": "object" } } }
+        {
+          "properties": {
+            "proof": {
+              "type": "object"
+            }
+          }
+        },
+        {
+          "properties": {
+            "softwareDebt": {
+              "type": "object"
+            }
+          }
+        }
       ],
       "additionalProperties": false
     },
-    "explanation": { "type": ["object", "null"] },
-    "feature": { "type": ["object", "null"] },
-    "understanding": { "type": "object" },
-    "projectMemory": { "type": ["object", "null"] },
-    "files": { "type": "array", "items": { "type": "string", "maxLength": 300 }, "maxItems": 40 },
+    "explanation": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "feature": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "understanding": {
+      "type": "object"
+    },
+    "projectMemory": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "stats": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "impact": {
+          "type": "object"
+        },
+        "continuity": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "structure": {
+          "$ref": "#/$defs/projectStructure"
+        },
+        "assessment": {
+          "$ref": "#/$defs/humanAssessment"
+        }
+      },
+      "required": [
+        "stats",
+        "impact"
+      ],
+      "additionalProperties": false
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 300
+      },
+      "maxItems": 40
+    },
     "privacy": {
       "type": "object",
-      "required": ["sourceCodeIncluded", "rawDiffIncluded", "rawAgentEventsIncluded", "rawPromptIncluded", "secretsRedacted"],
+      "required": [
+        "sourceCodeIncluded",
+        "rawDiffIncluded",
+        "rawAgentEventsIncluded",
+        "rawPromptIncluded",
+        "secretsRedacted"
+      ],
       "properties": {
-        "sourceCodeIncluded": { "const": false },
-        "rawDiffIncluded": { "const": false },
-        "rawAgentEventsIncluded": { "const": false },
-        "rawPromptIncluded": { "const": false },
-        "secretsRedacted": { "const": true }
+        "sourceCodeIncluded": {
+          "const": false
+        },
+        "rawDiffIncluded": {
+          "const": false
+        },
+        "rawAgentEventsIncluded": {
+          "const": false
+        },
+        "rawPromptIncluded": {
+          "const": false
+        },
+        "secretsRedacted": {
+          "const": true
+        }
       },
       "additionalProperties": false
     }
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "$defs": {
+    "projectStructure": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "idleproof.portal-structure.v1"
+        },
+        "snapshotId": {
+          "type": "string",
+          "pattern": "^dwscan_[a-f0-9]{64}$"
+        },
+        "source": {
+          "const": "HEAD"
+        },
+        "capturedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "profileDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "selectionDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "inventory": {
+          "type": "object",
+          "properties": {
+            "entries": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 20000
+            },
+            "read": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 20000
+            },
+            "parsed": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 20000
+            },
+            "excluded": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 20000
+            },
+            "omitted": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 20000
+            },
+            "unsupported": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 20000
+            },
+            "errors": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 20000
+            },
+            "complete": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "entries",
+            "read",
+            "parsed",
+            "excluded",
+            "omitted",
+            "unsupported",
+            "errors",
+            "complete"
+          ],
+          "additionalProperties": false
+        },
+        "components": {
+          "type": "array",
+          "maxItems": 12,
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^dwcomp_[a-f0-9]{24}$"
+              },
+              "path": {
+                "type": "string",
+                "maxLength": 300
+              },
+              "sourceSha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "role": {
+                "enum": [
+                  "production",
+                  "test",
+                  "manifest",
+                  "configuration",
+                  "ci",
+                  "ddl",
+                  "tooling",
+                  "declared-document",
+                  "unsupported"
+                ]
+              },
+              "roleAuthority": {
+                "const": "INFERRED"
+              },
+              "declarations": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100000
+              },
+              "conditions": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1024
+              },
+              "operations": {
+                "type": "array",
+                "maxItems": 3,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 80
+                    },
+                    "line": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 10000000
+                    },
+                    "conditions": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16
+                    },
+                    "returns": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16
+                    },
+                    "authority": {
+                      "const": "OBSERVED"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "line",
+                    "conditions",
+                    "returns",
+                    "authority"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "operationsOmitted": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 10000000
+              }
+            },
+            "required": [
+              "id",
+              "path",
+              "sourceSha256",
+              "role",
+              "roleAuthority",
+              "declarations",
+              "conditions"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "relations": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^dwedge_[a-f0-9]{24}$"
+              },
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              },
+              "predicate": {
+                "const": "imports"
+              },
+              "authority": {
+                "const": "INFERRED"
+              }
+            },
+            "required": [
+              "id",
+              "from",
+              "to",
+              "predicate",
+              "authority"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "projection": {
+          "type": "object",
+          "properties": {
+            "componentsOmitted": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000000
+            },
+            "relationsOmitted": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000000
+            }
+          },
+          "required": [
+            "componentsOmitted",
+            "relationsOmitted"
+          ],
+          "additionalProperties": false
+        },
+        "proof": {
+          "const": "UNKNOWN"
+        },
+        "runtimeGraph": {
+          "const": false
+        }
+      },
+      "required": [
+        "schema",
+        "snapshotId",
+        "source",
+        "capturedAt",
+        "profileDigest",
+        "selectionDigest",
+        "inventory",
+        "components",
+        "relations",
+        "projection",
+        "proof",
+        "runtimeGraph"
+      ],
+      "additionalProperties": false
+    },
+    "humanAssessment": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "idleproof.human-assessment.v1"
+        },
+        "conceptsChecked": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000000
+        },
+        "conceptsSeen": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000000
+        },
+        "featuresChecked": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000000
+        },
+        "featuresSeen": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000000
+        }
+      },
+      "required": [
+        "schema",
+        "conceptsChecked",
+        "conceptsSeen",
+        "featuresChecked",
+        "featuresSeen"
+      ],
+      "additionalProperties": false
+    }
+  }
 }

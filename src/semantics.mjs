@@ -74,7 +74,10 @@ export function inferFileRole(file = '', signals = {}) {
   if (matchAny(lower, [/(^|\/)(docs?|documentation)(\/|$)/, /(^|\/)readme(?:\.|$)/, /\.md$/])) {
     return { role:'docs', confidence:'high', evidence:'documentation path' };
   }
-  if ((signals.dependencies || []).length || (signals.technologies || []).length) {
+  // Technology labels such as Pytest are project-wide signals, not evidence that a
+  // pure source file calls an external service. Only actual resolved external
+  // dependencies warrant even a low-confidence integration guess.
+  if ((signals.dependencies || []).length) {
     return { role:'integration', confidence:'low', evidence:'external dependency references' };
   }
   return { role:'core', confidence:'low', evidence:base ? `observed file ${base}` : 'observed project code' };

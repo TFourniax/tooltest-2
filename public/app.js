@@ -129,7 +129,7 @@ function renderFeatureModel(state) {
   const model = state.featureModel;
   const projectFluency = state.metrics?.featureCoverage || 0;
   const pending = state.projectModel?.stats?.pendingFeatureReviews || 0;
-  $('featureFluency').textContent = `${projectFluency}%`;
+  $('featureFluency').textContent = state.metrics?.featuresChecked ? `${projectFluency}%` : 'Not assessed';
   $('featureFluencyHint').textContent = pending ? `${pending} feature review${pending === 1 ? '' : 's'} waiting` : state.metrics?.featuresSeen ? `${state.metrics.featuresSeen} feature mental model${state.metrics.featuresSeen === 1 ? '' : 's'} tracked` : 'mental models demonstrated';
   renderFeatureMemory(state.featureMemory || []);
 
@@ -256,7 +256,8 @@ function render(state) {
   const session = state.session; const active = session?.status === 'active'; const complete = session?.status === 'complete';
   const agentName = session?.source === 'codex' ? 'Codex' : session?.source === 'claude' ? 'Claude Code' : session?.source ? session.source : 'Agent';
   const learning = state.learning || {};
-  $('project').textContent = state.project; $('debt').textContent = state.metrics.debt; $('coverage').textContent = `${state.metrics.coverage}%`;
+  $('project').textContent = state.project; $('debt').textContent = state.metrics.conceptsChecked ? state.metrics.debt : 'Not assessed'; $('coverage').textContent = state.metrics.conceptsChecked ? `${state.metrics.coverage}%` : 'Not assessed';
+  $('coverage').nextElementSibling.textContent = `${state.metrics.conceptsChecked||0} checked / ${state.metrics.conceptsSeen||0} observed concepts`;
   document.body.classList.toggle('completed', complete); $('statusDot').classList.toggle('active', active);
   $('status').textContent = active ? `${agentName} working · ${learning.paused ? 'learning snoozed' : 'live lesson ready'}` : complete ? `${agentName} turn complete · mental-model review ready` : 'Waiting for a coding agent';
   $('window').textContent = active ? `≈ ${session.estimatedWindow || 20} sec learning window` : complete ? 'handoff review' : '0 sec window';

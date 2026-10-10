@@ -140,6 +140,8 @@ export async function runPortalCli(args, { cwd = process.cwd() } = {}) {
     return true;
   }
   if (cmd === 'assurance') {
+    const source=argValue(args,'--source')||'manual';
+    if(!['manual','ide'].includes(source))throw new Error('Assurance source must be manual or ide.');
     const file=argValue(args,'--envelope');
     if (!file) throw new Error('Usage: idleproof portal assurance --envelope FILE');
     const envelope=readChangeEnvelope(file,cwd);
@@ -148,7 +150,7 @@ export async function runPortalCli(args, { cwd = process.cwd() } = {}) {
     // job of this change is settled. A receipt sent to an earlier enrollment and refused now settles nothing.
     const recorded=result.configured!==false && result.accepted===true;
     if (recorded) {
-      try { result.autoDebt=settleWithManualAssurance(cwd,result.changeId,{ snapshotId:result.snapshotId, softwareDebt:result.assurance?.softwareDebt, queueReason:result.queueReason }); }
+      try { result.autoDebt=settleWithManualAssurance(cwd,result.changeId,{ snapshotId:result.snapshotId, softwareDebt:result.assurance?.softwareDebt, queueReason:result.queueReason, source }); }
       catch (error) { result.autoDebt={ settled:false, errorCode:error?.code || 'IDLEPROOF_AUTO_DEBT_SETTLE_FAILED', message:String(error?.message || error).slice(0,300) }; }
     }
     if (!quiet) {

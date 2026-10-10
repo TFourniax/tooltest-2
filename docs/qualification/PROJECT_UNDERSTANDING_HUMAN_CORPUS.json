@@ -1,0 +1,535 @@
+{
+  "schema": "idleproof.human-corpus.v1",
+  "fixture": "test/support/project-corpus.mjs",
+  "facts": [
+    {
+      "id": "F01",
+      "source": "rules.py",
+      "oracle": "adjusted uses value * 0.9 at value >= 100; otherwise returns value",
+      "authority": "OBSERVED"
+    },
+    {
+      "id": "F02",
+      "source": "rules.py",
+      "oracle": "dispatch_cost returns zero at value >= 80 and seven otherwise",
+      "authority": "OBSERVED"
+    },
+    {
+      "id": "F03",
+      "source": "rules.py",
+      "oracle": "units returns int(value // 10)",
+      "authority": "OBSERVED"
+    },
+    {
+      "id": "F04",
+      "source": "rules.py",
+      "oracle": "Three callable declarations are independent in this file; no composition is demonstrated",
+      "authority": "OBSERVED"
+    },
+    {
+      "id": "F05",
+      "source": "access_policy.py",
+      "oracle": "permitted returns False when active is false",
+      "authority": "OBSERVED"
+    },
+    {
+      "id": "F06",
+      "source": "access_policy.py",
+      "oracle": "permitted otherwise compares role with operator",
+      "authority": "OBSERVED"
+    },
+    {
+      "id": "F07",
+      "source": "access_variant.py",
+      "oracle": "The alternate permitted declaration has no active guard",
+      "authority": "OBSERVED"
+    },
+    {
+      "id": "F08",
+      "source": "service.py",
+      "oracle": "Imports adjusted from rules",
+      "authority": "OBSERVED"
+    },
+    {
+      "id": "F09",
+      "source": "service.py",
+      "oracle": "Imports permitted from access_policy",
+      "authority": "OBSERVED"
+    },
+    {
+      "id": "F10",
+      "source": "service.py",
+      "oracle": "Raises PermissionError when permitted is false",
+      "authority": "OBSERVED"
+    },
+    {
+      "id": "F11",
+      "source": "service.py",
+      "oracle": "Returns adjusted(value) after the guard",
+      "authority": "OBSERVED"
+    },
+    {
+      "id": "F12",
+      "source": "view.py",
+      "oracle": "Imports process from service",
+      "authority": "OBSERVED"
+    },
+    {
+      "id": "F13",
+      "source": "view.py",
+      "oracle": "Returns a mapping with a result expression invoking process",
+      "authority": "OBSERVED"
+    },
+    {
+      "id": "F14",
+      "source": "interface.py",
+      "oracle": "Contains a get decorator with literal /compute",
+      "authority": "OBSERVED"
+    },
+    {
+      "id": "F15",
+      "source": "interface.py",
+      "oracle": "A reachable HTTP endpoint is not established by decorator syntax",
+      "authority": "UNKNOWN"
+    },
+    {
+      "id": "F16",
+      "source": "dynamic_loader.py",
+      "oracle": "Contains importlib.import_module(name)",
+      "authority": "OBSERVED"
+    },
+    {
+      "id": "F17",
+      "source": "dynamic_loader.py",
+      "oracle": "The runtime import target is unresolved",
+      "authority": "UNKNOWN"
+    },
+    {
+      "id": "F18",
+      "source": "side_effect.py",
+      "oracle": "Contains a file-writing expression; scanning must not execute it",
+      "authority": "OBSERVED"
+    },
+    {
+      "id": "F19",
+      "source": "copies/one.py + copies/two.py",
+      "oracle": "The two files have identical captured bytes",
+      "authority": "OBSERVED"
+    },
+    {
+      "id": "F20",
+      "source": "copies/one.py",
+      "oracle": "normalize returns zero for None and max(0,value) otherwise",
+      "authority": "OBSERVED"
+    },
+    {
+      "id": "F21",
+      "source": "tests/test_rules.py",
+      "oracle": "Static tests mention adjusted(99)==99 and adjusted(100)==90",
+      "authority": "OBSERVED"
+    },
+    {
+      "id": "F22",
+      "source": "tests/test_rules.py",
+      "oracle": "Static tests mention dispatch_cost(79)==7 and dispatch_cost(80)==0",
+      "authority": "OBSERVED"
+    },
+    {
+      "id": "F23",
+      "source": "tests/test_rules.py",
+      "oracle": "Static tests mention units(9)==0 and units(10)==1",
+      "authority": "OBSERVED"
+    },
+    {
+      "id": "F24",
+      "source": "tests/test_service.py",
+      "oracle": "A static test imports process and asserts the active operator example",
+      "authority": "OBSERVED"
+    },
+    {
+      "id": "F25",
+      "source": "tests/*",
+      "oracle": "Scanning alone does not establish successful tests or coverage",
+      "authority": "UNKNOWN"
+    },
+    {
+      "id": "F26",
+      "source": "package.json",
+      "oracle": "example-runtime is declared under dependencies",
+      "authority": "DECLARED"
+    },
+    {
+      "id": "F27",
+      "source": "package.json",
+      "oracle": "example-test-runner is declared under devDependencies",
+      "authority": "DECLARED"
+    },
+    {
+      "id": "F28",
+      "source": "package.json",
+      "oracle": "A danger script is declared but never run by the scan",
+      "authority": "DECLARED"
+    },
+    {
+      "id": "F29",
+      "source": "pyproject.toml",
+      "oracle": "The project dependency list is declared empty",
+      "authority": "DECLARED"
+    },
+    {
+      "id": "F30",
+      "source": "migrations/001.sql",
+      "oracle": "An SQL DDL file exists; deployed DB state remains unknown",
+      "authority": "OBSERVED"
+    },
+    {
+      "id": "F31",
+      "source": "settings.yaml",
+      "oracle": "Configuration is inventoried; successful loading remains unknown",
+      "authority": "OBSERVED"
+    },
+    {
+      "id": "F32",
+      "source": ".github/workflows/check.yml",
+      "oracle": "Workflow inclusion is explicit and confined to the selected CI lane",
+      "authority": "OBSERVED"
+    },
+    {
+      "id": "F33",
+      "source": "docs/OWNER_INTENT.md",
+      "oracle": "Owner declares three independent rules in rules.py",
+      "authority": "DECLARED"
+    },
+    {
+      "id": "F34",
+      "source": "docs/OWNER_INTENT.md",
+      "oracle": "Owner declares inactive callers should be refused in service.py",
+      "authority": "DECLARED"
+    },
+    {
+      "id": "F35",
+      "source": "docs/OWNER_INTENT.md",
+      "oracle": "Owner describes view.py as adapter over service.py",
+      "authority": "DECLARED"
+    },
+    {
+      "id": "F36",
+      "source": "docs/OWNER_INTENT.md",
+      "oracle": "A report exporter is planned, with no implementation claimed",
+      "authority": "DECLARED"
+    },
+    {
+      "id": "F37",
+      "source": "docs/DECISIONS.md",
+      "oracle": "Owner declares rule independence from deployment choices",
+      "authority": "DECLARED"
+    },
+    {
+      "id": "F38",
+      "source": ".env + credentials.json",
+      "oracle": "Tracked sensitive fixture paths are excluded from source admission",
+      "authority": "OBSERVED"
+    },
+    {
+      "id": "F39",
+      "source": "node_modules/downloaded/index.py",
+      "oracle": "Downloaded dependency source is excluded even when tracked",
+      "authority": "OBSERVED"
+    },
+    {
+      "id": "F40",
+      "source": "whole capture",
+      "oracle": "No causal certificate, measured debt or human mastery is produced by scanning",
+      "authority": "UNKNOWN"
+    }
+  ],
+  "questions": [
+    {
+      "id": "Q01",
+      "question": "Quels comportements sont définis dans rules.py et quels seuils les distinguent ?",
+      "factuallyCorrect": null,
+      "provenanceCorrect": null,
+      "inventedSystem": null,
+      "clicks": null,
+      "operator": null
+    },
+    {
+      "id": "Q02",
+      "question": "Les trois règles sont-elles composées dans un parcours applicatif démontré ?",
+      "factuallyCorrect": null,
+      "provenanceCorrect": null,
+      "inventedSystem": null,
+      "clicks": null,
+      "operator": null
+    },
+    {
+      "id": "Q03",
+      "question": "Pourquoi service.py peut-il refuser un appel ?",
+      "factuallyCorrect": null,
+      "provenanceCorrect": null,
+      "inventedSystem": null,
+      "clicks": null,
+      "operator": null
+    },
+    {
+      "id": "Q04",
+      "question": "Que manque-t-il dans la variante de la politique ?",
+      "factuallyCorrect": null,
+      "provenanceCorrect": null,
+      "inventedSystem": null,
+      "clicks": null,
+      "operator": null
+    },
+    {
+      "id": "Q05",
+      "question": "La variante constitue-t-elle une dette mesurée ou un conflit à examiner ?",
+      "factuallyCorrect": null,
+      "provenanceCorrect": null,
+      "inventedSystem": null,
+      "clicks": null,
+      "operator": null
+    },
+    {
+      "id": "Q06",
+      "question": "view.py et service.py sont-ils deux implémentations identiques ?",
+      "factuallyCorrect": null,
+      "provenanceCorrect": null,
+      "inventedSystem": null,
+      "clicks": null,
+      "operator": null
+    },
+    {
+      "id": "Q07",
+      "question": "Quels fichiers importent la règle adjusted ?",
+      "factuallyCorrect": null,
+      "provenanceCorrect": null,
+      "inventedSystem": null,
+      "clicks": null,
+      "operator": null
+    },
+    {
+      "id": "Q08",
+      "question": "Quels tests candidats soutiennent les seuils, et ont-ils été exécutés ?",
+      "factuallyCorrect": null,
+      "provenanceCorrect": null,
+      "inventedSystem": null,
+      "clicks": null,
+      "operator": null
+    },
+    {
+      "id": "Q09",
+      "question": "Que peut-on dire de /compute sans démarrer le projet ?",
+      "factuallyCorrect": null,
+      "provenanceCorrect": null,
+      "inventedSystem": null,
+      "clicks": null,
+      "operator": null
+    },
+    {
+      "id": "Q10",
+      "question": "Le chargeur dynamique permet-il de déclarer un module inutilisé ?",
+      "factuallyCorrect": null,
+      "provenanceCorrect": null,
+      "inventedSystem": null,
+      "clicks": null,
+      "operator": null
+    },
+    {
+      "id": "Q11",
+      "question": "Quelles intentions le propriétaire a-t-il déclarées ?",
+      "factuallyCorrect": null,
+      "provenanceCorrect": null,
+      "inventedSystem": null,
+      "clicks": null,
+      "operator": null
+    },
+    {
+      "id": "Q12",
+      "question": "Le rapporteur planifié est-il implémenté ou prouvé ?",
+      "factuallyCorrect": null,
+      "provenanceCorrect": null,
+      "inventedSystem": null,
+      "clicks": null,
+      "operator": null
+    },
+    {
+      "id": "Q13",
+      "question": "Quelles dépendances sont déclarées pour la production et pour les tests ?",
+      "factuallyCorrect": null,
+      "provenanceCorrect": null,
+      "inventedSystem": null,
+      "clicks": null,
+      "operator": null
+    },
+    {
+      "id": "Q14",
+      "question": "Le nom du test runner démontre-t-il une nouvelle intégration externe ?",
+      "factuallyCorrect": null,
+      "provenanceCorrect": null,
+      "inventedSystem": null,
+      "clicks": null,
+      "operator": null
+    },
+    {
+      "id": "Q15",
+      "question": "La présence de DDL démontre-t-elle une base déployée ?",
+      "factuallyCorrect": null,
+      "provenanceCorrect": null,
+      "inventedSystem": null,
+      "clicks": null,
+      "operator": null
+    },
+    {
+      "id": "Q16",
+      "question": "Quels chemins sensibles suivis par Git ont été exclus ?",
+      "factuallyCorrect": null,
+      "provenanceCorrect": null,
+      "inventedSystem": null,
+      "clicks": null,
+      "operator": null
+    },
+    {
+      "id": "Q17",
+      "question": "Le script danger ou side_effect.py a-t-il été exécuté par le scan ?",
+      "factuallyCorrect": null,
+      "provenanceCorrect": null,
+      "inventedSystem": null,
+      "clicks": null,
+      "operator": null
+    },
+    {
+      "id": "Q18",
+      "question": "Quelle est la sélection documentaire exacte ?",
+      "factuallyCorrect": null,
+      "provenanceCorrect": null,
+      "inventedSystem": null,
+      "clicks": null,
+      "operator": null
+    },
+    {
+      "id": "Q19",
+      "question": "Quel est le dénominateur et quelles limites rendent la couverture incomplète ?",
+      "factuallyCorrect": null,
+      "provenanceCorrect": null,
+      "inventedSystem": null,
+      "clicks": null,
+      "operator": null
+    },
+    {
+      "id": "Q20",
+      "question": "Comment ouvrir les lignes originales avec hash et snapshot ?",
+      "factuallyCorrect": null,
+      "provenanceCorrect": null,
+      "inventedSystem": null,
+      "clicks": null,
+      "operator": null
+    },
+    {
+      "id": "Q21",
+      "question": "Quel snapshot représente HEAD et lequel représente les changements non commités ?",
+      "factuallyCorrect": null,
+      "provenanceCorrect": null,
+      "inventedSystem": null,
+      "clicks": null,
+      "operator": null
+    },
+    {
+      "id": "Q22",
+      "question": "Après modification du seuil, les anciennes lignes restent-elles consultables ?",
+      "factuallyCorrect": null,
+      "provenanceCorrect": null,
+      "inventedSystem": null,
+      "clicks": null,
+      "operator": null
+    },
+    {
+      "id": "Q23",
+      "question": "Un commit vide change-t-il le comportement observé ?",
+      "factuallyCorrect": null,
+      "provenanceCorrect": null,
+      "inventedSystem": null,
+      "clicks": null,
+      "operator": null
+    },
+    {
+      "id": "Q24",
+      "question": "Comment la tâche active reste-t-elle visible dans la vue globale ?",
+      "factuallyCorrect": null,
+      "provenanceCorrect": null,
+      "inventedSystem": null,
+      "clicks": null,
+      "operator": null
+    },
+    {
+      "id": "Q25",
+      "question": "Pourquoi une décision a-t-elle été prise et quel événement original la porte ?",
+      "factuallyCorrect": null,
+      "provenanceCorrect": null,
+      "inventedSystem": null,
+      "clicks": null,
+      "operator": null
+    },
+    {
+      "id": "Q26",
+      "question": "Une confirmation humaine de décision devient-elle une Proof ?",
+      "factuallyCorrect": null,
+      "provenanceCorrect": null,
+      "inventedSystem": null,
+      "clicks": null,
+      "operator": null
+    },
+    {
+      "id": "Q27",
+      "question": "Quel changement exact possède la Proof et la dette affichées ?",
+      "factuallyCorrect": null,
+      "provenanceCorrect": null,
+      "inventedSystem": null,
+      "clicks": null,
+      "operator": null
+    },
+    {
+      "id": "Q28",
+      "question": "Un nouveau snapshot consultatif peut-il révoquer cette Proof ?",
+      "factuallyCorrect": null,
+      "provenanceCorrect": null,
+      "inventedSystem": null,
+      "clicks": null,
+      "operator": null
+    },
+    {
+      "id": "Q29",
+      "question": "Que sait Portal sans disposer des fichiers locaux ?",
+      "factuallyCorrect": null,
+      "provenanceCorrect": null,
+      "inventedSystem": null,
+      "clicks": null,
+      "operator": null
+    },
+    {
+      "id": "Q30",
+      "question": "Quelles vérifications restent nécessaires avant la prochaine modification ?",
+      "factuallyCorrect": null,
+      "provenanceCorrect": null,
+      "inventedSystem": null,
+      "clicks": null,
+      "operator": null
+    }
+  ],
+  "criteria": {
+    "minimumFacts": 30,
+    "maximumFacts": 50,
+    "questionCount": 30,
+    "factualAndProvenanceScore": ">90%",
+    "inventedSystems": 0,
+    "priorityQuestions": [
+      "Q01",
+      "Q07",
+      "Q08",
+      "Q24",
+      "Q30"
+    ],
+    "maximumDrilldownClicksExclusive": 3
+  },
+  "MACHINE": "See project-corpus.test.mjs; not all HUMAN questions automated",
+  "HUMAN": "NOT_RUN"
+}

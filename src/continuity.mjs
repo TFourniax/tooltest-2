@@ -1,5 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { MAX_CONTEXT_BYTES, validContext } from './continuity-contract.mjs';
+import { readIntegrationConfig } from './diffwitness-integration-config.mjs';
+import { createHash } from 'node:crypto';
 
 const CONTEXT_TIMEOUT_MS = 1500;
 const MAX_ADDITIONAL_CHARS = 6500;
@@ -8,12 +10,41 @@ function list(value) {
   return Array.isArray(value) ? value : [];
 }
 
+// Explicit cockpit citation read. It never rebuilds state or appends memory.
+export function readContinuityEvent(cwd,eventId,eventHash) {
+  if(!/^dwev_[a-f0-9]{24}$/.test(eventId)||!/^[a-f0-9]{64}$/.test(eventHash))throw new Error('Invalid memory citation');
+  const command=readIntegrationConfig(cwd,{migrateLegacy:false})?.diffWitnessCommand||process.env.DIFFWITNESS_BIN||'dw';
+  let value;
+  try {value=JSON.parse(execFileSync(command,['state','event',eventId,'--hash',eventHash,'--json'],{cwd,encoding:'utf8',timeout:5000,maxBuffer:1024*1024,windowsHide:true,stdio:['ignore','pipe','ignore']}));}
+  catch {throw new Error('Core could not open this exact source event. Inspect the journal locally; no rebuild was attempted.');}
+  if(value?.schema_version!=='memory-event-detail-1'||value.event?.event_id!==eventId||value.event?.event_hash!==eventHash)throw new Error('Core memory citation mismatch');
+  return value;
+}
+
+export function readContinuityQuestion(cwd,question) {
+  if(typeof question!=='string'||!question.trim()||question.length>1200)throw new Error('Enter a bounded project-memory question');
+  const command=readIntegrationConfig(cwd,{migrateLegacy:false})?.diffWitnessCommand||process.env.DIFFWITNESS_BIN||'dw';
+  let answer;
+  try {answer=JSON.parse(execFileSync(command,['ask',question,'--limit','8','--json'],{cwd,encoding:'utf8',timeout:5000,maxBuffer:1024*1024,windowsHide:true,stdio:['ignore','pipe','ignore']}));}
+  catch {throw new Error('Core cited memory answers are unavailable; no network call or rebuild was attempted.');}
+  const canonical=v=>v===null||typeof v!=='object'?JSON.stringify(v):Array.isArray(v)?`[${v.map(canonical).join(',')}]`:`{${Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+canonical(v[k])).join(',')}}`;
+  const hash=v=>createHash('sha256').update(canonical(v)).digest('hex');
+  const {answer_id,...body}=answer||{},context=body.context;
+  const {context_id,...packet}=context||{};
+  if(body.schema_version!=='memory-question-answer-1'||packet.schema_version!=='memory-question-context-1'||packet.question?.text!==question||body.assurance!=='none'||body.questionStored!==false||!Array.isArray(body.actions)||body.actions.length||!['abstained','cited-records'].includes(body.status)||!Array.isArray(packet.facts)||packet.facts.length>8||!Array.isArray(body.parts)||body.parts.length!==packet.facts.length||answer_id!=='dwanswer_'+hash(body)||context_id!=='dwqctx_'+hash(packet))throw new Error('Core memory answer contract rejected');
+  for(let i=0;i<body.parts.length;i++) {
+    const part=body.parts[i],fact=packet.facts[i];
+    if(part.factIndex!==i||canonical(part.source)!==canonical(fact.source)||!/^dwev_[a-f0-9]{24}$/.test(fact.source?.eventId)||!/^[a-f0-9]{64}$/.test(fact.source?.eventHash)||!['DECLARED','OBSERVED','INFERRED','VERIFIED','UNKNOWN'].includes(fact.epistemicStatus))throw new Error('Unbound Core answer part');
+  }
+  return answer;
+}
+
 export function loadContinuityContext(cwd, taskQuery, { timeoutMs = CONTEXT_TIMEOUT_MS } = {}) {
   const task = String(taskQuery || '').trim();
   if (!task) return null;
   try {
     const raw = execFileSync(
-      'dw',
+      readIntegrationConfig(cwd,{migrateLegacy:false})?.diffWitnessCommand||process.env.DIFFWITNESS_BIN||'dw',
       ['context', task, '--json', '--max-items', '8', '--no-refresh-structure'],
       {
         cwd,
