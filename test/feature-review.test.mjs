@@ -43,11 +43,12 @@ test('feature spaced-recall interval grows with fluency and drift is due immedia
   assert.equal(featureReviewDue({ needsRefresh:true, confidence:0.9 }), true);
 });
 
-test('drift recall asks about the actual new project boundary with non-trivial project distractors', () => {
+test('drift recall asks about recorded references with non-trivial project distractors', () => {
   const state = memory();
   const challenge = buildFeatureRecallChallenge(state, state.features.checkout);
   assert.equal(challenge.kind, 'drift-recall');
-  assert.match(challenge.question, /new external boundary/i);
+  assert.match(challenge.question, /technology reference.*newly recorded.*model/i);
+  assert.doesNotMatch(challenge.question, /new external boundary/i);
   assert.ok(challenge.options.includes('Redis'));
   assert.ok(challenge.options.some((value) => ['OAuth','/api/admin','sessions'].includes(value)));
   assert.equal(challenge.options[challenge.answer], 'Redis');
