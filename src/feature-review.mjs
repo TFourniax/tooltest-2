@@ -63,12 +63,14 @@ function pickDistractors(state, entry, correct, fallbacks = []) {
   return [...new Set([...project, ...fallbacks].filter((value) => value && value !== correct))].slice(0, 2);
 }
 
+// A diff of bounded observations is not a diff of deployed behavior. In particular,
+// a newly detected test tool does not prove a new external runtime dependency.
 function driftTarget(entry) {
   const added = entry.lastDrift?.added || {};
-  if (added.technologies?.[0]) return { type:'external boundary', value:added.technologies[0] };
-  if (added.routes?.[0]) return { type:'route', value:added.routes[0] };
-  if (added.tables?.[0]) return { type:'persistence surface', value:added.tables[0] };
-  if (added.story?.[0]) return { type:'connected code', value:String(added.story[0]).replace(/^[^:]+:/, '') };
+  if (added.technologies?.[0]) return { type:'technology reference', value:added.technologies[0] };
+  if (added.routes?.[0]) return { type:'route reference', value:added.routes[0] };
+  if (added.tables?.[0]) return { type:'data reference', value:added.tables[0] };
+  if (added.story?.[0]) return { type:'code or test reference', value:String(added.story[0]).replace(/^[^:]+:/, '') };
   return null;
 }
 
@@ -77,35 +79,36 @@ function challengeMaterial(state, entry) {
   if (drift) {
     return {
       kind: 'drift-recall',
-      prompt: `What new ${drift.type} was added to “${entry.task || 'this feature'}”?`,
+      prompt: `Which ${drift.type} was newly recorded in IdleProof's model for “${entry.task || 'this feature'}”?`,
       correct: drift.value,
-      distractors: pickDistractors(state, entry, drift.value, ['No boundary changed', 'Only formatting changed']),
-      explanation: `IdleProof detected this as part of the feature-model drift: ${entry.lastDrift?.summary || drift.value}.`,
+      distractors: pickDistractors(state, entry, drift.value, ['No new reference was recorded', 'Only formatting changed']),
+      // Do not re-emit a legacy summary which may assert an unsupported boundary.
+      explanation: `The compared feature-model snapshots record ${drift.value} as a new ${drift.type}. This does not establish when it entered the project or how it is used at runtime.`,
       resolvesRefresh: true
     };
   }
   if (entry.surfaces?.technologies?.[0]) {
     const correct = entry.surfaces.technologies[0];
     return {
-      kind: 'external-recall', prompt: `Which external boundary belongs to “${entry.task || 'this feature'}”?`, correct,
-      distractors: pickDistractors(state, entry, correct, ['No external dependency', '/assets/app.css']),
-      explanation: `${correct} is an external boundary stored in this feature’s local mental model.`, resolvesRefresh: false
+      kind: 'technology-recall', prompt: `Which technology reference is recorded in IdleProof's model for “${entry.task || 'this feature'}”?`, correct,
+      distractors: pickDistractors(state, entry, correct, ['No technology reference recorded', '/assets/app.css']),
+      explanation: `${correct} is a technology reference in the stored feature model. Its origin, introduction time and runtime use are not established by this reference alone.`, resolvesRefresh: false
     };
   }
   if (entry.surfaces?.routes?.[0]) {
     const correct = entry.surfaces.routes[0];
     return {
-      kind: 'route-recall', prompt: `Which route belongs to “${entry.task || 'this feature'}”?`, correct,
+      kind: 'route-recall', prompt: `Which route reference is recorded in IdleProof's model for “${entry.task || 'this feature'}”?`, correct,
       distractors: pickDistractors(state, entry, correct, ['/api/unrelated', '/health']),
-      explanation: `${correct} is a route associated with this learned feature.`, resolvesRefresh: false
+      explanation: `${correct} is recorded as a route reference in this feature model; this does not prove that the route is deployed or reachable.`, resolvesRefresh: false
     };
   }
   if (entry.surfaces?.tables?.[0]) {
     const correct = entry.surfaces.tables[0];
     return {
-      kind: 'data-recall', prompt: `Which persistence surface belongs to “${entry.task || 'this feature'}”?`, correct,
+      kind: 'data-recall', prompt: `Which data reference is recorded in IdleProof's model for “${entry.task || 'this feature'}”?`, correct,
       distractors: pickDistractors(state, entry, correct, ['users_archive', 'localStorage']),
-      explanation: `${correct} is a stored data surface for this learned feature.`, resolvesRefresh: false
+      explanation: `${correct} is recorded as a data reference in this feature model; runtime persistence is not established by this reference alone.`, resolvesRefresh: false
     };
   }
   const file = (entry.story || []).find((step) => step.type === 'file' && step.label)?.label;
@@ -124,7 +127,10 @@ export function buildFeatureRecallChallenge(state = {}, entry = {}) {
   if (!key) return null;
   const material = challengeMaterial(state, entry);
   if (!material) return null;
-  const seed = `${key}|${entry.fingerprint || ''}|${material.kind}|${material.correct}`;
+  // Version the meaning as well as the answer. A previously displayed misleading
+  // question must not award credit after the renderer changes without a refresh.
+  const seed = JSON.stringify(['feature-recall-observation-2', key, entry.fingerprint || '',
+    material.kind, material.correct, material.prompt, material.explanation, material.resolvesRefresh]);
   const rawOptions = [...new Set([material.correct, ...material.distractors])].slice(0, 3);
   if (rawOptions.length < 2) return null;
   const options = stableShuffle(rawOptions, seed);
@@ -157,7 +163,7 @@ export function buildDueFeatureReviews(state = {}, { limit = 8, now = Date.now()
         exposures:entry.exposures || 0, needsRefresh:Boolean(entry.needsRefresh), drift:entry.lastDrift || null,
         lastSeenAt:entry.lastSeenAt || null, due, dueAt:featureReviewDueAt(entry),
         priority: (due ? 40 : 0) + driftBoost + uncertainty + exposureBoost,
-        reason: entry.needsRefresh ? `feature changed: ${entry.lastDrift?.summary || 'mental model drift detected'}` : confidence < 50 ? 'low demonstrated feature fluency' : due ? 'spaced feature recall is due' : 'future spaced feature recall'
+        reason: entry.needsRefresh ? 'feature-model observations changed; review the recorded differences' : confidence < 50 ? 'low demonstrated feature fluency' : due ? 'spaced feature recall is due' : 'future spaced feature recall'
       };
     })
     .sort((a, b) => b.priority - a.priority || String(b.lastSeenAt || '').localeCompare(String(a.lastSeenAt || '')))
