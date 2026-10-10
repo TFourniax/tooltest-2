@@ -1,5 +1,8 @@
 # Project understanding candidate — 2026-10-10
 
+Historical checkpoint. The completed candidate verdict and exact references are
+in [PROJECT_UNDERSTANDING_FINAL_20261010.md](PROJECT_UNDERSTANDING_FINAL_20261010.md).
+
 Status: IN DEVELOPMENT. MACHINE qualification pending; HUMAN NOT RUN. NOT ALPHA READY. No release or installation on the human witness.
 
 ## Verified sources and integration base

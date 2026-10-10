@@ -1,7 +1,7 @@
 {
   "schema": "idleproof.conformity.v1",
   "sourceDate": "2026-10-10",
-  "status": "CANDIDATE_IN_QUALIFICATION",
+  "status": "MACHINE_QUALIFIED_CANDIDATE_FOR_HUMAN",
   "release": "NOT_ALPHA_READY",
   "rows": [
     {
@@ -13,9 +13,14 @@
       "gap": "No prior inventory on historical main",
       "corrective_task": "Deliver explicit cockpit/CLI first scan",
       "acceptance": "task-free real Core initial scan and corpus",
-      "evidence": "core-scan-freeze.log: 13 tests, 12 PASS / 1 OS symlink fixture skip; local-scan-freeze.log: 4/4",
-      "MACHINE": "TARGETED_PASS; full qualification pending",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Core tests/test_structure_scan.py + structure/provider/transport suites and installed grammars: https://github.com/TFourniax/tooltest/actions/runs/38049806696; Local test/project-scan.test.mjs and test/project-corpus.test.mjs with actual pinned Core: https://github.com/TFourniax/tooltest-2/actions/runs/38049900449",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "User mandate, conversation 2026-10-10, sections 1–5 (preserved in scope statement)",
+        "https://github.com/TFourniax/tooltest-2/issues/35"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "S02",
@@ -26,9 +31,13 @@
       "gap": "Role is inferred; unavailable grammars remain unparsed",
       "corrective_task": "Retain lane counters and source descriptions",
       "acceptance": "multi-layer corpus and installed grammar job",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Core tests/test_structure_scan.py + structure/provider/transport suites and installed grammars: https://github.com/TFourniax/tooltest/actions/runs/38049806696; Local test/project-scan.test.mjs and test/project-corpus.test.mjs with actual pinned Core: https://github.com/TFourniax/tooltest-2/actions/runs/38049900449",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "User mandate, conversation 2026-10-10, sections 1–5 (preserved in scope statement)"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "S03",
@@ -39,9 +48,13 @@
       "gap": "Symlink creation unavailable in this Windows sandbox",
       "corrective_task": "Run Linux/macOS/Windows boundary gates",
       "acceptance": "tracked sensitive fixtures, link/junction escape, CI targeted inclusion",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Core tests/test_structure_scan.py + structure/provider/transport suites and installed grammars: https://github.com/TFourniax/tooltest/actions/runs/38049806696; Local test/project-scan.test.mjs and test/project-corpus.test.mjs with actual pinned Core: https://github.com/TFourniax/tooltest-2/actions/runs/38049900449",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "User mandate, conversation 2026-10-10, sections 1–5 (preserved in scope statement)"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "S04",
@@ -52,9 +65,13 @@
       "gap": "No dynamic resolution claimed",
       "corrective_task": "Preserve offline boundary",
       "acceptance": "side_effect fixture leaves marker absent; no key or Portal",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Core tests/test_structure_scan.py + structure/provider/transport suites and installed grammars: https://github.com/TFourniax/tooltest/actions/runs/38049806696; Local test/project-scan.test.mjs and test/project-corpus.test.mjs with actual pinned Core: https://github.com/TFourniax/tooltest-2/actions/runs/38049900449",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "User mandate, conversation 2026-10-10, sections 1–5 (preserved in scope statement)"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "S05",
@@ -65,9 +82,13 @@
       "gap": "WORKTREE freshness is captured-only",
       "corrective_task": "Separate pointers and capture provenance",
       "acceptance": "source remains original after edits; deletion/new-file captures",
-      "evidence": "core-scan-freeze.log: 13 tests, 12 PASS / 1 OS symlink fixture skip; local-scan-freeze.log: 4/4",
-      "MACHINE": "TARGETED_PASS; full qualification pending",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Core tests/test_structure_scan.py + structure/provider/transport suites and installed grammars: https://github.com/TFourniax/tooltest/actions/runs/38049806696; Local test/project-scan.test.mjs and test/project-corpus.test.mjs with actual pinned Core: https://github.com/TFourniax/tooltest-2/actions/runs/38049900449",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "User mandate, conversation 2026-10-10, sections 1–5 (preserved in scope statement)"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "S06",
@@ -78,9 +99,13 @@
       "gap": "Initial capture cannot pause inside a syscall",
       "corrective_task": "Reject mutated WORKTREE and require restart",
       "acceptance": "mutation-during-capture failure; same-frame pagination",
-      "evidence": "core-scan-freeze.log: 13 tests, 12 PASS / 1 OS symlink fixture skip; local-scan-freeze.log: 4/4",
-      "MACHINE": "TARGETED_PASS; full qualification pending",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Core tests/test_structure_scan.py + structure/provider/transport suites and installed grammars: https://github.com/TFourniax/tooltest/actions/runs/38049806696; Local test/project-scan.test.mjs and test/project-corpus.test.mjs with actual pinned Core: https://github.com/TFourniax/tooltest-2/actions/runs/38049900449",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "User mandate, conversation 2026-10-10, sections 1–5 (preserved in scope statement)"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "S07",
@@ -91,9 +116,14 @@
       "gap": "No private SQLite consumer coupling",
       "corrective_task": "Publish contract/schema and validate digest, page, authority",
       "acceptance": "mixed snapshot/profile/selection/cursor rejected",
-      "evidence": "core-scan-freeze.log: 13 tests, 12 PASS / 1 OS symlink fixture skip; local-scan-freeze.log: 4/4",
-      "MACHINE": "TARGETED_PASS; full qualification pending",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Core tests/test_structure_scan.py + structure/provider/transport suites and installed grammars: https://github.com/TFourniax/tooltest/actions/runs/38049806696; Local test/project-scan.test.mjs and test/project-corpus.test.mjs with actual pinned Core: https://github.com/TFourniax/tooltest-2/actions/runs/38049900449",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "User mandate, conversation 2026-10-10, sections 1–5 (preserved in scope statement)",
+        "https://github.com/TFourniax/tooltest/blob/018eae598b6c048b6c072c49cf1c124c9b46f13b/docs/STRUCTURE_EXTRACTION.md"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "S08",
@@ -104,9 +134,13 @@
       "gap": "Name-based resolution remains inferred; ambiguous import unresolved",
       "corrective_task": "Retain provider limitations in view",
       "acceptance": "provider suite + immutable citation + path identity gates",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Core tests/test_structure_scan.py + structure/provider/transport suites and installed grammars: https://github.com/TFourniax/tooltest/actions/runs/38049806696; Local test/project-scan.test.mjs and test/project-corpus.test.mjs with actual pinned Core: https://github.com/TFourniax/tooltest-2/actions/runs/38049900449",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest/blob/018eae598b6c048b6c072c49cf1c124c9b46f13b/docs/STRUCTURE_PROVIDERS.md"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "S09",
@@ -117,9 +151,13 @@
       "gap": "Excluded WORKTREE directory contents not enumerated",
       "corrective_task": "Report incomplete enumeration independently of page exhaustion",
       "acceptance": "file/byte/inventory/directory limits; unsupported grammar",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Core tests/test_structure_scan.py + structure/provider/transport suites and installed grammars: https://github.com/TFourniax/tooltest/actions/runs/38049806696; Local test/project-scan.test.mjs and test/project-corpus.test.mjs with actual pinned Core: https://github.com/TFourniax/tooltest-2/actions/runs/38049900449",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "User mandate, conversation 2026-10-10, sections 1–5 (preserved in scope statement)"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "S10",
@@ -130,9 +168,13 @@
       "gap": "Cooperative cancellation between batches only",
       "corrective_task": "Document dedicated budgets without changing hook limits",
       "acceptance": "pause/restart CLI; concurrent writer rejection; existing perf gates",
-      "evidence": "core-scan-freeze.log: 13 tests, 12 PASS / 1 OS symlink fixture skip; local-scan-freeze.log: 4/4",
-      "MACHINE": "TARGETED_PASS; full qualification pending",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Core tests/test_structure_scan.py + structure/provider/transport suites and installed grammars: https://github.com/TFourniax/tooltest/actions/runs/38049806696; Local test/project-scan.test.mjs and test/project-corpus.test.mjs with actual pinned Core: https://github.com/TFourniax/tooltest-2/actions/runs/38049900449",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "User mandate, conversation 2026-10-10, sections 1–5 (preserved in scope statement)"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "S11",
@@ -143,9 +185,13 @@
       "gap": "Profile changes need explicit rescan",
       "corrective_task": "Invalidate changed source/config/parser and outgoing links",
       "acceptance": "same-content commit reuse; changed provider and source tests",
-      "evidence": "core-scan-freeze.log: 13 tests, 12 PASS / 1 OS symlink fixture skip; local-scan-freeze.log: 4/4",
-      "MACHINE": "TARGETED_PASS; full qualification pending",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Core tests/test_structure_scan.py + structure/provider/transport suites and installed grammars: https://github.com/TFourniax/tooltest/actions/runs/38049806696; Local test/project-scan.test.mjs and test/project-corpus.test.mjs with actual pinned Core: https://github.com/TFourniax/tooltest-2/actions/runs/38049900449",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "User mandate, conversation 2026-10-10, sections 1–5 (preserved in scope statement)"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "S12",
@@ -156,9 +202,14 @@
       "gap": "WORKTREE remains explicit; rename lineage not guessed",
       "corrective_task": "Refresh selected baseline and retain original citations",
       "acceptance": "real commit refresh + old source retrieval",
-      "evidence": "core-scan-freeze.log: 13 tests, 12 PASS / 1 OS symlink fixture skip; local-scan-freeze.log: 4/4",
-      "MACHINE": "TARGETED_PASS; full qualification pending",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Core tests/test_structure_scan.py + structure/provider/transport suites and installed grammars: https://github.com/TFourniax/tooltest/actions/runs/38049806696; Local test/project-scan.test.mjs and test/project-corpus.test.mjs with actual pinned Core: https://github.com/TFourniax/tooltest-2/actions/runs/38049900449",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "User mandate, conversation 2026-10-10, sections 1–5 (preserved in scope statement)",
+        "https://github.com/TFourniax/tooltest-2/issues/35"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "U01",
@@ -169,9 +220,14 @@
       "gap": "Automatic semantic fulfillment is UNKNOWN without evidence",
       "corrective_task": "Expose declaration, candidates, test status and historical assurance separately",
       "acceptance": "unimplemented planned item remains UNKNOWN; no invented objective",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Local project-corpus, project-navigation, feature-review/provenance and project-browser-recipe.mjs; real Chromium job114208298596: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207. HUMAN scores/click acceptance remain NOT_RUN.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest-2/issues/35",
+        "https://github.com/TFourniax/tooltest-2/blob/13debfe3a6d609cf4ea08846aedfc48e46e9df21/docs/qualification/PROJECT_SCAN_GAP_20261010.md"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "U02",
@@ -182,9 +238,14 @@
       "gap": "Context bounded to 8 items; imported tests are not coverage",
       "corrective_task": "Offer exact event/source reads and full Core history commands",
       "acceptance": "real declaration source read and handoff; forged source hash rejected",
-      "evidence": "project-corpus.log PASS plus local-scan-freeze.log; preserved feature suites pending freeze",
-      "MACHINE": "TARGETED_PASS; combined criterion pending",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Local project-corpus, project-navigation, feature-review/provenance and project-browser-recipe.mjs; real Chromium job114208298596: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207. HUMAN scores/click acceptance remain NOT_RUN.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest-2/issues/35",
+        "https://github.com/TFourniax/tooltest-2/blob/13debfe3a6d609cf4ea08846aedfc48e46e9df21/docs/qualification/PROJECT_SCAN_GAP_20261010.md"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "U03",
@@ -195,9 +256,14 @@
       "gap": "No runtime composition from independent calculations",
       "corrective_task": "Show actual expressions and unknown rationale",
       "acceptance": "generic corpus thresholds + complementary layers + source spans",
-      "evidence": "project-corpus.log PASS plus local-scan-freeze.log; preserved feature suites pending freeze",
-      "MACHINE": "TARGETED_PASS; combined criterion pending",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Local project-corpus, project-navigation, feature-review/provenance and project-browser-recipe.mjs; real Chromium job114208298596: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207. HUMAN scores/click acceptance remain NOT_RUN.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest-2/issues/35",
+        "https://github.com/TFourniax/tooltest-2/blob/13debfe3a6d609cf4ea08846aedfc48e46e9df21/docs/qualification/PROJECT_SCAN_GAP_20261010.md"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "U04",
@@ -208,9 +274,14 @@
       "gap": "Interactive runtime unavailable locally",
       "corrective_task": "Run Chromium recipe and signed human click-count exercise",
       "acceptance": "project-browser-recipe + 30-question human corpus",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Local project-corpus, project-navigation, feature-review/provenance and project-browser-recipe.mjs; real Chromium job114208298596: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207. HUMAN scores/click acceptance remain NOT_RUN.",
+      "MACHINE": "PARTIAL: real Chromium captured-source drilldown in two clicks; all five HUMAN question paths NOT_RUN",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest-2/issues/35",
+        "https://github.com/TFourniax/tooltest/blob/018eae598b6c048b6c072c49cf1c124c9b46f13b/docs/PRODUCT_SURFACES.md"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "U05",
@@ -221,9 +292,14 @@
       "gap": "No real voluntary project or human evaluators supplied",
       "corrective_task": "Prepare oracle and obtain technical/nontechnical HUMAN review",
       "acceptance": "40-fact / 30-question sheet; no conversion of MACHINE into HUMAN",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Local project-corpus, project-navigation, feature-review/provenance and project-browser-recipe.mjs; real Chromium job114208298596: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207. HUMAN scores/click acceptance remain NOT_RUN.",
+      "MACHINE": "FIXTURES_READY; HUMAN/live-provider acceptance NOT_RUN",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest-2/issues/35",
+        "https://github.com/TFourniax/tooltest-2/issues/32"
+      ],
+      "qualification_note": "The corpus/provider recipe exists; its acceptance outcome has not been measured by an operator."
     },
     {
       "id": "U06",
@@ -234,9 +310,15 @@
       "gap": "Historical observations unchanged",
       "corrective_task": "Retain generic positive/negative regression fixtures",
       "acceptance": "feature-review suite and pure calculation corpus",
-      "evidence": "project-corpus.log PASS plus local-scan-freeze.log; preserved feature suites pending freeze",
-      "MACHINE": "TARGETED_PASS; combined criterion pending",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Local project-corpus, project-navigation, feature-review/provenance and project-browser-recipe.mjs; real Chromium job114208298596: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207. HUMAN scores/click acceptance remain NOT_RUN.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest-2/issues/29",
+        "https://github.com/TFourniax/tooltest-2/blob/13debfe3a6d609cf4ea08846aedfc48e46e9df21/docs/qualification/PROJECT_SCAN_GAP_20261010.md",
+        "https://github.com/TFourniax/tooltest-2/pull/31"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "U07",
@@ -247,9 +329,14 @@
       "gap": "No equivalence, unused-code certainty or automatic consolidation",
       "corrective_task": "Expose callers, differences, limitations and discriminating test",
       "acceptance": "literal duplicate, differing condition, complementary wrapper, dynamic loader",
-      "evidence": "project-corpus.log PASS plus local-scan-freeze.log; preserved feature suites pending freeze",
-      "MACHINE": "TARGETED_PASS; combined criterion pending",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Local project-corpus, project-navigation, feature-review/provenance and project-browser-recipe.mjs; real Chromium job114208298596: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207. HUMAN scores/click acceptance remain NOT_RUN.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest-2/blob/13debfe3a6d609cf4ea08846aedfc48e46e9df21/docs/qualification/PROJECT_SCAN_GAP_20261010.md",
+        "https://github.com/TFourniax/tooltest/blob/018eae598b6c048b6c072c49cf1c124c9b46f13b/docs/DEBT_SENSORS.md"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "U08",
@@ -260,9 +347,14 @@
       "gap": "Rename identity UNKNOWN when not established",
       "corrective_task": "Keep historical frame and new classification",
       "acceptance": "profile-only update not runtime-boundary claim",
-      "evidence": "project-corpus.log PASS plus local-scan-freeze.log; preserved feature suites pending freeze",
-      "MACHINE": "TARGETED_PASS; combined criterion pending",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Local project-corpus, project-navigation, feature-review/provenance and project-browser-recipe.mjs; real Chromium job114208298596: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207. HUMAN scores/click acceptance remain NOT_RUN.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest-2/issues/35",
+        "https://github.com/TFourniax/tooltest-2/blob/13debfe3a6d609cf4ea08846aedfc48e46e9df21/docs/qualification/PROJECT_SCAN_GAP_20261010.md"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "M01",
@@ -273,9 +365,14 @@
       "gap": "A task association never proves completion",
       "corrective_task": "Preserve identity/privacy and show exact change separately",
       "acceptance": "Core task suite; continuity-core-smoke; native golden Stop",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Core continuity task/history/lifecycle/navigation/authority/writer suites and Local actual Core gate; Portal longitudinal job114208298710, launcher114208298713, app114208298631: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207. Human resumption remains separate.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest/issues/74",
+        "https://github.com/TFourniax/tooltest/blob/018eae598b6c048b6c072c49cf1c124c9b46f13b/docs/TASK_MEMORY.md"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "M02",
@@ -286,9 +383,13 @@
       "gap": "Eight-item context is not exhaustive journal history",
       "corrective_task": "Reject mismatched citation and display unavailable context",
       "acceptance": "real declared event lookup + wrong hash rejection",
-      "evidence": "core-scan-freeze.log: 13 tests, 12 PASS / 1 OS symlink fixture skip; local-scan-freeze.log: 4/4",
-      "MACHINE": "TARGETED_PASS; full qualification pending",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Core continuity task/history/lifecycle/navigation/authority/writer suites and Local actual Core gate; Portal longitudinal job114208298710, launcher114208298713, app114208298631: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207. Human resumption remains separate.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest/blob/018eae598b6c048b6c072c49cf1c124c9b46f13b/docs/CONTEXT_SOURCES.md"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "M03",
@@ -299,9 +400,13 @@
       "gap": "Local bounded context does not paginate full history inline",
       "corrective_task": "Document Core cursor commands; preserve Portal longitudinal reader",
       "acceptance": "Core history suite + G7 + Portal longitudinal recipe",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Core continuity task/history/lifecycle/navigation/authority/writer suites and Local actual Core gate; Portal longitudinal job114208298710, launcher114208298713, app114208298631: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207. Human resumption remains separate.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest/blob/018eae598b6c048b6c072c49cf1c124c9b46f13b/docs/MEMORY_NAVIGATION.md"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "M04",
@@ -312,9 +417,13 @@
       "gap": "Confirmation remains DECLARED; historical Proof not current applicability",
       "corrective_task": "Preserve lifecycle/source fields in handoff",
       "acceptance": "Core lifecycle suite + continuity consumer + Portal history",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Core continuity task/history/lifecycle/navigation/authority/writer suites and Local actual Core gate; Portal longitudinal job114208298710, launcher114208298713, app114208298631: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207. Human resumption remains separate.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest/blob/018eae598b6c048b6c072c49cf1c124c9b46f13b/docs/MEMORY_LIFECYCLE.md"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "M05",
@@ -325,9 +434,13 @@
       "gap": "No duplicate canonical event writer added",
       "corrective_task": "Reject forged authority and mismatched change identity",
       "acceptance": "Core contract suites + Local structural validator + Portal gate",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Core continuity task/history/lifecycle/navigation/authority/writer suites and Local actual Core gate; Portal longitudinal job114208298710, launcher114208298713, app114208298631: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207. Human resumption remains separate.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest/issues/74"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "M06",
@@ -338,9 +451,13 @@
       "gap": "Unrecorded rationale remains unknown",
       "corrective_task": "Retain existing history command contracts",
       "acceptance": "Core all-branch/first-parent bootstrap tests; fresh project scan",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Core continuity task/history/lifecycle/navigation/authority/writer suites and Local actual Core gate; Portal longitudinal job114208298710, launcher114208298713, app114208298631: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207. Human resumption remains separate.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest/issues/74"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "M07",
@@ -351,9 +468,13 @@
       "gap": "Cross-path rename/refactor identity is not inferred",
       "corrective_task": "Preserve established lineage; report unknown rename",
       "acceptance": "existing feature-lineage/history smoke; content-identical commit test",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Core continuity task/history/lifecycle/navigation/authority/writer suites and Local actual Core gate; Portal longitudinal job114208298710, launcher114208298713, app114208298631: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207. Human resumption remains separate.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest/issues/74"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "M08",
@@ -364,9 +485,13 @@
       "gap": "Current applicability requires separate revalidation",
       "corrective_task": "Keep freshness and applicability visible",
       "acceptance": "Core drift/lifecycle; feature review stale challenge; capture history",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Core continuity task/history/lifecycle/navigation/authority/writer suites and Local actual Core gate; Portal longitudinal job114208298710, launcher114208298713, app114208298631: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207. Human resumption remains separate.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest/issues/74"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "M09",
@@ -377,9 +502,13 @@
       "gap": "Missing supported relation remains unknown",
       "corrective_task": "Use received relations without causal inheritance",
       "acceptance": "Core navigation/context suites + real handoff test",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Core continuity task/history/lifecycle/navigation/authority/writer suites and Local actual Core gate; Portal longitudinal job114208298710, launcher114208298713, app114208298631: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207. Human resumption remains separate.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest/issues/74"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "M10",
@@ -390,9 +519,13 @@
       "gap": "Local handoff may contain source and must be reviewed before sharing",
       "corrective_task": "Preserve IDs, dates, source pointers, debt and next evidence",
       "acceptance": "process restart + Core context/citation + old frame retrieval",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Core continuity task/history/lifecycle/navigation/authority/writer suites and Local actual Core gate; Portal longitudinal job114208298710, launcher114208298713, app114208298631: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207. Human resumption remains separate.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; combined user acceptance PARTIAL until HUMAN recipe",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest/issues/74"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "M11",
@@ -403,9 +536,13 @@
       "gap": "No new merge algorithm or journal rewrite",
       "corrective_task": "Reject concurrent scan publication",
       "acceptance": "Core writer suites + source lock test + Local owned-lock suite",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Core continuity task/history/lifecycle/navigation/authority/writer suites and Local actual Core gate; Portal longitudinal job114208298710, launcher114208298713, app114208298631: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207. Human resumption remains separate.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest/issues/74"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "M12",
@@ -416,9 +553,13 @@
       "gap": "100k budget and first-call Windows/macOS incidents remain OPEN",
       "corrective_task": "Preserve original gates; do not increase hook deadlines",
       "acceptance": "existing Core benchmark and Local perf gates; no new readiness claim",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Core continuity task/history/lifecycle/navigation/authority/writer suites and Local actual Core gate; Portal longitudinal job114208298710, launcher114208298713, app114208298631: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207. Human resumption remains separate.",
+      "MACHINE": "EXISTING_REGISTRY_LIMITS_RETAINED; see PM-012 and cold-start diagnostics",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest/issues/74"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "M13",
@@ -429,9 +570,13 @@
       "gap": "Real DB qualification pending here",
       "corrective_task": "Run pinned producer + real disposable DB recipes",
       "acceptance": "Portal longitudinal recipe; G7–G9",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Core continuity task/history/lifecycle/navigation/authority/writer suites and Local actual Core gate; Portal longitudinal job114208298710, launcher114208298713, app114208298631: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207. Human resumption remains separate.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest/issues/74"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "M14",
@@ -442,22 +587,30 @@
       "gap": "Portal does not acquire local bodies/docs or reconstruct omitted snapshots",
       "corrective_task": "Expose bounded operation metadata and missing source guidance",
       "acceptance": "real Core→Local→Portal validator; legacy receipt; Chromium recipe",
-      "evidence": "portal-understanding-final.log: actual validator and same-receipt assessment boundary PASS; DB NOT_RUN",
-      "MACHINE": "BOUNDARY_PASS; full UI/DB pending",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Core continuity task/history/lifecycle/navigation/authority/writer suites and Local actual Core gate; Portal longitudinal job114208298710, launcher114208298713, app114208298631: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207. Human resumption remains separate.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest/issues/74"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "M15",
       "source": "#74 PM-015 / Grounded memory Q&A",
       "promise": "Questions answer from scoped facts with unknowns and sources",
       "horizon": "Alpha",
-      "implementation": "Deterministic map, Core query context; optional cited interpreter",
+      "implementation": "Existing Core dw ask with verified answer/context hashes, read-only Local CLI/API/cockpit and original-event navigation",
       "gap": "Factual utility score requires human corpus",
       "corrective_task": "Keep unsupported answers unknown",
       "acceptance": "generic corpus + citation rejection + HUMAN question sheet",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Core continuity task/history/lifecycle/navigation/authority/writer suites and Local actual Core gate; Portal longitudinal job114208298710, launcher114208298713, app114208298631: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207. Human resumption remains separate.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; combined user acceptance PARTIAL until HUMAN recipe",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest/issues/74"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "M16",
@@ -468,9 +621,14 @@
       "gap": "Legacy counts unavailable; no zero-denominator mastery",
       "corrective_task": "Not assessed for zero checks; preserve historical scores",
       "acceptance": "zero/false/correct/multiple/stale/legacy assessment fixtures",
-      "evidence": "portal-understanding-final.log: actual validator and same-receipt assessment boundary PASS; DB NOT_RUN",
-      "MACHINE": "BOUNDARY_PASS; full UI/DB pending",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Core continuity task/history/lifecycle/navigation/authority/writer suites and Local actual Core gate; Portal longitudinal job114208298710, launcher114208298713, app114208298631: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207. Human resumption remains separate.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest/issues/74",
+        "https://github.com/TFourniax/idleproof-portal/issues/48"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "M17",
@@ -481,9 +639,13 @@
       "gap": "Static dependencies do not establish runtime blast radius",
       "corrective_task": "Show limitations and proposed tests",
       "acceptance": "Core impact + project model tests + handoff corpus",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Core continuity task/history/lifecycle/navigation/authority/writer suites and Local actual Core gate; Portal longitudinal job114208298710, launcher114208298713, app114208298631: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207. Human resumption remains separate.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest/issues/74"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "M18",
@@ -494,9 +656,13 @@
       "gap": "Independent review/HUMAN missing",
       "corrective_task": "Preserve pending gates and exact version set",
       "acceptance": "complete CI + operator recipe; no Alpha Ready shortcut",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Core continuity task/history/lifecycle/navigation/authority/writer suites and Local actual Core gate; Portal longitudinal job114208298710, launcher114208298713, app114208298631: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207. Human resumption remains separate.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; combined user acceptance PARTIAL until HUMAN recipe",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest/issues/74"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "G1",
@@ -504,12 +670,16 @@
       "promise": "unchanged native Stop",
       "horizon": "Alpha",
       "implementation": "Executable fixtures/gates; synthetic identities only",
-      "gap": "Frozen coordinated machine execution pending; HUMAN distinct",
-      "corrective_task": "Run gate, fail closed on missing/failing required result",
+      "gap": "Automated golden contract passed on the frozen integrated candidate; historical and new HUMAN campaigns remain separate.",
+      "corrective_task": "Completed MACHINE contract; retain the gate for future changes and execute the separate HUMAN recipe.",
       "acceptance": "real Core native session-start/stop; strict Local JSON protocol",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Strict integrated G1-G12 job114209987282 consuming actual reports; launcher114208298713, auto-debt114208298657, longitudinal114208298710 and real Core golden: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest-2/issues/34"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "G2",
@@ -517,12 +687,16 @@
       "promise": "10% threshold 100 with discriminating evidence",
       "horizon": "Alpha",
       "implementation": "Executable fixtures/gates; synthetic identities only",
-      "gap": "Frozen coordinated machine execution pending; HUMAN distinct",
-      "corrective_task": "Run gate, fail closed on missing/failing required result",
+      "gap": "Automated golden contract passed on the frozen integrated candidate; historical and new HUMAN campaigns remain separate.",
+      "corrective_task": "Completed MACHINE contract; retain the gate for future changes and execute the separate HUMAN recipe.",
       "acceptance": "golden-core-journey: real prove/verify against exact candidate",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Strict integrated G1-G12 job114209987282 consuming actual reports; launcher114208298713, auto-debt114208298657, longitudinal114208298710 and real Core golden: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest-2/issues/34"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "G3",
@@ -530,12 +704,16 @@
       "promise": "second new-file threshold 80 has distinct change ID",
       "horizon": "Alpha",
       "implementation": "Executable fixtures/gates; synthetic identities only",
-      "gap": "Frozen coordinated machine execution pending; HUMAN distinct",
-      "corrective_task": "Run gate, fail closed on missing/failing required result",
+      "gap": "Automated golden contract passed on the frozen integrated candidate; historical and new HUMAN campaigns remain separate.",
+      "corrective_task": "Completed MACHINE contract; retain the gate for future changes and execute the separate HUMAN recipe.",
       "acceptance": "golden-core-journey: three independent Core identities",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Strict integrated G1-G12 job114209987282 consuming actual reports; launcher114208298713, auto-debt114208298657, longitudinal114208298710 and real Core golden: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest-2/issues/34"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "G4",
@@ -543,12 +721,16 @@
       "promise": "third rule per 10 units and final 11 tests",
       "horizon": "Alpha",
       "implementation": "Executable fixtures/gates; synthetic identities only",
-      "gap": "Frozen coordinated machine execution pending; HUMAN distinct",
-      "corrective_task": "Run gate, fail closed on missing/failing required result",
+      "gap": "Automated golden contract passed on the frozen integrated candidate; historical and new HUMAN campaigns remain separate.",
+      "corrective_task": "Completed MACHINE contract; retain the gate for future changes and execute the separate HUMAN recipe.",
       "acceptance": "golden-core-journey: 3+4+4 discriminating tests",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Strict integrated G1-G12 job114209987282 consuming actual reports; launcher114208298713, auto-debt114208298657, longitudinal114208298710 and real Core golden: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest-2/issues/34"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "G5",
@@ -556,12 +738,16 @@
       "promise": "zero versus absent debt; positive obligation; budget rejection",
       "horizon": "Alpha",
       "implementation": "Executable fixtures/gates; synthetic identities only",
-      "gap": "Frozen coordinated machine execution pending; HUMAN distinct",
-      "corrective_task": "Run gate, fail closed on missing/failing required result",
+      "gap": "Automated golden contract passed on the frozen integrated candidate; historical and new HUMAN campaigns remain separate.",
+      "corrective_task": "Completed MACHINE contract; retain the gate for future changes and execute the separate HUMAN recipe.",
       "acceptance": "portal-assurance tests + real positive debt budget zero",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Strict integrated G1-G12 job114209987282 consuming actual reports; launcher114208298713, auto-debt114208298657, longitudinal114208298710 and real Core golden: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest-2/issues/34"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "G6",
@@ -569,12 +755,16 @@
       "promise": "exact-change Portal join; advisory does not revoke Proof",
       "horizon": "Alpha",
       "implementation": "Executable fixtures/gates; synthetic identities only",
-      "gap": "Frozen coordinated machine execution pending; HUMAN distinct",
-      "corrective_task": "Run gate, fail closed on missing/failing required result",
+      "gap": "Automated golden contract passed on the frozen integrated candidate; historical and new HUMAN campaigns remain separate.",
+      "corrective_task": "Completed MACHINE contract; retain the gate for future changes and execute the separate HUMAN recipe.",
       "acceptance": "Local admission negative test + Portal G6 real DB/browser",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Strict integrated G1-G12 job114209987282 consuming actual reports; launcher114208298713, auto-debt114208298657, longitudinal114208298710 and real Core golden: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest-2/issues/34"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "G7",
@@ -582,12 +772,16 @@
       "promise": "DECLARED decision, cursor and idempotent replay",
       "horizon": "Alpha",
       "implementation": "Executable fixtures/gates; synthetic identities only",
-      "gap": "Frozen coordinated machine execution pending; HUMAN distinct",
-      "corrective_task": "Run gate, fail closed on missing/failing required result",
+      "gap": "Automated golden contract passed on the frozen integrated candidate; historical and new HUMAN campaigns remain separate.",
+      "corrective_task": "Completed MACHINE contract; retain the gate for future changes and execute the separate HUMAN recipe.",
       "acceptance": "real Core journal read/replay/caught-up cursor + Portal longitudinal recipe",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Strict integrated G1-G12 job114209987282 consuming actual reports; launcher114208298713, auto-debt114208298657, longitudinal114208298710 and real Core golden: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest-2/issues/34"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "G8",
@@ -595,12 +789,16 @@
       "promise": "A→B→restore A→replay original B, no new Proof",
       "horizon": "Alpha",
       "implementation": "Executable fixtures/gates; synthetic identities only",
-      "gap": "Frozen coordinated machine execution pending; HUMAN distinct",
-      "corrective_task": "Run gate, fail closed on missing/failing required result",
+      "gap": "Automated golden contract passed on the frozen integrated candidate; historical and new HUMAN campaigns remain separate.",
+      "corrective_task": "Completed MACHINE contract; retain the gate for future changes and execute the separate HUMAN recipe.",
       "acceptance": "Portal alpha-local real backup/restore + original receipt/certificate hashes",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Strict integrated G1-G12 job114209987282 consuming actual reports; launcher114208298713, auto-debt114208298657, longitudinal114208298710 and real Core golden: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest-2/issues/34"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "G9",
@@ -608,12 +806,16 @@
       "promise": "repeated ipsnap yields snapshots 1→1 and assurance 1→1",
       "horizon": "Alpha",
       "implementation": "Executable fixtures/gates; synthetic identities only",
-      "gap": "Frozen coordinated machine execution pending; HUMAN distinct",
-      "corrective_task": "Run gate, fail closed on missing/failing required result",
+      "gap": "Automated golden contract passed on the frozen integrated candidate; historical and new HUMAN campaigns remain separate.",
+      "corrective_task": "Completed MACHINE contract; retain the gate for future changes and execute the separate HUMAN recipe.",
       "acceptance": "Portal G9 exact original receipt second POST and DB counts",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Strict integrated G1-G12 job114209987282 consuming actual reports; launcher114208298713, auto-debt114208298657, longitudinal114208298710 and real Core golden: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest-2/issues/34"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "G10",
@@ -621,12 +823,16 @@
       "promise": "no orphan child; verify process identity; foreign port stays intact",
       "horizon": "Alpha",
       "implementation": "Executable fixtures/gates; synthetic identities only",
-      "gap": "Frozen coordinated machine execution pending; HUMAN distinct",
-      "corrective_task": "Run gate, fail closed on missing/failing required result",
+      "gap": "Automated golden contract passed on the frozen integrated candidate; historical and new HUMAN campaigns remain separate.",
+      "corrective_task": "Completed MACHINE contract; retain the gate for future changes and execute the separate HUMAN recipe.",
       "acceptance": "Portal real Linux L2/L5 + lifecycle tests",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Strict integrated G1-G12 job114209987282 consuming actual reports; launcher114208298713, auto-debt114208298657, longitudinal114208298710 and real Core golden: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest-2/issues/34"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "G11",
@@ -634,12 +840,16 @@
       "promise": "offline Portal leaves local assurance intact; retry once",
       "horizon": "Alpha",
       "implementation": "Executable fixtures/gates; synthetic identities only",
-      "gap": "Frozen coordinated machine execution pending; HUMAN distinct",
-      "corrective_task": "Run gate, fail closed on missing/failing required result",
+      "gap": "Automated golden contract passed on the frozen integrated candidate; historical and new HUMAN campaigns remain separate.",
+      "corrective_task": "Completed MACHINE contract; retain the gate for future changes and execute the separate HUMAN recipe.",
       "acceptance": "Local offline queue + Portal auto-debt real-stack recipe",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Strict integrated G1-G12 job114209987282 consuming actual reports; launcher114208298713, auto-debt114208298657, longitudinal114208298710 and real Core golden: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest-2/issues/34"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "G12",
@@ -647,12 +857,16 @@
       "promise": "no invented SQL and no AI-created Proof",
       "horizon": "Alpha",
       "implementation": "Executable fixtures/gates; synthetic identities only",
-      "gap": "Frozen coordinated machine execution pending; HUMAN distinct",
-      "corrective_task": "Run gate, fail closed on missing/failing required result",
+      "gap": "Automated golden contract passed on the frozen integrated candidate; historical and new HUMAN campaigns remain separate.",
+      "corrective_task": "Completed MACHINE contract; retain the gate for future changes and execute the separate HUMAN recipe.",
       "acceptance": "preserved #31/#36; BYOK authority/citation/fallback tests",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Strict integrated G1-G12 job114209987282 consuming actual reports; launcher114208298713, auto-debt114208298657, longitudinal114208298710 and real Core golden: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest-2/issues/34"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "A1",
@@ -663,9 +877,14 @@
       "gap": "Live provider NOT_RUN; no key requested in conversation",
       "corrective_task": "Qualify offline transport independently; operator owns real provider step",
       "acceptance": "fresh offline corpus without provider config",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Local test/byok.test.mjs and protected storage paths in full 3-OS/3-Node matrix: https://github.com/TFourniax/tooltest-2/actions/runs/38049900432; offline and mocked provider contracts only. Live provider NOT_RUN.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest-2/issues/33",
+        "https://github.com/TFourniax/tooltest-2/blob/13debfe3a6d609cf4ea08846aedfc48e46e9df21/docs/qualification/PROJECT_SCAN_GAP_20261010.md"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "A2",
@@ -676,9 +895,14 @@
       "gap": "Live provider NOT_RUN; no key requested in conversation",
       "corrective_task": "Qualify offline transport independently; operator owns real provider step",
       "acceptance": "DPAPI/0600 tests; configure stdin; status redaction",
-      "evidence": "local-byok-navigation.log: 7/7 targeted transport/navigation tests",
-      "MACHINE": "TARGETED_PASS; live provider NOT_RUN",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Local test/byok.test.mjs and protected storage paths in full 3-OS/3-Node matrix: https://github.com/TFourniax/tooltest-2/actions/runs/38049900432; offline and mocked provider contracts only. Live provider NOT_RUN.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest-2/issues/33",
+        "https://github.com/TFourniax/tooltest-2/blob/13debfe3a6d609cf4ea08846aedfc48e46e9df21/docs/qualification/PROJECT_SCAN_GAP_20261010.md"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "A3",
@@ -689,9 +913,14 @@
       "gap": "Live provider NOT_RUN; no key requested in conversation",
       "corrective_task": "Qualify offline transport independently; operator owns real provider step",
       "acceptance": "changed digest rejected; source/memory opt-in packet",
-      "evidence": "local-byok-navigation.log: 7/7 targeted transport/navigation tests",
-      "MACHINE": "TARGETED_PASS; live provider NOT_RUN",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Local test/byok.test.mjs and protected storage paths in full 3-OS/3-Node matrix: https://github.com/TFourniax/tooltest-2/actions/runs/38049900432; offline and mocked provider contracts only. Live provider NOT_RUN.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest-2/issues/33",
+        "https://github.com/TFourniax/tooltest-2/blob/13debfe3a6d609cf4ea08846aedfc48e46e9df21/docs/qualification/PROJECT_SCAN_GAP_20261010.md"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "A4",
@@ -702,9 +931,14 @@
       "gap": "Live provider NOT_RUN; no key requested in conversation",
       "corrective_task": "Qualify offline transport independently; operator owns real provider step",
       "acceptance": "live tariffs/key-cap mocks; budget, timeout, oversize, cancellation",
-      "evidence": "local-byok-navigation.log: 7/7 targeted transport/navigation tests",
-      "MACHINE": "TARGETED_PASS; live provider NOT_RUN",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Local test/byok.test.mjs and protected storage paths in full 3-OS/3-Node matrix: https://github.com/TFourniax/tooltest-2/actions/runs/38049900432; offline and mocked provider contracts only. Live provider NOT_RUN.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest-2/issues/33",
+        "https://github.com/TFourniax/tooltest-2/blob/13debfe3a6d609cf4ea08846aedfc48e46e9df21/docs/qualification/PROJECT_SCAN_GAP_20261010.md"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "A5",
@@ -715,9 +949,14 @@
       "gap": "Live provider NOT_RUN; no key requested in conversation",
       "corrective_task": "Qualify offline transport independently; operator owns real provider step",
       "acceptance": "401/403/429/offline/invalid JSON/unknown billing tests",
-      "evidence": "local-byok-navigation.log: 7/7 targeted transport/navigation tests",
-      "MACHINE": "TARGETED_PASS; live provider NOT_RUN",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Local test/byok.test.mjs and protected storage paths in full 3-OS/3-Node matrix: https://github.com/TFourniax/tooltest-2/actions/runs/38049900432; offline and mocked provider contracts only. Live provider NOT_RUN.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest-2/issues/33",
+        "https://github.com/TFourniax/tooltest-2/blob/13debfe3a6d609cf4ea08846aedfc48e46e9df21/docs/qualification/PROJECT_SCAN_GAP_20261010.md"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "A6",
@@ -728,9 +967,14 @@
       "gap": "Live provider NOT_RUN; no key requested in conversation",
       "corrective_task": "Qualify offline transport independently; operator owns real provider step",
       "acceptance": "unknown citation rejection; no state/Proof/debt writer",
-      "evidence": "local-byok-navigation.log: 7/7 targeted transport/navigation tests",
-      "MACHINE": "TARGETED_PASS; live provider NOT_RUN",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Local test/byok.test.mjs and protected storage paths in full 3-OS/3-Node matrix: https://github.com/TFourniax/tooltest-2/actions/runs/38049900432; offline and mocked provider contracts only. Live provider NOT_RUN.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest-2/issues/33",
+        "https://github.com/TFourniax/tooltest-2/blob/13debfe3a6d609cf4ea08846aedfc48e46e9df21/docs/qualification/PROJECT_SCAN_GAP_20261010.md"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "A7",
@@ -741,9 +985,14 @@
       "gap": "Live provider NOT_RUN; no key requested in conversation",
       "corrective_task": "Qualify offline transport independently; operator owns real provider step",
       "acceptance": "operator-capped key recipe with latency/tokens/provider cost and human corpus",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Local test/byok.test.mjs and protected storage paths in full 3-OS/3-Node matrix: https://github.com/TFourniax/tooltest-2/actions/runs/38049900432; offline and mocked provider contracts only. Live provider NOT_RUN.",
+      "MACHINE": "FIXTURES_READY; HUMAN/live-provider acceptance NOT_RUN",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest-2/issues/33",
+        "https://github.com/TFourniax/tooltest-2/blob/13debfe3a6d609cf4ea08846aedfc48e46e9df21/docs/qualification/PROJECT_SCAN_GAP_20261010.md"
+      ],
+      "qualification_note": "The corpus/provider recipe exists; its acceptance outcome has not been measured by an operator."
     },
     {
       "id": "P1",
@@ -754,9 +1003,13 @@
       "gap": "Strategic blueprint status is interpreted with §20 roadmap and specific current Alpha issues",
       "corrective_task": "Verify relevant current scope without silently expanding or deferring Alpha",
       "acceptance": "forged authority, mismatch, absence and zero tests",
-      "evidence": "portal-understanding-final.log: actual validator and same-receipt assessment boundary PASS; DB NOT_RUN",
-      "MACHINE": "BOUNDARY_PASS; full UI/DB pending",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Portal strict boundary, app, memory/browser, actual longitudinal/restore and golden jobs: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207; bounded received metadata only, no local source acquisition or new canonical authority.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/idleproof-portal/blob/7d8f2847ad1e717a97270750958b4cf243db4aab/docs/COMMERCIAL_CONTROL_PLANE_BLUEPRINT.md"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "P2",
@@ -767,9 +1020,13 @@
       "gap": "Strategic blueprint status is interpreted with §20 roadmap and specific current Alpha issues",
       "corrective_task": "Verify relevant current scope without silently expanding or deferring Alpha",
       "acceptance": "browser comparison/citation checks",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Portal strict boundary, app, memory/browser, actual longitudinal/restore and golden jobs: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207; bounded received metadata only, no local source acquisition or new canonical authority.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; combined user acceptance PARTIAL until HUMAN recipe",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/idleproof-portal/blob/7d8f2847ad1e717a97270750958b4cf243db4aab/docs/COMMERCIAL_CONTROL_PLANE_BLUEPRINT.md"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "P3",
@@ -780,9 +1037,13 @@
       "gap": "Strategic blueprint status is interpreted with §20 roadmap and specific current Alpha issues",
       "corrective_task": "Verify relevant current scope without silently expanding or deferring Alpha",
       "acceptance": "explicit consent/cap/reservation; no auto paid request",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Portal strict boundary, app, memory/browser, actual longitudinal/restore and golden jobs: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207; bounded received metadata only, no local source acquisition or new canonical authority.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/idleproof-portal/blob/7d8f2847ad1e717a97270750958b4cf243db4aab/docs/COMMERCIAL_CONTROL_PLANE_BLUEPRINT.md"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "P4",
@@ -793,9 +1054,13 @@
       "gap": "Strategic blueprint status is interpreted with §20 roadmap and specific current Alpha issues",
       "corrective_task": "Verify relevant current scope without silently expanding or deferring Alpha",
       "acceptance": "source/secret sentinel absence; forbidden-field rejection",
-      "evidence": "portal-understanding-final.log: actual validator and same-receipt assessment boundary PASS; DB NOT_RUN",
-      "MACHINE": "BOUNDARY_PASS; full UI/DB pending",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Portal strict boundary, app, memory/browser, actual longitudinal/restore and golden jobs: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207; bounded received metadata only, no local source acquisition or new canonical authority.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/idleproof-portal/blob/7d8f2847ad1e717a97270750958b4cf243db4aab/docs/COMMERCIAL_CONTROL_PLANE_BLUEPRINT.md"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "P5",
@@ -806,9 +1071,13 @@
       "gap": "Strategic blueprint status is interpreted with §20 roadmap and specific current Alpha issues",
       "corrective_task": "Verify relevant current scope without silently expanding or deferring Alpha",
       "acceptance": "Portal portability/longitudinal gates; G8/G9",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Portal strict boundary, app, memory/browser, actual longitudinal/restore and golden jobs: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207; bounded received metadata only, no local source acquisition or new canonical authority.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/idleproof-portal/blob/7d8f2847ad1e717a97270750958b4cf243db4aab/docs/COMMERCIAL_CONTROL_PLANE_BLUEPRINT.md"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "P6",
@@ -819,9 +1088,13 @@
       "gap": "Strategic blueprint status is interpreted with §20 roadmap and specific current Alpha issues",
       "corrective_task": "Verify relevant current scope without silently expanding or deferring Alpha",
       "acceptance": "global corpus/intent versus proof; Portal exact snapshot history",
-      "evidence": "Pending frozen-candidate result",
-      "MACHINE": "PENDING",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Portal strict boundary, app, memory/browser, actual longitudinal/restore and golden jobs: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207; bounded received metadata only, no local source acquisition or new canonical authority.",
+      "MACHINE": "PASS_BOUNDED_AUTOMATED_SCOPE; HUMAN acceptance separate",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/idleproof-portal/blob/7d8f2847ad1e717a97270750958b4cf243db4aab/docs/COMMERCIAL_CONTROL_PLANE_BLUEPRINT.md"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "X1",
@@ -832,9 +1105,16 @@
       "gap": "WSL reboot, operator repair and historical limits not solved by this lot",
       "corrective_task": "Run new disposable MACHINE tests; operator independently signs HUMAN",
       "acceptance": "cold boot, stop/start, no orphan, identity recovery",
-      "evidence": "Historical #47 remains authoritative",
-      "MACHINE": "NOT_RUN",
-      "HUMAN": "NOT_RUN"
+      "evidence": "PROJECT_UNDERSTANDING_MACHINE.json; Portal job114208298713 and #47 historical HUMAN record",
+      "MACHINE": "NEW_DISPOSABLE_LINUX_LIFECYCLE_PASS; historical H12/H15 reservations unchanged; operator reboot NOT_RUN",
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest-2/issues/32",
+        "https://github.com/TFourniax/idleproof-portal/issues/45",
+        "https://github.com/TFourniax/idleproof-portal/issues/46",
+        "https://github.com/TFourniax/idleproof-portal/issues/47"
+      ],
+      "qualification_note": "PASS applies only to the named automated fixtures and captured source heads; it is not an Alpha criterion closure or a HUMAN result."
     },
     {
       "id": "X2",
@@ -847,7 +1127,11 @@
       "acceptance": "exact-head CI reports; no re-run silently replaces a failure",
       "evidence": "Registry #74 follow-ups",
       "MACHINE": "OPEN",
-      "HUMAN": "NOT_RUN"
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/tooltest/issues/74"
+      ],
+      "qualification_note": "Existing registry blocker or documented strategic horizon retained; no implementation or acceptance closure is claimed by this lot."
     },
     {
       "id": "X3",
@@ -860,7 +1144,12 @@
       "acceptance": "Roadmap review, not an invented deferral",
       "evidence": "Blueprint §20 delegates implementation horizon to roadmap",
       "MACHINE": "NOT_APPLICABLE",
-      "HUMAN": "NOT_RUN"
+      "HUMAN": "NOT_RUN",
+      "exact_references": [
+        "https://github.com/TFourniax/idleproof-portal/blob/7d8f2847ad1e717a97270750958b4cf243db4aab/docs/COMMERCIAL_CONTROL_PLANE_DELTA_AND_ROADMAP.md"
+      ],
+      "qualification_note": "Existing registry blocker or documented strategic horizon retained; no implementation or acceptance closure is claimed by this lot."
     }
-  ]
+  ],
+  "evidenceManifest": "PROJECT_UNDERSTANDING_MACHINE.json"
 }

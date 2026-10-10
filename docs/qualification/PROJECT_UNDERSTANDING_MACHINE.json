@@ -1,0 +1,713 @@
+{
+  "schema": "idleproof.project-understanding-qualification.v1",
+  "date": "2026-10-10",
+  "classification": "MACHINE",
+  "machineGate": "PASS",
+  "human": "NOT_RUN",
+  "release": "NOT_ALPHA_READY",
+  "scope": "Integrated candidate for human acceptance. Automated success does not close HUMAN, live-provider, private-host or unrelated registry Alpha criteria.",
+  "documentationPlacement": "Final evidence is a separate documentation-only branch based on the qualified Local head. It does not replace or requalify the three immutable source heads.",
+  "candidateSources": [
+    {
+      "repository": "TFourniax/tooltest",
+      "head": "0933d5caebc087b4f2321e283879dd2a83d54d17",
+      "tree": "a4317bdc5884eea88320ad83718d63afb9c91adb",
+      "localHead": "6cf1db98a29d25109e1950418c9dabda170626f3",
+      "pr": 133,
+      "origin": "PR #132 at 018eae598b6c048b6c072c49cf1c124c9b46f13b"
+    },
+    {
+      "repository": "TFourniax/tooltest-2",
+      "head": "6f06cb3291ac56bd38fbd761d40ff54827a708e0",
+      "tree": "07025e7b29a3281313b161c5342b0219a3ec289d",
+      "localHead": "86051124f65a6e69cfd8ee1fc01f1411412ea343",
+      "pr": 37,
+      "origin": "PR #36 at 13debfe3a6d609cf4ea08846aedfc48e46e9df21 includes #31 at 0ae23a51e526659aa54a5f977b19f9fa5f2adc74; combined with #28 at 7f6d041550b1c33ef64a72d441e7b4e6d737eda6"
+    },
+    {
+      "repository": "TFourniax/idleproof-portal",
+      "head": "198215fb8a2dcc16d6f381fba13603821306b8f6",
+      "tree": "cc08b54ad3e996cec42015acc533689718591e69",
+      "localHead": "bde318f81315d00ad6b0ff69ffc6947cdc4e21b9",
+      "pr": 50,
+      "origin": "PR #44 at 7d8f2847ad1e717a97270750958b4cf243db4aab"
+    }
+  ],
+  "crossRepositoryPins": {
+    "localWorkflowCore": "0933d5caebc087b4f2321e283879dd2a83d54d17",
+    "portalWorkflowCore": "0933d5caebc087b4f2321e283879dd2a83d54d17",
+    "portalWorkflowLocal": "6f06cb3291ac56bd38fbd761d40ff54827a708e0"
+  },
+  "requiredRuns": [
+    {
+      "repository": "TFourniax/tooltest",
+      "id": 38049806696,
+      "name": "test",
+      "head": "0933d5caebc087b4f2321e283879dd2a83d54d17",
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "url": "https://github.com/TFourniax/tooltest/actions/runs/38049806696",
+      "createdAt": "2026-10-10T11:50:11Z",
+      "updatedAt": "2026-10-10T12:08:09Z"
+    },
+    {
+      "repository": "TFourniax/tooltest",
+      "id": 38049806732,
+      "name": "proofbench",
+      "head": "0933d5caebc087b4f2321e283879dd2a83d54d17",
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "url": "https://github.com/TFourniax/tooltest/actions/runs/38049806732",
+      "createdAt": "2026-10-10T11:50:11Z",
+      "updatedAt": "2026-10-10T11:50:27Z"
+    },
+    {
+      "repository": "TFourniax/tooltest",
+      "id": 38049806716,
+      "name": "continuitybench",
+      "head": "0933d5caebc087b4f2321e283879dd2a83d54d17",
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "url": "https://github.com/TFourniax/tooltest/actions/runs/38049806716",
+      "createdAt": "2026-10-10T11:50:11Z",
+      "updatedAt": "2026-10-10T11:50:27Z"
+    },
+    {
+      "repository": "TFourniax/tooltest",
+      "id": 38049806713,
+      "name": "integrated-product-smoke",
+      "head": "0933d5caebc087b4f2321e283879dd2a83d54d17",
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "url": "https://github.com/TFourniax/tooltest/actions/runs/38049806713",
+      "createdAt": "2026-10-10T11:50:11Z",
+      "updatedAt": "2026-10-10T11:50:35Z"
+    },
+    {
+      "repository": "TFourniax/tooltest-2",
+      "id": 38049900432,
+      "name": "test",
+      "head": "6f06cb3291ac56bd38fbd761d40ff54827a708e0",
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "url": "https://github.com/TFourniax/tooltest-2/actions/runs/38049900432",
+      "createdAt": "2026-10-10T11:51:44Z",
+      "updatedAt": "2026-10-10T12:03:39Z"
+    },
+    {
+      "repository": "TFourniax/tooltest-2",
+      "id": 38049900449,
+      "name": "project-understanding",
+      "head": "6f06cb3291ac56bd38fbd761d40ff54827a708e0",
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "url": "https://github.com/TFourniax/tooltest-2/actions/runs/38049900449",
+      "createdAt": "2026-10-10T11:51:44Z",
+      "updatedAt": "2026-10-10T11:55:27Z"
+    },
+    {
+      "repository": "TFourniax/idleproof-portal",
+      "id": 38050438207,
+      "name": "prealpha-hosted-release-gates",
+      "head": "198215fb8a2dcc16d6f381fba13603821306b8f6",
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "url": "https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207",
+      "createdAt": "2026-10-10T12:01:01Z",
+      "updatedAt": "2026-10-10T12:11:03Z"
+    }
+  ],
+  "pullRequestObservations": [
+    {
+      "repository": "TFourniax/tooltest",
+      "pr": 132,
+      "url": "https://github.com/TFourniax/tooltest/pull/132",
+      "head": "018eae598b6c048b6c072c49cf1c124c9b46f13b",
+      "base": "61dbf48c0dcff3a7c7e569d7074570a9e5762e1c",
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "mergeable": true,
+      "updatedAt": "2026-10-09T15:22:14Z"
+    },
+    {
+      "repository": "TFourniax/tooltest",
+      "pr": 133,
+      "url": "https://github.com/TFourniax/tooltest/pull/133",
+      "head": "0933d5caebc087b4f2321e283879dd2a83d54d17",
+      "base": "61dbf48c0dcff3a7c7e569d7074570a9e5762e1c",
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "mergeable": true,
+      "updatedAt": "2026-10-10T11:50:07Z"
+    },
+    {
+      "repository": "TFourniax/tooltest-2",
+      "pr": 28,
+      "url": "https://github.com/TFourniax/tooltest-2/pull/28",
+      "head": "7f6d041550b1c33ef64a72d441e7b4e6d737eda6",
+      "base": "7725057396e196004f6456f0e19dca45beefa66e",
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "mergeable": true,
+      "updatedAt": "2026-10-09T14:27:45Z"
+    },
+    {
+      "repository": "TFourniax/tooltest-2",
+      "pr": 31,
+      "url": "https://github.com/TFourniax/tooltest-2/pull/31",
+      "head": "0ae23a51e526659aa54a5f977b19f9fa5f2adc74",
+      "base": "7725057396e196004f6456f0e19dca45beefa66e",
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "mergeable": true,
+      "updatedAt": "2026-10-10T08:20:21Z"
+    },
+    {
+      "repository": "TFourniax/tooltest-2",
+      "pr": 36,
+      "url": "https://github.com/TFourniax/tooltest-2/pull/36",
+      "head": "13debfe3a6d609cf4ea08846aedfc48e46e9df21",
+      "base": "0ae23a51e526659aa54a5f977b19f9fa5f2adc74",
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "mergeable": true,
+      "updatedAt": "2026-10-10T08:45:37Z"
+    },
+    {
+      "repository": "TFourniax/tooltest-2",
+      "pr": 37,
+      "url": "https://github.com/TFourniax/tooltest-2/pull/37",
+      "head": "6f06cb3291ac56bd38fbd761d40ff54827a708e0",
+      "base": "7725057396e196004f6456f0e19dca45beefa66e",
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "mergeable": true,
+      "updatedAt": "2026-10-10T11:51:41Z"
+    },
+    {
+      "repository": "TFourniax/idleproof-portal",
+      "pr": 44,
+      "url": "https://github.com/TFourniax/idleproof-portal/pull/44",
+      "head": "7d8f2847ad1e717a97270750958b4cf243db4aab",
+      "base": "459cb7bffa5188e6b036e14463133fd3ec9dab24",
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "mergeable": true,
+      "updatedAt": "2026-10-09T23:04:49Z"
+    },
+    {
+      "repository": "TFourniax/idleproof-portal",
+      "pr": 50,
+      "url": "https://github.com/TFourniax/idleproof-portal/pull/50",
+      "head": "198215fb8a2dcc16d6f381fba13603821306b8f6",
+      "base": "459cb7bffa5188e6b036e14463133fd3ec9dab24",
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "mergeable": true,
+      "updatedAt": "2026-10-10T12:00:56Z"
+    }
+  ],
+  "integratedGolden": {
+    "schema": "idleproof.integrated-golden.v1",
+    "classification": "MACHINE",
+    "status": "PASS",
+    "human": "NOT_RUN",
+    "release": "NOT_ALPHA_READY",
+    "scope": "G1-G12 automated contracts, global project corpus and disposable Portal lifecycle",
+    "jobs": {
+      "project-understanding": {
+        "result": "success",
+        "outputs": {}
+      },
+      "app": {
+        "result": "success",
+        "outputs": {}
+      },
+      "edge": {
+        "result": "success",
+        "outputs": {}
+      },
+      "database-replay": {
+        "result": "success",
+        "outputs": {}
+      },
+      "continuity-producer": {
+        "result": "success",
+        "outputs": {}
+      },
+      "memory-browser": {
+        "result": "success",
+        "outputs": {}
+      },
+      "longitudinal-memory": {
+        "result": "success",
+        "outputs": {}
+      },
+      "alpha-local-launcher": {
+        "result": "success",
+        "outputs": {}
+      },
+      "auto-debt": {
+        "result": "success",
+        "outputs": {}
+      }
+    },
+    "limits": [
+      {
+        "criterion": "L6",
+        "id": "Supabase CLI publishes the local API, database and mailbox ports on every interface",
+        "verdict": "LIMIT",
+        "source": "harness"
+      },
+      {
+        "criterion": "L6",
+        "id": "session cookies are marked Secure; sign-in over http://localhost is tested with Chromium only",
+        "verdict": "LIMIT",
+        "source": "driver:l1"
+      },
+      {
+        "criterion": "L4",
+        "id": "the IdleProof client cannot detect that Portal went back to an earlier state: `portal status` describes its local queue only",
+        "verdict": "LIMIT",
+        "source": "driver:l4"
+      }
+    ],
+    "historicalReservations": [
+      "H12 PARTIAL: autonomous host reboot requires operator acceptance",
+      "H15 covered identities and assurance, not exhaustive advisory history"
+    ],
+    "unperformed": [
+      "live BYOK without operator key",
+      "technical and nontechnical human corpus acceptance",
+      "private installation compatibility on operator host"
+    ]
+  },
+  "automatedObservations": [
+    {
+      "scope": "Core full matrix",
+      "run": "https://github.com/TFourniax/tooltest/actions/runs/38049806696",
+      "jobsPassed": 24,
+      "platforms": [
+        "Linux",
+        "macOS",
+        "Windows"
+      ],
+      "python": [
+        "3.11",
+        "3.12",
+        "3.13",
+        "3.14"
+      ],
+      "includes": "source, installed wheel commercial journeys, installed optional grammars, standalone binary, package preflight, static checks",
+      "representative": {
+        "job": 114206540969,
+        "tests": 867,
+        "skipped": 53,
+        "failures": 0,
+        "seconds": 124.842
+      },
+      "skipMeaning": "The representative source-only run skips optional-provider tests; separate installed optional-provider jobs passed on all three OS. Counts must not be summed across matrices."
+    },
+    {
+      "scope": "Local full matrix",
+      "run": "https://github.com/TFourniax/tooltest-2/actions/runs/38049900432",
+      "jobsPassed": 24,
+      "platforms": [
+        "Linux",
+        "macOS",
+        "Windows"
+      ],
+      "node": [
+        "20",
+        "22",
+        "24"
+      ],
+      "representative": {
+        "job": 114206801745,
+        "tests": 480,
+        "passed": 476,
+        "skipped": 4,
+        "failures": 0
+      },
+      "skipMeaning": "Explicit real-Core opt-in tests skip in the ordinary unit command and run separately in the pinned project-understanding gate. Diagnostic job success does not close historical cold-start blockers."
+    },
+    {
+      "scope": "Portal complete hosted gate",
+      "run": "https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207",
+      "jobsPassed": 12,
+      "representativeApp": {
+        "job": 114208298631,
+        "files": 41,
+        "tests": 425,
+        "passed": 425,
+        "failures": 0
+      },
+      "includes": "Node22/24 build/typecheck/app, Deno edge, database replay from zero, continuity producers, Chromium, real stack memory/auto-debt/restore and fail-closed G1-G12 aggregation"
+    },
+    {
+      "scope": "Task-free real Core -> Local -> Portal validator",
+      "job": 114208298596,
+      "payloadBytes": 1994,
+      "sourceAbsent": true,
+      "forgedProofRejected": true,
+      "zeroChecksNotAssessed": true,
+      "legacyAccepted": true,
+      "database": "Separate launcher S1, not this boundary subtest"
+    },
+    {
+      "scope": "Actual Chromium project journey",
+      "job": 114208298596,
+      "checks": 6,
+      "passed": 6,
+      "checksCovered": [
+        "task-free explicit coverage",
+        "independent sourced behaviors and thresholds",
+        "captured source in two clicks",
+        "connections, owner intentions and unknowns",
+        "original Core event navigation",
+        "no browser errors or source execution"
+      ],
+      "human": "NOT_RUN"
+    },
+    {
+      "scope": "Disposable actual Portal alpha launcher",
+      "job": 114208298713,
+      "total": 97,
+      "passed": 94,
+      "failed": 0,
+      "limits": 3,
+      "criteria": [
+        "G6",
+        "G8",
+        "G9",
+        "L1",
+        "L2",
+        "L3",
+        "L4",
+        "L5",
+        "L6",
+        "S1"
+      ],
+      "proof": "G6 checks both DB and rendered original certificate after advisory sync. G8 replays original B after restore A; G9 repeats exact receipt with snapshot/assurance counts 1-to-1 and unchanged certificate."
+    },
+    {
+      "scope": "Disposable actual longitudinal memory",
+      "job": 114208298710,
+      "total": 73,
+      "passed": 73,
+      "failed": 0,
+      "additionalRecipe": {
+        "name": "project browser",
+        "total": 18,
+        "passed": 18
+      },
+      "countNote": "Intermediate 43/43 and 14/14 reports are not added as distinct final totals."
+    },
+    {
+      "scope": "Disposable actual auto debt",
+      "job": 114208298657,
+      "total": 10,
+      "passed": 10,
+      "failed": 0,
+      "criteria": "AD0-AD7: offline delivery, killed worker, concurrency, missing Core, exact identities"
+    },
+    {
+      "scope": "Golden real Core synthetic journey",
+      "report": "scripts/golden-core-journey.mjs; dedicated Local and Portal gates",
+      "changes": 3,
+      "discriminatingTests": 11,
+      "checks": "native Stop preserved; distinct canonical changes/certificates; actual prove/verify; DECLARED never promoted; positive debt budget-zero rejection; caught-up cursor; fixture IDs generated independently of private witness"
+    }
+  ],
+  "scopeEvidence": {
+    "S": "Core tests/test_structure_scan.py + structure/provider/transport suites and installed grammars: https://github.com/TFourniax/tooltest/actions/runs/38049806696; Local test/project-scan.test.mjs and test/project-corpus.test.mjs with actual pinned Core: https://github.com/TFourniax/tooltest-2/actions/runs/38049900449",
+    "U": "Local project-corpus, project-navigation, feature-review/provenance and project-browser-recipe.mjs; real Chromium job114208298596: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207. HUMAN scores/click acceptance remain NOT_RUN.",
+    "M": "Core continuity task/history/lifecycle/navigation/authority/writer suites and Local actual Core gate; Portal longitudinal job114208298710, launcher114208298713, app114208298631: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207. Human resumption remains separate.",
+    "G": "Strict integrated G1-G12 job114209987282 consuming actual reports; launcher114208298713, auto-debt114208298657, longitudinal114208298710 and real Core golden: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207",
+    "A": "Local test/byok.test.mjs and protected storage paths in full 3-OS/3-Node matrix: https://github.com/TFourniax/tooltest-2/actions/runs/38049900432; offline and mocked provider contracts only. Live provider NOT_RUN.",
+    "P": "Portal strict boundary, app, memory/browser, actual longitudinal/restore and golden jobs: https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207; bounded received metadata only, no local source acquisition or new canonical authority."
+  },
+  "firstFailures": [
+    {
+      "run": "https://github.com/TFourniax/tooltest/actions/runs/38047919815",
+      "head": "570bb0e132ff307776d88e0ba6bd3e28c1ad0884",
+      "failure": "Existing state-extract fast-path test caught unrelated structure parser initialization.",
+      "correction": "Initialize structure command only outside selected extraction fast path; retain original assertion.",
+      "resolvedAt": "0933d5caebc087b4f2321e283879dd2a83d54d17"
+    },
+    {
+      "run": "https://github.com/TFourniax/tooltest/actions/runs/38049345202",
+      "job": 114205155494,
+      "failure": "Windows Python 3.12+ lstat ctime and fstat ctime have different meanings; unchanged WORKTREE falsely rejected.",
+      "correction": "Compare common birthtime identity on Windows while retaining actual handle ctime before/after read and inode/mtime mutation rejection.",
+      "resolvedAt": "0933d5caebc087b4f2321e283879dd2a83d54d17"
+    },
+    {
+      "run": "https://github.com/TFourniax/tooltest-2/actions/runs/38049396803",
+      "job": 114205304478,
+      "failure": "Historical review-wording assertion expected feature changed instead of observations changed.",
+      "correction": "Require bounded observation wording, forbid architecture changed, retain ordering and refresh checks.",
+      "resolvedAt": "6f06cb3291ac56bd38fbd761d40ff54827a708e0"
+    },
+    {
+      "run": "https://github.com/TFourniax/idleproof-portal/actions/runs/38049532738",
+      "tests": 424,
+      "passed": 422,
+      "failed": 2,
+      "failure": "HEAD diagnostic enum missing from allowlist and zero-percent fixture lacked demonstrated checks; integrated gate correctly failed.",
+      "correction": "Non-error HEAD enum; explicit checked counts in wrong-answer fixture; dedicated zero/null/undefined Not assessed cases; same receipt counts/score; synthetic fixture IDs. Added actual rendered G6 certificate check.",
+      "resolvedAt": "198215fb8a2dcc16d6f381fba13603821306b8f6"
+    }
+  ],
+  "unperformed": [
+    "HUMAN technical and nontechnical acceptance of 40-fact/30-question corpus, >90% factual/provenance scores and all five priority paths under three clicks.",
+    "Live OpenRouter provider/key/model/cost validation and human usefulness; no key supplied or requested.",
+    "Autonomous reboot and installation compatibility on operator/private host; no access or modification of witness.",
+    "Independent code review and administrator branch-protection required-check configuration; empty prior review lists are not approval.",
+    "Private Engine runtime compatibility requiring proprietary installation: metadata/tree compatibility inspected only; no engine code copied or rebuilt."
+  ],
+  "historicalReservations": [
+    "H12 PARTIAL: autonomous reboot failed and required targeted human repair.",
+    "H15 demonstrates recovered identities/assurance and idempotence; no exhaustive advisory snapshot reconstruction.",
+    "Other #74 blockers retained: PM-012 100k performance, prior Windows/macOS cold first-call incidents and old-server delivery incident."
+  ],
+  "localDiagnostics": [
+    {
+      "scope": "Raw-source full Core in Windows sandbox",
+      "status": "FAIL_NONQUALIFYING_DIAGNOSTIC",
+      "tests": 866,
+      "failures": 7,
+      "errors": 41,
+      "skipped": 53,
+      "seconds": 2706.541,
+      "reason": "Missing installed dw/bundled sidecar and restricted MSYS local clone named objects; files changed during corrective work. Not an immutable qualification; hosted frozen source/installed matrices are authoritative. Original failed result retained."
+    },
+    {
+      "scope": "Full Local suite in Windows sandbox",
+      "status": "INCOMPLETE_INTERRUPTED_NONQUALIFYING",
+      "reason": "Very slow subprocess-heavy execution; deliberately interrupted after hosted immutable full matrices completed. Never PASS."
+    },
+    {
+      "scope": "Local browser/Portal stack",
+      "status": "NOT_RUN",
+      "reason": "Browser automation runtime missing Windows platform directory; Docker daemon permission denied; initial npm bootstrap failed. Hosted disposable stack and real Chromium passed separately. Local screenshot download DNS failed; screenshot not manually inspected."
+    }
+  ],
+  "artifacts": [
+    {
+      "id": 11669596844,
+      "name": "project-understanding",
+      "bytes": 1380203,
+      "digest": "sha256:c08a2fae6f44c2f7d6adab7c80cb4b3d28ffe19ea37585752f64f21d719a8967",
+      "createdAt": "2026-10-10T12:04:03Z",
+      "expiresAt": "2026-11-09T12:04:02Z",
+      "url": "https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207/artifacts/11669596844"
+    },
+    {
+      "id": 11669442559,
+      "name": "longitudinal-memory-recipe",
+      "bytes": 27922020,
+      "digest": "sha256:9271e9f4491480ca130277a3bf0cd768ffdf481653cc4dd8fa89718b665565a6",
+      "createdAt": "2026-10-10T12:10:42Z",
+      "expiresAt": "2026-11-09T12:10:40Z",
+      "url": "https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207/artifacts/11669442559"
+    },
+    {
+      "id": 11669182103,
+      "name": "memory-card-browser",
+      "bytes": 2039984,
+      "digest": "sha256:75b08938ec5a3714d66acebc5883d942e2e985c6b389ab7d0aeb1b3fd5bc955e",
+      "createdAt": "2026-10-10T12:01:52Z",
+      "expiresAt": "2026-11-09T12:01:50Z",
+      "url": "https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207/artifacts/11669182103"
+    },
+    {
+      "id": 11669177997,
+      "name": "integrated-golden-contracts",
+      "bytes": 1312,
+      "digest": "sha256:1eede905b53c12108d4bbed620b178bf0898f49471eeb5c42b7c60a6fb822b82",
+      "createdAt": "2026-10-10T12:11:00Z",
+      "expiresAt": "2027-01-08T12:01:01Z",
+      "url": "https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207/artifacts/11669177997"
+    },
+    {
+      "id": 11669078012,
+      "name": "alpha-local-launcher",
+      "bytes": 5473208,
+      "digest": "sha256:b38873d405734294442886280da592d86999d6773dc49609d1a0a56c9567c78e",
+      "createdAt": "2026-10-10T12:09:45Z",
+      "expiresAt": "2026-11-09T12:09:44Z",
+      "url": "https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207/artifacts/11669078012"
+    },
+    {
+      "id": 11668514588,
+      "name": "auto-debt",
+      "bytes": 4416683,
+      "digest": "sha256:c3cd34a8b22ea5a2260af819f604ff4939d5c926b8bc37a4063b08bce07079d5",
+      "createdAt": "2026-10-10T12:06:19Z",
+      "expiresAt": "2026-11-09T12:06:18Z",
+      "url": "https://github.com/TFourniax/idleproof-portal/actions/runs/38050438207/artifacts/11668514588"
+    }
+  ],
+  "retainedLocalLogs": [
+    "core-scan-freeze.log",
+    "core-transport-fix.log",
+    "core-windows-stamp-fix.log",
+    "local-scan-freeze.log",
+    "memory-answer.log",
+    "project-corpus.log",
+    "local-attribution.log",
+    "local-byok-navigation.log",
+    "portal-understanding-final.log",
+    "portal-boundary-correction.log",
+    "local-review-wording-fix.log",
+    "core-full-freeze.log",
+    "local-full-freeze.log"
+  ],
+  "sources": [
+    {
+      "url": "https://github.com/TFourniax/tooltest-2/issues/29",
+      "updatedAt": "2026-10-09T15:24:51Z",
+      "bodySha256": "9b4520325940af7ed8e0898f0d935c47ddf345b2335f990b701c6ab488c150a6"
+    },
+    {
+      "url": "https://github.com/TFourniax/tooltest-2/issues/30",
+      "updatedAt": "2026-10-09T22:49:12Z",
+      "bodySha256": "76893c8d5a50a16f44f1b177fc442cc565738f226ac474dc52e88ad3a8094849"
+    },
+    {
+      "url": "https://github.com/TFourniax/tooltest-2/issues/32",
+      "updatedAt": "2026-10-10T08:20:39Z",
+      "bodySha256": "284c71942b1ee1796d14312189618fbd590bac85f1dcfde67600ea2605fb0a5b"
+    },
+    {
+      "url": "https://github.com/TFourniax/tooltest-2/issues/33",
+      "updatedAt": "2026-10-09T23:12:53Z",
+      "bodySha256": "fb2a01654d4909dc8dc16d72e515100a02f4288576502b64378826cb76c8a39c"
+    },
+    {
+      "url": "https://github.com/TFourniax/tooltest-2/issues/34",
+      "updatedAt": "2026-10-09T23:13:45Z",
+      "bodySha256": "2418b18abe936fc0d3ed405ff4d01f513d2a22927ab39418d4087c23c895025f"
+    },
+    {
+      "url": "https://github.com/TFourniax/tooltest-2/issues/35",
+      "updatedAt": "2026-10-10T08:46:23Z",
+      "bodySha256": "a5a04bf7a77fae784a3aa5afcedc8f600500e8271724e5c07cb5c93e201dfe60"
+    },
+    {
+      "url": "https://github.com/TFourniax/idleproof-portal/issues/45",
+      "updatedAt": "2026-10-09T19:51:02Z",
+      "bodySha256": "d5f580765f9aab86d740e55627b1b02e2ca1c25d3cbc4924afa5a77184fe73d2"
+    },
+    {
+      "url": "https://github.com/TFourniax/idleproof-portal/issues/46",
+      "updatedAt": "2026-10-09T22:38:12Z",
+      "bodySha256": "02f1b7891e70de72f662294d4bafeb405b7d6513642dfb2e53138e8daa9919bf"
+    },
+    {
+      "url": "https://github.com/TFourniax/idleproof-portal/issues/47",
+      "updatedAt": "2026-10-09T23:16:10Z",
+      "bodySha256": "54e05bb2c672318bb5abf0762421cae9ffe01069cfe99bf0b953fba754db7a71"
+    },
+    {
+      "url": "https://github.com/TFourniax/idleproof-portal/issues/48",
+      "updatedAt": "2026-10-09T23:13:42Z",
+      "bodySha256": "188bdcd81c02bf4bfe607633dec5687bb80a48076126461394cbd0e250738d88"
+    }
+  ],
+  "registry": {
+    "url": "https://github.com/TFourniax/tooltest/issues/74",
+    "bodySha256": "909e1735150e9280f8b41e2697f6cd1fd4d5a95713ba714cf7f399bfd5167251",
+    "commentsRead": 216
+  },
+  "localLogs": [
+    {
+      "name": "core-full-freeze.log",
+      "sha256": "883ccf96b3ea5df4c81b77c3fd2c6ad975bb8d4a4865eba792fd9b135c0bf3f3",
+      "bytes": 252572
+    },
+    {
+      "name": "core-scan-freeze.log",
+      "sha256": "666a97ae07e5c5ce3b64d3b6e5555f6898ff38cf84e740729a307b2ef8847eb5",
+      "bytes": 2228
+    },
+    {
+      "name": "core-transport-fix.log",
+      "sha256": "fe06e28e4c408ba2d0d1eda0e838aa21deb01dbbcef8a41ac8e232fa5ac696bd",
+      "bytes": 2081
+    },
+    {
+      "name": "core-windows-stamp-fix.log",
+      "sha256": "ca6f7cd78f0820a98990ff1283db710eae12988654ad598642cdf6ebc565bb5a",
+      "bytes": 2402
+    },
+    {
+      "name": "local-attribution.log",
+      "sha256": "6f38e72959b2a01100ef000e26c02ea0a3a81c3081760645f0da47bab4e4eb76",
+      "bytes": 462
+    },
+    {
+      "name": "local-byok-navigation.log",
+      "sha256": "74063ca0badfd150bfb7d81cabdf23beec661322616fe3d3abf001ded8ab92cd",
+      "bytes": 922
+    },
+    {
+      "name": "local-full-freeze.log",
+      "sha256": "8ec0db847ecc72352212c95f3eb9f354812ae8c17f4474c4b01882bcb2a3e9e2",
+      "bytes": 11329
+    },
+    {
+      "name": "local-review-wording-fix.log",
+      "sha256": "58493ba31653b6a5e2d6abbea44e3bc21189ecc57e34d9780d907cf813c6fd7f",
+      "bytes": 594
+    },
+    {
+      "name": "local-scan-freeze.log",
+      "sha256": "74567031bb8d979f98bbbe39ef801ec3260beae4d6e3488d22df97a2eab3e0ad",
+      "bytes": 579
+    },
+    {
+      "name": "memory-answer.log",
+      "sha256": "f23d525a32eb822b7a05d5c08297c6e5abfd2355d8986c73da750779f3a5c086",
+      "bytes": 384
+    },
+    {
+      "name": "portal-boundary-correction.log",
+      "sha256": "e4aead24574fce6d66263c5467915790dacf07964b5057f8b2ff73a5fc806469",
+      "bytes": 500
+    },
+    {
+      "name": "portal-understanding-final.log",
+      "sha256": "ef102bb223dc95641b2b1b353306fa767bc54356b2c9f1acf9e416525df8c98f",
+      "bytes": 500
+    },
+    {
+      "name": "project-corpus.log",
+      "sha256": "12dd792bfdc9228ecdc450d257cdffb7be0a1539e6374e842471c924bd1bdd9e",
+      "bytes": 261
+    }
+  ]
+}
