@@ -18,7 +18,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           repository: TFourniax/tooltest
-          ref: 6fd2b24fcb605ec1856a155fffe89e6d370a1a80
+          ref: 0933d5caebc087b4f2321e283879dd2a83d54d17
           path: producer-core
           persist-credentials: false
       - uses: actions/setup-python@v7

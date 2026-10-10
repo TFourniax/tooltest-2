@@ -82,5 +82,6 @@ test('feature review queue puts drift and weak feature fluency ahead of routine 
   assert.equal(queue[0].featureKey, 'admin');
   assert.equal(queue[0].needsRefresh, true);
   assert.ok(queue.findIndex((item) => item.featureKey === 'invoices') < queue.findIndex((item) => item.featureKey === 'checkout'));
-  assert.match(queue[0].reason, /feature changed/i);
+  assert.match(queue[0].reason, /feature-model observations changed/i);
+  assert.doesNotMatch(queue[0].reason, /architecture changed/i);
 });
