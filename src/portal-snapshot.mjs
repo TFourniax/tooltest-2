@@ -97,6 +97,43 @@ function boundedInteger(value, label, max=2_147_483_647) {
   return value;
 }
 
+function structuralProjection(value) {
+  if(!value)return null;
+  const fail=()=>{throw new Error('Invalid bounded structural metadata projection.');};
+  if(value.schema!=='idleproof.portal-structure.v1'||value.source!=='HEAD'||value.proof!=='UNKNOWN'||value.runtimeGraph!==false||!/^dwscan_[a-f0-9]{64}$/.test(value.snapshotId)||!Number.isFinite(Date.parse(value.capturedAt))||!Array.isArray(value.components)||value.components.length>12||!Array.isArray(value.relations)||value.relations.length>16)fail();
+  for(const key of ['profileDigest','selectionDigest'])if(!/^[a-f0-9]{64}$/.test(value[key]))fail();
+  const inventory={};
+  for(const key of ['entries','read','parsed','excluded','omitted','unsupported','errors'])inventory[key]=boundedInteger(value.inventory?.[key],key,20000);
+  if(typeof value.inventory.complete!=='boolean'||inventory.read>inventory.entries||inventory.parsed>inventory.read)fail();
+  inventory.complete=value.inventory.complete;
+  const components=value.components.flatMap(c=>{
+    if(!c||cleanPath(c.path)!==c.path||IDENTITY_SECRET_PATTERNS.some(p=>p.test(c.path)))return [];
+    if(c.id!==`dwcomp_${digest(c.path).slice(0,24)}`||!/^[a-f0-9]{64}$/.test(c.sourceSha256)||c.roleAuthority!=='INFERRED'||!['production','test','manifest','configuration','ci','ddl','tooling','declared-document','unsupported'].includes(c.role))fail();
+    const operations=c.operations||[];
+    if(!Array.isArray(operations)||operations.length>3)fail();
+    const admitted=operations.map(o=>{if(o.authority!=='OBSERVED'||typeof o.name!=='string'||o.name.length>80)fail();return {name:redact(o.name,80),line:boundedInteger(o.line,'operation.line',1e7),conditions:boundedInteger(o.conditions,'operation.conditions',16),returns:boundedInteger(o.returns,'operation.returns',16),authority:'OBSERVED'};});
+    return [{id:c.id,path:c.path,sourceSha256:c.sourceSha256,role:c.role,roleAuthority:'INFERRED',declarations:boundedInteger(c.declarations,'declarations',100000),conditions:boundedInteger(c.conditions,'conditions',1024),operations:admitted,operationsOmitted:boundedInteger(c.operationsOmitted||0,'operationsOmitted',1e7)}];
+  });
+  const paths=new Set(components.map(c=>c.path));if(paths.size!==components.length)fail();
+  const relations=value.relations.flatMap(e=>{
+    if(!paths.has(e?.from)||!paths.has(e?.to))return [];
+    if(!/^dwedge_[a-f0-9]{24}$/.test(e.id)||e.predicate!=='imports'||e.authority!=='INFERRED')fail();
+    return [{id:e.id,from:e.from,to:e.to,predicate:'imports',authority:'INFERRED'}];
+  });
+  return {schema:value.schema,snapshotId:value.snapshotId,source:'HEAD',capturedAt:value.capturedAt,profileDigest:value.profileDigest,selectionDigest:value.selectionDigest,
+    inventory,components,relations,projection:{componentsOmitted:boundedInteger(value.projection?.componentsOmitted,'componentsOmitted',1e7)+value.components.length-components.length,
+      relationsOmitted:boundedInteger(value.projection?.relationsOmitted,'relationsOmitted',1e7)+value.relations.length-relations.length},proof:'UNKNOWN',runtimeGraph:false};
+}
+
+function humanAssessmentProjection(value) {
+  if(!value)return null;
+  if(value.schema!=='idleproof.human-assessment.v1')throw new Error('Invalid assessment projection');
+  const result={schema:value.schema};
+  for(const k of ['conceptsChecked','conceptsSeen','featuresChecked','featuresSeen'])result[k]=boundedInteger(value[k],k,1e7);
+  if(result.conceptsChecked>result.conceptsSeen||result.featuresChecked>result.featuresSeen)throw new Error('Invalid assessment denominator');
+  return result;
+}
+
 function epistemic(value) {
   const normalized=String(value || 'UNKNOWN').toUpperCase();
   return EPISTEMIC.has(normalized) ? normalized : 'UNKNOWN';
@@ -394,7 +431,9 @@ export function buildPortalSnapshot({ state={}, session=null, featureModel=null,
         boundaryNodes:Math.max(0,Number(projectModel.stats.boundaryNodes || 0))
       } : null,
       impact:{ blastRadius:Math.max(0,Number(projectModel.impact?.blastRadius || 0)) },
-      continuity
+      continuity,
+      ...(projectModel.assessment?{assessment:humanAssessmentProjection(projectModel.assessment)}:{}),
+      ...(projectModel.structure?{structure:structuralProjection(projectModel.structure)}:{})
     } : null,
     files:filePaths,
     privacy:{ sourceCodeIncluded:false, rawDiffIncluded:false, rawAgentEventsIncluded:false, rawPromptIncluded:false, secretsRedacted:true }

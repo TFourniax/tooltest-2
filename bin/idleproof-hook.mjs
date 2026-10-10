@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { processHookLifecycle } from '../src/hook.mjs';
 import { queueMatchingDiffWitnessAssurance } from '../src/ide-assurance.mjs';
-import { diffWitnessGateConfigured, diffWitnessRequiredFailure, runDiffWitnessIdeHook } from '../src/diffwitness-bridge.mjs';
+import { diffWitnessGateConfigured, diffWitnessRequiredFailure, runDiffWitnessIdeHook, stopAllowsCompletion } from '../src/diffwitness-bridge.mjs';
 import { readHookPayload } from '../src/hook-input.mjs';
 import { scheduleAutoDebt } from '../src/auto-debt.mjs';
 
@@ -75,7 +75,7 @@ async function run() {
     }
     if(eventName==='Stop'){
       output=combineStopOutput(output,diffResult);
-      const accepted=output?.decision!=='block';
+      const accepted=stopAllowsCompletion(output);
       queueAssurance(cwd,accepted?lifecycle?.completedIdentity??null:null);
       if(accepted) autoDebt();
     }

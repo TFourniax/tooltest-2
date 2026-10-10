@@ -26,10 +26,34 @@
       </article>
       <aside class="metric-grid">
         <article class="metric panel"><span>TASK RISK</span><strong id="runtimeRisk">0</strong><small>/100 · observed activity</small></article>
-        <article class="metric panel feature-metric"><span>FEATURE FLUENCY</span><strong id="featureFluency">0%</strong><small id="featureFluencyHint">mental models demonstrated</small></article>
+        <article class="metric panel feature-metric"><span>HUMAN FEATURE MASTERY</span><strong id="featureFluency">Not assessed</strong><small id="featureFluencyHint">mental models demonstrated</small></article>
         <article class="metric panel"><span>KNOWLEDGE DEBT</span><strong id="debt">0</strong><small>concepts exposed but not yet owned</small></article>
-        <article class="metric panel"><span>COGNITIVE COVERAGE</span><strong id="coverage">100%</strong><small>demonstrated concept recall</small></article>
+        <article class="metric panel"><span>HUMAN CONCEPT MASTERY</span><strong id="coverage">Not assessed</strong><small>demonstrated concept recall</small></article>
       </aside>
+    </section>
+
+    <section class="panel global-project" aria-labelledby="globalProjectTitle">
+      <div class="section-head"><div><span class="mini-label">PROJECT BASELINE + ACTIVE TASK</span><h2 id="globalProjectTitle">Understand the whole selected project</h2></div><label>View <select id="scanView"><option value="guided">Guided</option><option value="technical">Technical</option></select></label></div>
+      <p id="scanActiveTask" class="memory-intro">The current task remains visible above and within this project view.</p>
+      <div class="scan-controls"><label>Source <select id="scanSource"><option value="HEAD">Committed Git snapshot</option><option value="WORKTREE">Current working files (separate snapshot)</option></select></label><label>Selected documents (one exact path per line)<textarea id="scanDocuments" rows="2" placeholder="README.md&#10;docs/blueprint.md"></textarea></label><label><input type="checkbox" id="scanCI"> Include .github/workflows only</label><button id="scanStart" type="button">Scan selected project</button><button id="scanCancel" type="button">Pause</button><button id="scanResume" type="button">Resume</button></div>
+      <p class="memory-intro">Local static analysis. No project execution, dependency installation, AI key or upload. Selected documents describe intentions; they do not establish implemented or verified behavior.</p>
+      <p id="scanProgress" role="status" aria-live="polite">No global scan yet.</p><div id="scanCoverage"></div>
+      <div class="scan-controls"><label>Find a component, rule or reference <input id="scanFilter" type="search" placeholder="Search observed components"></label><button id="scanHandoff" type="button">Copy sourced handoff</button></div>
+      <div id="scanOverview"></div><div id="scanIntent"></div><div id="scanChanges"></div><div id="scanFiles"></div><div id="scanDuplicates"></div><div id="scanUnknowns"></div>
+      <details><summary>Recorded objectives, decisions, related tasks and assurance</summary><label>Question or exact memory identity <input id="scanMemoryQuery" placeholder="Current task is used when empty"></label><button id="scanMemoryLoad" type="button">Read bounded Core context</button><button id="scanMemoryAsk" type="button">Answer from recorded sources</button><pre id="scanMemory">No memory lookup requested. A structural scan does not invent recorded reasons.</pre></details>
+      <details id="optionalAI"><summary>Optional OpenRouter interpretation</summary>
+        <p id="aiStatus">Configuration is local. No credential is entered or displayed in this page.</p>
+        <button type="button" id="aiTestConnection">Test OpenRouter connection without sending project context</button>
+        <p>Interpretations remain INFERRED and need review. They never change Proof, debt, declared memory or human mastery. Configure a dedicated capped key from the CLI, as described in docs/OPENROUTER_LOCAL.md.</p>
+        <label>Question <input id="aiQuestion" value="Explain known behavior, unknowns and next discriminating tests."></label>
+        <label>Exact captured paths (one per line; empty means the first 12)<textarea id="aiPaths" rows="2"></textarea></label>
+        <label><input type="checkbox" id="aiIncludeSource"> Include bounded source descriptions and selected-document excerpts in the preview</label>
+        <label><input type="checkbox" id="aiIncludeMemory"> Include bounded recorded Core objectives, decisions and task context in the preview</label>
+        <button type="button" id="aiPreviewButton">Preview remote context locally</button>
+        <pre id="aiPreview">No preview prepared. No network request has been authorized.</pre>
+        <button type="button" id="aiSend" disabled>Send this preview to OpenRouter using my configured budget</button><button type="button" id="aiCancel">Cancel request</button>
+        <pre id="aiResult"></pre>
+      </details>
     </section>
 
     <section class="workspace">
@@ -102,5 +126,6 @@
   </main>
   <script type="module" src="/app.js"></script>
   <script type="module" src="/feature-review.js"></script>
+  <script type="module" src="/project-scan.js"></script>
 </body>
 </html>

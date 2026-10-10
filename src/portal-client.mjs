@@ -12,6 +12,7 @@ import { buildProjectModel } from './project-model.mjs';
 import { loadContinuityContext } from './continuity.mjs';
 import { taskContinuityQuery } from './task.mjs';
 import { withMemoryLock } from './portal-memory-lock.mjs';
+import { loadPortalStructureSummary } from './project-scan.mjs';
 
 const CONFIG_SCHEMA = 'idleproof.portal-config.v1';
 const DELIVERY_HEALTH_SCHEMA = 'idleproof.portal-delivery-health.v1';
@@ -118,6 +119,9 @@ export function buildPortalProjectModel(cwd, state, session, featureModel) {
   } catch { continuity=null; }
   let repoFingerprint=null;
   try { repoFingerprint=repositoryFingerprint(cwd); } catch {}
+  let structure=null;
+  try { structure=loadPortalStructureSummary(cwd); } catch {}
+  const checked=computeMetrics(state);
   return {
     repositoryFingerprint:repoFingerprint,
     stats:{
@@ -127,7 +131,10 @@ export function buildPortalProjectModel(cwd, state, session, featureModel) {
       boundaryNodes:Number(mental?.topology?.sharedBoundaries?.length || 0)
     },
     impact:{ blastRadius:Number(mental?.impact?.blastRadius || 0) },
-    continuity
+    continuity,
+    structure,
+    assessment:{schema:'idleproof.human-assessment.v1',conceptsChecked:checked.conceptsChecked,
+      conceptsSeen:checked.conceptsSeen,featuresChecked:checked.featuresChecked,featuresSeen:checked.featuresSeen}
   };
 }
 

@@ -529,6 +529,30 @@ test('a Core envelope that runs out of time counts as a failed attempt, up to th
   } finally { delete process.env.FAKE_DW_HANG; p.done(); }
 });
 
+test('Core bridge CLI origin survives later manual and IDE delivery without remeasurement', async () => {
+  const p=project(),received=[];
+  const debtFile=path.join(p.cwd,'..',`${path.basename(p.cwd)}-origin-debt.json`);
+  const envelopeFile=path.join(p.cwd,'.git','diffwitness','change-envelope.json');
+  try {
+    enableAutoDebt(p.cwd,{dw:p.dw});
+    completeChange(p.cwd,'app.py','def total(items):\n    # TODO: check\n    return sum(items)\n');
+    const job=__autoDebtTest.readJobs(p.cwd).jobs[0];
+    git(p.cwd,'add','-A');git(p.cwd,'commit','-qm','synthetic native change');
+    fs.mkdirSync(path.dirname(envelopeFile),{recursive:true});
+    execFileSync(process.execPath,[FAKE_DW,'debt','--repo',p.cwd,'--base','HEAD~1','--candidate','HEAD','--json',debtFile],{cwd:p.cwd});
+    execFileSync(process.execPath,[FAKE_DW,'envelope','--repo',p.cwd,'--base','HEAD~1','--candidate','HEAD','--debt',debtFile,'--out',envelopeFile],{cwd:p.cwd});
+    const original=fs.readFileSync(envelopeFile);
+    const invoke=source=>JSON.parse(spawnSync(process.execPath,[CLI,'portal','assurance','--envelope',envelopeFile,'--source',source,'--json'],{cwd:p.cwd,encoding:'utf8',timeout:30000}).stdout);
+    const native=invoke('ide');assert.equal(native.autoDebt.settled,true);
+    const manual=invoke('manual');assert.equal(manual.snapshotId,native.snapshotId);
+    assert.equal(autoDebtStatus(p.cwd,{probe:false}).changes.find(c=>c.changeId===job.changeId).source,'ide');
+    assert.equal((await runAutoDebtWorker(p.cwd,{fetchImpl:portalStub(received),deliverQueued:true})).results.length,0);
+    assert.equal(__autoDebtTest.readJobs(p.cwd).done.filter(c=>c.changeId===job.changeId).length,1);
+    assert.equal(withAssurance(received).filter(c=>c.change.changeId===job.changeId).length,1,JSON.stringify({received,status:autoDebtStatus(p.cwd,{probe:false}),queued:queued(p.cwd)}));
+    assert.deepEqual(fs.readFileSync(envelopeFile),original);
+  }finally{cleanup(debtFile);p.done();}
+});
+
 test('a manual assurance settles the automatic job of the same change: Core is not run again', async () => {
   const p = project();
   const received = [];

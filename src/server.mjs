@@ -22,6 +22,8 @@ import { createEvidenceBundle } from './evidence.mjs';
 import { acceptResponsibility, responsibilityReport } from './ownership.mjs';
 import { replayPolicy } from './replay.mjs';
 import { validateLocalRequest } from './local-http-security.mjs';
+import { projectScanView, scanProject, cancelProjectScan, projectSource, projectHandoff, watchProject, validScanSelection, scanStatus } from './project-scan.mjs';
+import { readContinuityEvent, readContinuityQuestion } from './continuity.mjs';
 
 const SECURITY_HEADERS = {
   'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'x-frame-options': 'DENY',
@@ -176,6 +178,7 @@ function writeServerInfoAtomic(file, info) {
 
 export function createServer({ cwd = process.cwd(), port = DEFAULT_PORT } = {}) {
   const instanceId = randomUUID();
+  let optionalInterpretation=null;
   const server = http.createServer(async (req, res) => {
     try {
       const boundary = validateLocalRequest(req);
@@ -184,6 +187,37 @@ export function createServer({ cwd = process.cwd(), port = DEFAULT_PORT } = {}) 
       const paths = projectPaths(cwd);
       if (url.pathname === '/api/health') return json(res, 200, { ok:true, product:'idleproof', plane:'local', pid:process.pid, instanceId });
       if (url.pathname === '/api/state' && req.method === 'GET') return json(res, 200, presentState(cwd));
+      if (url.pathname === '/api/ai/status' && req.method === 'GET') {
+        const {byokStatus}=await import('./byok.mjs');return json(res,200,byokStatus(cwd));
+      }
+      if (url.pathname === '/api/ai' && req.method === 'POST') {
+        const body=await readBody(req);
+        if(body.action==='cancel'){optionalInterpretation?.abort();return json(res,200,{cancelRequested:true});}
+        const {previewByok,interpretByok,testByokConnection}=await import('./byok.mjs');
+        if(body.action==='test')return json(res,200,await testByokConnection(cwd,{allowNetwork:body.allowNetwork===true}));
+        const options={source:body.source||'HEAD',paths:body.paths||[],includeSource:body.includeSource===true,includeMemory:body.includeMemory===true,question:body.question||'Explain known behavior, unknowns and next discriminating tests.'};
+        if(body.action==='preview')return json(res,200,previewByok(cwd,options));
+        if(body.action!=='explain')return json(res,400,{error:'Unknown optional interpretation action'});
+        if(optionalInterpretation)return json(res,409,{error:'An optional interpretation is already running'});
+        const controller=new AbortController();optionalInterpretation=controller;
+        res.once('close',()=>{if(!res.writableEnded)controller.abort();});
+        try{return json(res,200,await interpretByok(cwd,{...options,consentDigest:body.consentDigest},{signal:controller.signal}));}
+        finally{optionalInterpretation=null;}
+      }
+      if (url.pathname === '/api/project-scan' && req.method === 'GET') return json(res,200,projectScanView(cwd,url.searchParams.get('source')||'HEAD',{knownSnapshot:url.searchParams.get('known')}));
+      if (url.pathname === '/api/project-source' && req.method === 'GET') return json(res,200,await projectSource(cwd,url.searchParams.get('snapshot'),url.searchParams.get('path'),Number(url.searchParams.get('line')||1)));
+      if (url.pathname === '/api/project-memory-event' && req.method === 'GET') return json(res,200,readContinuityEvent(cwd,url.searchParams.get('id'),url.searchParams.get('hash')));
+      if (url.pathname === '/api/project-memory-question' && req.method === 'GET') return json(res,200,readContinuityQuestion(cwd,url.searchParams.get('query')));
+      if (url.pathname === '/api/project-handoff' && req.method === 'GET') return json(res,200,projectHandoff(cwd,url.searchParams.get('source')||'HEAD',(url.searchParams.get('query')||'').slice(0,1200)));
+      if (url.pathname === '/api/project-scan' && req.method === 'POST') {
+        const body=await readBody(req);
+        if(body.action==='cancel')return json(res,200,cancelProjectScan(cwd));
+        if(body.action!=='scan')return json(res,400,{error:'Unknown project scan action'});
+        if(!validScanSelection(body))return json(res,400,{error:'Invalid project selection'});
+        if(scanStatus(cwd).state==='running')return json(res,409,{error:'A project scan is already running'});
+        scanProject(cwd,{source:body.source||'HEAD',documents:body.documents||[],ci:body.ci===true,resume:body.resume||null}).catch(()=>{});
+        return json(res,202,{accepted:true});
+      }
       if (url.pathname === '/api/receipt' && req.method === 'GET') return artifactResponse(res, paths.receipt, 'receipt');
       if (url.pathname === '/api/receipt' && req.method === 'POST') return json(res, 200, buildReceipt(cwd));
       if (url.pathname === '/api/policy' && req.method === 'GET') return json(res, 200, loadPolicy(cwd));
@@ -248,6 +282,8 @@ export function createServer({ cwd = process.cwd(), port = DEFAULT_PORT } = {}) 
       const paths=projectPaths(cwd);
       fs.mkdirSync(paths.dir,{recursive:true});
       writeServerInfoAtomic(paths.server, info);
+      const stopProjectWatch=watchProject(cwd);
+      server.once('close',()=>{stopProjectWatch();optionalInterpretation?.abort();});
       resolve({ server, url:`http://127.0.0.1:${actualPort}`, instanceId });
     });
   });
